@@ -88,7 +88,7 @@ struct Radio {
  * The driver retransmits messages in case of a failure.
  */
 class AR62xxDevice final : public AbstractDevice {
-  static constexpr auto CMD_TIMEOUT = std::chrono::milliseconds(250); //!< Command timeout 
+  static constexpr auto CMD_TIMEOUT = std::chrono::milliseconds(250); //!< Command timeout
   static constexpr unsigned NR_RETRIES = 3; //!< No. retries to send command
 
   static constexpr char STX = 0x02; /* Command start character */
@@ -150,7 +150,7 @@ private:
    * This function sets the station name and frequency on the AR62xx
    */
   int 
-  SetAR620xStation(uint8_t *command, int active_passive, 
+  SetAR620xStation(uint8_t *command, int active_passive,
                    double f_frequency, const TCHAR* station) noexcept;
 
   /*
@@ -263,8 +263,8 @@ AR62xxDevice::DataReceived(std::span<const std::byte> s,
  * Writes the message to the serial port on which the radio is connected
  */
 bool 
-AR62xxDevice::Send(const uint8_t *msg, 
-                   unsigned msg_size, 
+AR62xxDevice::Send(const uint8_t *msg,
+                   unsigned msg_size,
                    OperationEnvironment &env)
 {
   //! Number of tries to send a message i.e. 3 retries, taken from KRT2-driver
@@ -280,7 +280,8 @@ AR62xxDevice::Send(const uint8_t *msg,
     b_sending = true;
 
     /* Send the message */
-    port.FullWrite(msg, msg_size, env, CMD_TIMEOUT);
+    std::span<const std::byte> sendbyte = (std::span<const std::byte>&) msg;
+    port.FullWrite(sendbyte, env, CMD_TIMEOUT);
     response = ACK;
 
     /* Wait for the response */
