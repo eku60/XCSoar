@@ -6,6 +6,7 @@
 #include "Device/Error.hpp"
 #include "Device/Port/Port.hpp"
 #include "time/TimeoutClock.hpp"
+#include "util/SpanCast.hxx"
 
 #include <algorithm> // for std::find_if()
 
@@ -161,7 +162,7 @@ FLARM::PrepareFrameHeader(unsigned sequence_number, MessageType message_type,
   header.version = 0;
   header.sequence_number = sequence_number++;
   header.type = message_type;
-  header.crc = CalculateCRC(header, payload.data(), payload.size());
+  header.crc = CalculateCRC(header, payload);
   return header;
 }
 
@@ -178,7 +179,7 @@ FlarmDevice::SendFrameHeader(const FLARM::FrameHeader &header,
                              OperationEnvironment &env,
                              std::chrono::steady_clock::duration timeout)
 {
-  SendEscaped(std::as_bytes(std::span{&header, 1}), env, timeout);
+  SendEscaped(ReferenceAsBytes(header), env, timeout);
 }
 
 bool
@@ -186,7 +187,7 @@ FlarmDevice::ReceiveFrameHeader(FLARM::FrameHeader &header,
                                 OperationEnvironment &env,
                                 std::chrono::steady_clock::duration timeout)
 {
-  return ReceiveEscaped(std::as_writable_bytes(std::span{&header, 1}),
+  return ReceiveEscaped(ReferenceAsWritableBytes(header),
                         env, timeout);
 }
 
@@ -223,7 +224,7 @@ FlarmDevice::WaitForACKOrNACK(uint16_t sequence_number,
       continue;
 
     // Verify CRC
-    if (header.crc != FLARM::CalculateCRC(header, data.data(), length))
+    if (header.crc != FLARM::CalculateCRC(header, {data.data(), length}))
       continue;
 
     // Check message type

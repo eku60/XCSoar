@@ -8,9 +8,10 @@
 
 #include <curl/curl.h>
 
-#include <utility>
-#include <stdexcept>
 #include <cstddef>
+#include <stdexcept>
+#include <string_view>
+#include <utility>
 
 /**
  * An OO wrapper for a "CURL*" (a libCURL "easy" handle).
@@ -124,6 +125,14 @@ public:
 		SetOption(CURLOPT_SSL_VERIFYPEER, (long)value);
 	}
 
+	void SetProxyVerifyHost(bool value) {
+		SetOption(CURLOPT_PROXY_SSL_VERIFYHOST, value ? 2L : 0L);
+	}
+
+	void SetProxyVerifyPeer(bool value) {
+		SetOption(CURLOPT_PROXY_SSL_VERIFYPEER, value);
+	}
+
 	void SetConnectTimeout(long timeout) {
 		SetOption(CURLOPT_CONNECTTIMEOUT, timeout);
 	}
@@ -165,6 +174,10 @@ public:
 	void SetRequestBody(const void *data, size_t size) {
 		SetOption(CURLOPT_POSTFIELDS, data);
 		SetOption(CURLOPT_POSTFIELDSIZE, (long)size);
+	}
+
+	void SetRequestBody(std::string_view s) {
+		SetRequestBody(s.data(), s.size());
 	}
 
 	void SetMimePost(const curl_mime *mime) {

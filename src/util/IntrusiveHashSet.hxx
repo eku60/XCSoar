@@ -19,7 +19,11 @@ struct IntrusiveHashSetOptions {
 	bool zero_initialized = false;
 };
 
-template<IntrusiveHookMode mode=IntrusiveHookMode::NORMAL>
+/**
+ * @param Tag an arbitrary tag type to allow using multiple base hooks
+ */
+template<IntrusiveHookMode mode=IntrusiveHookMode::NORMAL,
+	 typename Tag=void>
 struct IntrusiveHashSetHook {
 	using SiblingsHook = IntrusiveListHook<mode>;
 
@@ -36,12 +40,14 @@ struct IntrusiveHashSetHook {
 
 /**
  * For classes which embed #IntrusiveHashSetHook as base class.
+ *
+ * @param Tag selector for which #IntrusiveHashSetHook to use
  */
-template<typename T>
+template<typename T, typename Tag=void>
 struct IntrusiveHashSetBaseHookTraits {
 	/* a never-called helper function which is used by _Cast() */
 	template<IntrusiveHookMode mode>
-	static constexpr IntrusiveHashSetHook<mode> _Identity(const IntrusiveHashSetHook<mode> &) noexcept;
+	static constexpr IntrusiveHashSetHook<mode, Tag> _Identity(const IntrusiveHashSetHook<mode, Tag> &) noexcept;
 
 	/* another never-called helper function which "calls"
 	   _Identity(), implicitly casting the item to the
@@ -300,21 +306,22 @@ public:
 	 *
 	 * @param bucket the bucket returned by insert_check()
 	 */
-	constexpr void insert_commit(bucket_iterator bucket, reference item) noexcept {
+	constexpr bucket_iterator insert_commit(bucket_iterator bucket,
+						reference item) noexcept {
 		++counter;
 
 		/* using insert_after() so the new item gets inserted
 		   at the front of the bucket list */
-		GetBucket(ops.get_key(item)).insert_after(bucket, item);
+		return GetBucket(ops.get_key(item)).insert_after(bucket, item);
 	}
 
 	/**
 	 * Insert a new item without checking whether the key already
 	 * exists.
 	 */
-	constexpr void insert(reference item) noexcept {
+	constexpr bucket_iterator insert(reference item) noexcept {
 		++counter;
-		GetBucket(ops.get_key(item)).push_front(item);
+		return GetBucket(ops.get_key(item)).push_front(item);
 	}
 
 	constexpr bucket_iterator erase(bucket_iterator i) noexcept {

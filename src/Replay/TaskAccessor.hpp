@@ -7,53 +7,58 @@
 #include "Engine/Task/Ordered/OrderedTask.hpp"
 #include "Engine/Task/Ordered/Points/OrderedTaskPoint.hpp"
 
-class TaskAccessor {
+class TaskAccessor final {
   TaskManager &task_manager;
   const double floor_alt;
 
 public:
-  TaskAccessor(TaskManager &_task_manager, double _floor_alt)
+  TaskAccessor(TaskManager &_task_manager, double _floor_alt) noexcept
     :task_manager(_task_manager), floor_alt(_floor_alt) {}
 
   [[gnu::pure]]
-  bool IsOrdered() const {
+  bool IsOrdered() const noexcept {
     const TaskInterface *task = task_manager.GetActiveTask();
     return task != nullptr && task->GetType() == TaskType::ORDERED;
   }
 
   [[gnu::pure]]
-  virtual bool IsEmpty() const {
+  bool IsEmpty() const noexcept {
     const TaskInterface *task = task_manager.GetActiveTask();
     return task == nullptr || task->TaskSize() == 0;
   }
 
   [[gnu::pure]]
-  bool IsFinished() const {
+  bool IsFinished() const noexcept {
     return task_manager.GetOrderedTask().GetStats().task_finished;
   }
 
   [[gnu::pure]]
-  bool IsStarted() const {
+  bool IsStarted() const noexcept {
     return task_manager.GetOrderedTask().GetStats().start.HasStarted();
   }
 
   [[gnu::pure]]
-  GeoPoint GetRandomOZPoint(unsigned index, const double noise) const {
+  GeoPoint GetRandomOZPoint(unsigned index, const double noise) const noexcept {
     return task_manager.RandomPointInTask(index, noise);
   }
 
   [[gnu::pure]]
-  unsigned size() const {
-    return task_manager.TaskSize();
+  unsigned size() const noexcept {
+    const TaskInterface *task = task_manager.GetActiveTask();
+    return task != nullptr ? task->TaskSize() : 0;
   }
 
   [[gnu::pure]]
-  GeoPoint GetActiveTaskPointLocation() const {
-    return task_manager.GetActiveTaskPoint()->GetLocation();
+  GeoPoint GetActiveTaskPointLocation() const noexcept {
+    const TaskInterface *task = task_manager.GetActiveTask();
+    const auto *point = task != nullptr
+      ? task->GetActiveTaskPoint()
+      : nullptr;
+    return point != nullptr ? point->GetLocation() : GeoPoint::Invalid();
   }
 
   [[gnu::pure]]
-  bool HasEntered(unsigned index) const {
+  bool HasEntered(unsigned index) const noexcept {
     const TaskInterface *task = task_manager.GetActiveTask();
     if (task == nullptr || task->GetType() != TaskType::ORDERED)
       return true;
@@ -64,35 +69,38 @@ public:
   }
 
   [[gnu::pure]]
-  const ElementStat GetLegStats() const {
+  const ElementStat GetLegStats() const noexcept {
     return task_manager.GetStats().current_leg;
   }
 
   [[gnu::pure]]
-  double GetTargetHeight() const {
-    if (task_manager.GetActiveTaskPoint())
-      return std::max(floor_alt,
-                      task_manager.GetActiveTaskPoint()->GetElevation());
-    else
-      return floor_alt;
+  double GetTargetHeight() const noexcept {
+    const TaskInterface *task = task_manager.GetActiveTask();
+    if (task != nullptr) {
+      const auto *point = task->GetActiveTaskPoint();
+      if (point != nullptr)
+        return std::max(floor_alt, point->GetElevation());
+    }
+
+    return floor_alt;
   }
 
   [[gnu::pure]]
-  double GetRemainingAltitudeDifference() const {
+  double GetRemainingAltitudeDifference() const noexcept {
     return task_manager.GetStats().total.solution_remaining.altitude_difference;
   }
 
   [[gnu::pure]]
-  GlidePolar GetGlidePolar() const {
+  GlidePolar GetGlidePolar() const noexcept {
     return task_manager.GetGlidePolar();
   }
 
-  void SetActiveTaskPoint(unsigned index) {
+  void SetActiveTaskPoint(unsigned index) noexcept {
     task_manager.SetActiveTaskPoint(index);
   }
 
   [[gnu::pure]]
-  unsigned GetActiveTaskPointIndex() const {
+  unsigned GetActiveTaskPointIndex() const noexcept {
     return task_manager.GetActiveTaskPointIndex();
   }
 };

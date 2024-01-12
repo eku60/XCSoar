@@ -5,14 +5,14 @@
 #include "Open.hxx"
 #include "lib/fmt/PathFormatter.hpp"
 #include "lib/fmt/SystemError.hxx"
+#include "system/Path.hpp"
 
 #include <cassert>
 
 #ifdef _WIN32
 
-FileReader::FileReader(Path _path)
-	:path(_path),
-	 handle(CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+FileReader::FileReader(Path path)
+	:handle(CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
 			   nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
 			   nullptr))
 {
@@ -21,13 +21,13 @@ FileReader::FileReader(Path _path)
 }
 
 std::size_t
-FileReader::Read(void *data, std::size_t size)
+FileReader::Read(std::span<std::byte> dest)
 {
 	assert(IsDefined());
 
 	DWORD nbytes;
-	if (!ReadFile(handle, data, size, &nbytes, nullptr))
-		throw FmtLastError("Failed to read from {}", path);
+	if (!ReadFile(handle, dest.data(), dest.size(), &nbytes, nullptr))
+		throw MakeLastError("Failed to read from file");
 
 	return nbytes;
 }
@@ -54,19 +54,19 @@ FileReader::Skip(off_t offset)
 
 #else
 
-FileReader::FileReader(Path _path)
-	:path(_path), fd(OpenReadOnly(path.c_str()))
+FileReader::FileReader(Path path)
+	:fd(OpenReadOnly(path.c_str()))
 {
 }
 
 std::size_t
-FileReader::Read(void *data, std::size_t size)
+FileReader::Read(std::span<std::byte> dest)
 {
 	assert(IsDefined());
 
-	ssize_t nbytes = fd.Read(data, size);
+	ssize_t nbytes = fd.Read(dest);
 	if (nbytes < 0)
-		throw FmtErrno("Failed to read from {}", path);
+		throw MakeErrno("Failed to read from file");
 
 	return nbytes;
 }

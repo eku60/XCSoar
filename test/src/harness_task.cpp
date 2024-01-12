@@ -239,11 +239,12 @@ bool test_task_manip(TaskManager& task_manager,
   if (wp) {
     tp = fact.CreateIntermediate(TaskPointFactoryType::AST_CYLINDER,
                                  std::move(wp));
-    if (!fact.Replace(*tp,task_manager.TaskSize()-1)) return false;
+    if (!fact.Replace(*tp, task_manager.GetOrderedTask().TaskSize() - 1))
+      return false;
   }
 
   task_report(task_manager, "# removing finish point\n");
-  if (!fact.Remove(task_manager.TaskSize()-1)) {
+  if (!fact.Remove(task_manager.GetOrderedTask().TaskSize() - 1)) {
     return false;
   }
 
@@ -277,7 +278,7 @@ bool test_task_manip(TaskManager& task_manager,
 
   task_report(task_manager, "# checking task\n");
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   if (task_manager.CheckOrderedTask()) {
     task_manager.Reset();
@@ -318,7 +319,7 @@ bool test_task_type_manip(TaskManager& task_manager,
 
   AbstractTaskFactory &fact = task_manager.GetFactory();
   fact.MutateTPsToTaskType();
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   test_note("# checking mutated start..\n");
   if (!fact.IsValidStartType(fact.GetType(task_manager.GetOrderedTask().GetTaskPoint(0))))
@@ -327,10 +328,10 @@ bool test_task_type_manip(TaskManager& task_manager,
 
   char tmp[255];
   sprintf(tmp, "# checking mutated intermediates.  task_size():%d..\n",
-      task_manager.TaskSize());
+          task_manager.GetOrderedTask().TaskSize());
   test_note(tmp);
 
-  for (unsigned i = 1; i < (task_manager.TaskSize() - 1); i++) {
+  for (unsigned i = 1; i < task_manager.GetOrderedTask().TaskSize() - 1; i++) {
     sprintf(tmp, "# checking mutated intermediate point %d..\n", i);
     test_note(tmp);
     if (!fact.IsValidIntermediateType(fact.GetType(task_manager.GetOrderedTask().GetTaskPoint(i))))
@@ -339,7 +340,7 @@ bool test_task_type_manip(TaskManager& task_manager,
 
   test_note("# checking mutated finish..\n");
   if (!fact.IsValidFinishType(
-      fact.GetType(task_manager.GetOrderedTask().GetTaskPoint(task_manager.TaskSize() - 1))))
+      fact.GetType(task_manager.GetOrderedTask().GetTaskPoint(task_manager.GetOrderedTask().TaskSize() - 1))))
     return false;
 
   test_note("# validating task..\n");
@@ -449,7 +450,7 @@ bool test_task_mixed(TaskManager& task_manager,
     return false;
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# checking task\n");
   if (IsError(fact.Validate())) {
@@ -509,7 +510,7 @@ bool test_task_fai(TaskManager& task_manager,
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# checking task\n");
   if (IsError(fact.Validate())) {
@@ -579,7 +580,7 @@ bool test_task_aat(TaskManager& task_manager,
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# checking task..\n");
   if (IsError(fact.Validate())) {
@@ -640,7 +641,7 @@ test_task_mat(TaskManager &task_manager, const Waypoints &waypoints)
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# checking task..\n");
   if (IsError(fact.Validate())) {
@@ -692,7 +693,7 @@ bool test_task_or(TaskManager& task_manager,
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# checking task..\n");
   if (IsError(fact.Validate())) {
@@ -736,7 +737,7 @@ bool test_task_dash(TaskManager& task_manager,
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# checking task..\n");
   if (IsError(fact.Validate())) {
@@ -780,7 +781,7 @@ bool test_task_fg(TaskManager& task_manager,
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# checking task..\n");
   if (IsError(fact.Validate())) {
@@ -862,7 +863,7 @@ bool test_task_random(TaskManager& task_manager,
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   task_report(task_manager, "# validating task..\n");
   if (IsError(fact.Validate())) {
@@ -949,7 +950,7 @@ bool test_task_random_RT_AAT_FAI(TaskManager& task_manager,
     }
   }
 
-  fact.UpdateStatsGeometry();
+  fact.UpdateGeometry();
 
   test_note("# validating task..\n");
   if (IsError(fact.Validate())) {
@@ -973,7 +974,7 @@ bool test_task_random_RT_AAT_FAI(TaskManager& task_manager,
   task_manager.Resume();
   sprintf(tmp, "# SUCCESS CREATING %s task! task_size():%d..\n",
       tskType,
-      task_manager.TaskSize());
+      task_manager.GetOrderedTask().TaskSize());
   test_note(tmp);
   return true;
 }

@@ -1,10 +1,30 @@
-Version 7.40 - not yet released
+Version 7.42 - not yet released
+* data files
+  - fix bogus "Latin-1 to UTF-8 conversion failed" error
+* Kobo
+  - Wifi setup, display signal level in dBm for new models
+
+Version 7.41 - 2023/12/21
+* data files
+  - fix crash with empty user.cup
+* Android
+  - fix BLE/HM10 data corruption
+  - fix crash if IOIO connect was canceled quickly
+  - fix crash if not allowed to start service in foreground
+* Kobo
+  - fix Wifi setup (7.40 breakage)
+  - hide all pseudo tty ports
+
+Version 7.40 - 2023/11/02
 * user interface
   - Added infobox that combines ETA with AAT dT
   - FLARM: Add 100m zoom option.
   - hide mouse cursor after 10 seconds of inactivity
+  - Move glider icon on thermal assist according to 30s average.
 * Linux
   - fix the /etc/xcsoar data directory
+* Android
+  - raise targetSdkVersion to 33
 
 Version 7.39 - 2023/07/28
 * Android
