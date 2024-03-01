@@ -48,7 +48,7 @@ jobs:
           echo "DEBUG=n" >> $GITHUB_ENV
           echo "TARGET_FINAL=xcsoar" >> $GITHUB_ENV
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
       - id: cache-ccache
@@ -57,7 +57,7 @@ jobs:
           key: ${{ env.TARGET }}
 
       - name: "Cache Boost"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ env.BOOST }}-${{ hashFiles('lib/boost/patches/**') }}
           path: |
@@ -99,7 +99,7 @@ jobs:
           make -j$(nproc) TARGET=${{env.TARGET }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything check
 
       - name: upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.TARGET_FINAL }}-${{ env.git_hash }}${{ env.TARGET_EXT }}
           path: output/${{ env.TARGET }}/bin/${{ env.TARGET_BIN }}${{ env.TARGET_EXT }}
@@ -129,7 +129,7 @@ jobs:
 
     steps:
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
       - id: cache-ccache
@@ -141,7 +141,7 @@ jobs:
           echo "git_hash=$(git rev-parse --short $GITHUB_SHA)" >> $GITHUB_ENV
 
       - name: "Cache Boost"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ env.BOOST }}-${{ hashFiles('lib/boost/patches/**') }}
           path: |
@@ -193,7 +193,7 @@ jobs:
           echo "DEBUG=n" >> $GITHUB_ENV
 
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -203,7 +203,7 @@ jobs:
           key: ${{ env.TARGET }}
 
       - name: "Cache Boost"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ env.BOOST }}-${{ hashFiles('lib/boost/patches/**') }}
           path: |
@@ -212,7 +212,7 @@ jobs:
             ${{ github.workspace }}/output/src/${{ env.BOOST }}/boost
 
       - name: "Cache third-party libraries"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ runner.os }}-libs-${{ env.TARGET }}-${{ hashFiles('build/**') }}
           path: |
@@ -249,7 +249,7 @@ jobs:
             output/${{env.TARGET}}/${{ env.TARGET_BIN }}.${{ env.TARGET_EXT }}
 
       - name: upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.TARGET_FINAL }}-${{ env.git_hash }}.${{ env.TARGET_EXT }}
           path: output/${{env.TARGET}}/${{ env.TARGET_BIN }}.${{ env.TARGET_EXT }}
@@ -276,7 +276,7 @@ jobs:
       TARGET_BIN: XCSoar-debug
       TARGET_FINAL: XCSoar-debug
       TARGET_EXT: apk
-      NDK: r26b
+      NDK: r26c
 
     steps:
       - name: set vars for push
@@ -286,7 +286,7 @@ jobs:
           echo "TARGET_FINAL=XCSoar" >> $GITHUB_ENV
 
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -296,7 +296,7 @@ jobs:
           key: ${{ env.TARGET }}
 
       - name: "Cache Boost"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ env.BOOST }}-${{ hashFiles('lib/boost/patches/**') }}
           path: |
@@ -305,7 +305,7 @@ jobs:
             ${{ github.workspace }}/output/src/${{ env.BOOST }}/boost
 
       - name: "Cache third-party libraries"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ runner.os }}-libs-${{ env.TARGET }}-${{ hashFiles('build/**') }}
           path: |
@@ -349,7 +349,7 @@ jobs:
             V=2
 
       - name: upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.TARGET_FINAL }}-${{ env.git_hash }}.${{ env.TARGET_EXT }}
           path: output/ANDROID/bin/${{ env.TARGET_BIN }}.${{ env.TARGET_EXT }}
@@ -370,6 +370,8 @@ jobs:
 
   build-windows:
     runs-on: ubuntu-22.04
+    container:
+      image: debian:bookworm-slim
 
     env:
       TARGET: WIN64
@@ -383,10 +385,30 @@ jobs:
         run: |
           echo "DEBUG=n" >> $GITHUB_ENV
           echo "TARGET_FINAL=XCSoar" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git \
+            quilt \
+            make \
+            g++ \
+            g++-mingw-w64 \
+            ccache \
+            xz-utils \
+            pkgconf \
+            ca-certificates \
+            python3 \
+            librsvg2-bin xsltproc \
+            imagemagick gettext sox \
+            cmake ninja-build
+
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
+
       - id: cache-ccache
         uses: hendrikmuhs/ccache-action@v1
         with:
@@ -402,7 +424,7 @@ jobs:
             ${{ github.workspace }}/output/src/${{ env.BOOST }}/boost
 
       - name: "Cache third-party libraries"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ runner.os }}-libs-${{ env.TARGET }}-${{ hashFiles('build/**') }}
           path: |
@@ -413,31 +435,21 @@ jobs:
         run: |
           echo "git_hash=$(git rev-parse --short $GITHUB_SHA)" >> $GITHUB_ENV
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            make \
-            quilt \
-            g++ \
-            g++-mingw-w64 \
-            python3 \
-            librsvg2-bin xsltproc \
-            imagemagick gettext sox \
-            cmake ninja-build
+      - name: Patch mingw intrin.h (mingw64 v8 bug workaround)
+        run: sed -i -e '/extern.* __builtin/d' /usr/share/mingw-w64/include/intrin.h
 
       - name: Compile XCSoar
         run: |
           make -j$(nproc) TARGET=${{env.TARGET }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything
 
       - name: upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.TARGET_FINAL }}-${{ env.git_hash }}${{ env.TARGET_EXT }}
           path: output/${{ env.TARGET }}/bin/${{ env.TARGET_BIN }}${{ env.TARGET_EXT }}
 
       - name: store checks and compile artefacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: xcsoar-${{ env.TARGET }}-artifact
           path: |
@@ -469,9 +481,9 @@ jobs:
     needs: build-windows
     steps:
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: fetch artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: xcsoar-${{ env.TARGET }}-artifact
           path: ${{ github.workspace }}/output/${{ env.TARGET }}
@@ -487,7 +499,7 @@ jobs:
 
     steps:
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -556,12 +568,12 @@ jobs:
 
     steps:
       - id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: true
 
       - name: "Cache third-party libraries"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: ${{ runner.os }}-libs-${{ env.TARGET }}-${{ hashFiles('build/**') }}
           path: |

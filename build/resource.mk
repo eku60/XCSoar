@@ -39,10 +39,10 @@ $(SVG_NOALIAS_ICONS): $(DATA)/icons/%.svg: build/svg_preprocess.xsl Data/icons/%
 
 # render from SVG to PNG
 # Default 100PPI (eg 320x240 4" display)
-$(eval $(call rsvg-convert,$(PNG_ICONS),$(DATA)/icons/%.png,$(DATA)/icons/%.svg,--width=13,height=13))
+$(eval $(call rsvg-convert,$(PNG_ICONS),$(DATA)/icons/%.png,$(DATA)/icons/%.svg,--x-zoom=1.0 --y-zoom=1.0))
 
 #160PPI (eg 640x480 5" display)
-$(eval $(call rsvg-convert,$(PNG_ICONS_160),$(DATA)/icons/%_160.png,$(DATA)/icons/%.svg,--width=22,--height=22))
+$(eval $(call rsvg-convert,$(PNG_ICONS_160),$(DATA)/icons/%_160.png,$(DATA)/icons/%.svg,--x-zoom=1.6316 --y-zoom=1.6316))
 
 # convert to uncompressed 8-bit BMP
 $(eval $(call convert-to-bmp,$(BMP_ICONS) $(BMP_ICONS_160),%.bmp,%_tile.png))
@@ -168,15 +168,9 @@ $(TEXT_COMPRESSED): $(DATA)/%.gz: % | $(DATA)/dirstamp
 	$(Q)gzip --best <$< >$@.tmp
 	$(Q)mv $@.tmp $@
 
-RESOURCE_FILES = $(TEXT_COMPRESSED)
+RESOURCE_FILES =
 
-ifeq ($(TARGET),ANDROID)
-RESOURCE_FILES += $(patsubst po/%.po,$(OUT)/po/%.mo,$(wildcard po/*.po))
-else
-
-ifeq ($(TARGET_IS_KOBO),y)
-RESOURCE_FILES += $(patsubst po/%.po,$(OUT)/po/%.mo,$(wildcard po/*.po))
-endif
+ifeq ($(TARGET_IS_ANDROID),n)
 
 ifeq ($(USE_WIN32_RESOURCES),y)
 RESOURCE_FILES += $(BMP_BITMAPS)
@@ -207,30 +201,48 @@ endif
 
 endif
 
+$(TARGET_OUTPUT_DIR)/resources.txt: Data/resources.txt | $(TARGET_OUTPUT_DIR)/dirstamp $(compile-depends)
+	@$(NQ)echo "  CPP     $@"
+	$(Q)cat $< |$(CC) -E -o $@ -I$(OUT)/include $(TARGET_CPPFLAGS) $(OPENGL_CPPFLAGS) -
+
+ifeq ($(USE_WIN32_RESOURCES),y)
+
+$(TARGET_OUTPUT_DIR)/XCSoar.rc: $(TARGET_OUTPUT_DIR)/resources.txt Data/XCSoar.rc tools/GenerateWindowsResources.pl
+	@$(NQ)echo "  GEN     $@"
+	$(Q)cp Data/XCSoar.rc $@.tmp
+	$(Q)$(PERL) tools/GenerateWindowsResources.pl $< >>$@.tmp
+	$(Q)mv $@.tmp $@
+
+endif
+
 $(OUT)/include/resource.h: src/Resources.hpp | $(OUT)/include/dirstamp
 	@$(NQ)echo "  GEN     $@"
 	$(Q)$(PERL) -ne 'print "#define $$1 $$2\n" if /^MAKE_RESOURCE\((\w+), (\d+)\);/;' $< >$@.tmp
 	$(Q)mv $@.tmp $@
 
+ifeq ($(TARGET_IS_ANDROID),n)
+
 ifeq ($(USE_WIN32_RESOURCES),y)
 
-RESOURCE_TEXT = Data/XCSoar.rc
+RESOURCE_BINARY = $(TARGET_OUTPUT_DIR)/XCSoar.rsc
 
-RESOURCE_BINARY = $(TARGET_OUTPUT_DIR)/$(notdir $(RESOURCE_TEXT:.rc=.rsc))
-RESOURCE_FILES += $(patsubst po/%.po,$(OUT)/po/%.mo,$(wildcard po/*.po))
-
-$(RESOURCE_BINARY): $(RESOURCE_TEXT) $(OUT)/include/resource.h $(RESOURCE_FILES) | $(TARGET_OUTPUT_DIR)/%/../dirstamp
+$(TARGET_OUTPUT_DIR)/XCSoar.rsc: %.rsc: %.rc $(OUT)/include/resource.h $(RESOURCE_FILES) | $(TARGET_OUTPUT_DIR)/%/../dirstamp $(compile-depends)
 	@$(NQ)echo "  WINDRES $@"
-	$(Q)$(WINDRES) $(WINDRESFLAGS) -o $@ $<
+	$(Q)$(WINDRES) $(WINDRESFLAGS) --include-dir output/data --include-dir Data -o $@ $<
 
-else
+else # USE_WIN32_RESOURCES
 
-$(TARGET_OUTPUT_DIR)/resources.c: $(TARGET_OUTPUT_DIR)/XCSoar.rc $(OUT)/include/resource.h $(RESOURCE_FILES) tools/LinkResources.pl tools/BinToC.pm | $(TARGET_OUTPUT_DIR)/resources/dirstamp
+$(TARGET_OUTPUT_DIR)/resources.c: export TARGET_IS_ANDROID:=$(TARGET_IS_ANDROID)
+$(TARGET_OUTPUT_DIR)/resources.c: export ENABLE_OPENGL:=$(OPENGL)
+$(TARGET_OUTPUT_DIR)/resources.c: $(TARGET_OUTPUT_DIR)/resources.txt $(OUT)/include/resource.h $(RESOURCE_FILES) tools/LinkResources.pl tools/BinToC.pm | $(TARGET_OUTPUT_DIR)/resources/dirstamp
 	@$(NQ)echo "  GEN     $@"
-	$(Q)$(PERL) tools/LinkResources.pl $< $@
+	$(Q)$(PERL) tools/LinkResources.pl <$< >$@.tmp
+	$(Q)mv $@.tmp $@
 
 RESOURCES_SOURCES = $(TARGET_OUTPUT_DIR)/resources.c
 $(eval $(call link-library,resources,RESOURCES))
 RESOURCE_BINARY = $(RESOURCES_BIN)
 
 endif
+
+endif # !TARGET_IS_ANDROID
