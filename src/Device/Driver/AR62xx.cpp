@@ -88,7 +88,8 @@ struct Radio {
  * The driver retransmits messages in case of a failure.
  */
 class AR62xxDevice final : public AbstractDevice {
-  static constexpr auto CMD_TIMEOUT = std::chrono::milliseconds(250); //!< Command timeout
+  //!< Command timeout
+  static constexpr auto CMD_TIMEOUT = std::chrono::milliseconds(250);
   static constexpr unsigned NR_RETRIES = 3; //!< No. retries to send command
 
   static constexpr char STX = 0x02; /* Command start character */
@@ -261,10 +262,12 @@ AR62xxDevice::DataReceived(std::span<const std::byte> s,
 
 /**
  * Writes the message to the serial port on which the radio is connected
+ * KRT2Device::Send(std::span<const std::byte> msg,
  */
 bool 
 AR62xxDevice::Send(const uint8_t *msg,
-                   unsigned msg_size,
+//                   unsigned msg_size,
+                   [[maybe_unused]] unsigned msg_size,
                    OperationEnvironment &env)
 {
   //! Number of tries to send a message i.e. 3 retries, taken from KRT2-driver
@@ -278,11 +281,14 @@ AR62xxDevice::Send(const uint8_t *msg,
       response = NO_RSP;
     }
     b_sending = true;
-
+/**
+ * eku: 2024-03-05 geht so nicht
+ *    std::span<const std::byte> sendbyte = (std::span<const std::byte>&) msg;
+ */
     /* Send the message */
-    std::span<const std::byte> sendbyte = (std::span<const std::byte>&) msg;
-    port.FullWrite(sendbyte, env, CMD_TIMEOUT);
-    response = ACK;
+     port.FullWrite(reinterpret_cast<const char*> (msg), env, CMD_TIMEOUT);
+    // TODO(August2111): const char* or better with std::span...
+   response = ACK;
 
     /* Wait for the response */
     uint8_t _response;
@@ -430,7 +436,7 @@ int
 AR62xxDevice::SetAR620xStation(uint8_t *command,
                                int active_passive, 
                                double f_frequency,
-                               const TCHAR* station) noexcept
+                               [[maybe_unused]] const TCHAR* station) noexcept
 {
   unsigned int len = 0;
 
@@ -633,7 +639,8 @@ AR62xxCreateOnPort([[maybe_unused]] const DeviceConfig &config,
  */
 const struct DeviceRegister ar62xx_driver = {
   _T("AR62xx"),
-  _T("AR62xx"),
+  _T("Becker AR62xx"),
+//eku  _T("AR62xx"),
   DeviceRegister::NO_TIMEOUT | DeviceRegister::RAW_GPS_DATA,
   AR62xxCreateOnPort,
 };
