@@ -11,6 +11,10 @@
 #include <TargetConditionals.h>
 #endif
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+#include "Apple/KeyboardDetection.hpp"
+#endif
+
 /**
  * Returns whether this is a debug build.
  */
@@ -40,7 +44,7 @@ IsAndroid() noexcept
 }
 
 /**
- * Returns whether the application is running on an apple device
+ * Returns whether the application is running on an Apple device
  */
 constexpr
 static inline bool
@@ -54,7 +58,7 @@ IsApple() noexcept
 }
 
 /**
- * Returns whether the application is running on a Mac OS X device
+ * Returns whether the application is running on a macOS device
  */
 constexpr
 static inline bool
@@ -139,20 +143,26 @@ HasPointer() noexcept
 
 #endif
 
+#if !defined(USE_LIBINPUT) && !defined(USE_WAYLAND)
+#include "CommandLine.hpp"
+#endif
+
 /**
  * Does this device have a touch screen?  This is useful to know for
  * sizing controls, as a touch screen may require bigger areas.
+ * The @c -touchscreen and @c -notouchscreen switches (when the host
+ * supports the command line) can override autodetection.
  */
 #if defined(USE_LIBINPUT) || defined(USE_WAYLAND)
 [[gnu::pure]]
 bool
 HasTouchScreen() noexcept;
 #else
-constexpr
 static inline bool
 HasTouchScreen() noexcept
 {
-  return IsAndroid() || IsKobo() || IsIOS();
+  return CommandLine::ApplyTouchInputOverride(
+    IsAndroid() || IsKobo() || IsIOS());
 }
 #endif
 
@@ -165,6 +175,12 @@ HasTouchScreen() noexcept
 [[gnu::pure]]
 bool
 HasKeyboard() noexcept;
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+static inline bool
+HasKeyboard() noexcept
+{
+  return IsHardwareKeyboardConnected();
+}
 #else
 constexpr
 static inline bool
@@ -179,7 +195,7 @@ HasKeyboard() noexcept
  * in modal dialogs.  Without cursor keys, focused controls do not
  * need to be highlighted.
  */
-#ifndef ANDROID
+#if !defined(ANDROID) && !(defined(__APPLE__) && TARGET_OS_IPHONE)
 constexpr
 #endif
 static inline bool
@@ -190,8 +206,10 @@ HasCursorKeys() noexcept
 
 #ifdef ANDROID
   return has_cursor_keys;
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+  return HasKeyboard();
 #else
-  return !IsKobo() && !IsIOS();
+  return !IsKobo();
 #endif
 }
 

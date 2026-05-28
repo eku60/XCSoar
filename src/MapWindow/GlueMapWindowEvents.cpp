@@ -126,7 +126,9 @@ GlueMapWindow::OnMouseDown(PixelPoint p) noexcept
 {
   map_item_timer.Cancel();
 
+  bool was_kinetic_motion = false;
 #ifdef ENABLE_OPENGL
+  was_kinetic_motion = kinetic_timer.IsActive();
   kinetic_timer.Cancel();
 #endif
 
@@ -157,7 +159,9 @@ GlueMapWindow::OnMouseDown(PixelPoint p) noexcept
   }
 
   drag_start_geopoint = visible_projection.ScreenToGeo(p);
-  arm_mapitem_list = had_focus;
+  /* If this touch stopped kinetic motion, allow immediate re-drag, but
+     don't arm tap map-item selection from this same touch. */
+  arm_mapitem_list = had_focus && !was_kinetic_motion;
 
   switch (follow_mode) {
   case FOLLOW_SELF:
@@ -266,9 +270,16 @@ GlueMapWindow::OnMouseUp(PixelPoint p) noexcept
     break;
 
   case DRAG_GESTURE:
-    const TCHAR* gesture = gestures.Finish();
+    const char* gesture = gestures.Finish();
     if (gesture && OnMouseGesture(gesture))
       return true;
+
+    /* Menu dismissal doesn't need a valid projection;
+       dismiss on tap even when there is no GPS fix */
+    if (!InputEvents::IsDefault() && !IsPanning()) {
+      InputEvents::HideMenu();
+      return true;
+    }
 
     break;
   }
@@ -328,7 +339,7 @@ GlueMapWindow::OnMultiTouchDown() noexcept
 #endif /* HAVE_MULTI_TOUCH */
 
 bool
-GlueMapWindow::OnMouseGesture(const TCHAR *gesture) noexcept
+GlueMapWindow::OnMouseGesture(const char *gesture) noexcept
 {
   return InputEvents::processGesture(gesture);
 }

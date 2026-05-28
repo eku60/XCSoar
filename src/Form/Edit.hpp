@@ -5,7 +5,8 @@
 
 #include "Form/Control.hpp"
 #include "ui/dim/Rect.hpp"
-#include "util/tstring.hpp"
+
+#include <string>
 
 struct DialogLook;
 class DataField;
@@ -16,8 +17,16 @@ class ContainerWindow;
  * an editable field (the Editor).
  */
 class WndProperty : public WindowControl {
-  typedef bool (*EditCallback)(const TCHAR *caption, DataField &df,
-                               const TCHAR *help_text);
+public:
+  // Alignment of the text: left, right or auto = left align with autoscroll
+  enum class Alignment {
+    LEFT,
+    RIGHT,
+    AUTO
+  };
+
+  typedef bool (*EditCallback)(const char *caption, DataField &df,
+                               const char *help_text);
 
   const DialogLook &look;
 
@@ -27,13 +36,14 @@ class WndProperty : public WindowControl {
   /** Width reserved for the caption of the Control */
   int caption_width;
 
-  tstring value;
+  std::string value;
 
   DataField *data_field = nullptr;
 
   EditCallback edit_callback;
 
   bool read_only = false;
+  Alignment alignment = Alignment::LEFT;
 
   bool dragging = false, pressed = false;
 
@@ -45,7 +55,7 @@ public:
    * @param CaptionWidth Width of the Caption of the Control
    */
   WndProperty(ContainerWindow &parent, const DialogLook &look,
-              const TCHAR *Caption,
+              const char *Caption,
               const PixelRect &rc, int CaptionWidth,
               const WindowStyle style) noexcept;
 
@@ -55,7 +65,7 @@ public:
   ~WndProperty() noexcept;
 
   void Create(ContainerWindow &parent, const PixelRect &rc,
-              const TCHAR *_caption,
+              const char *_caption,
               unsigned _caption_width,
               const WindowStyle style) noexcept;
 
@@ -88,6 +98,12 @@ public:
    * @return true if the value has been modified
    */
   bool BeginEditing() noexcept;
+
+private:
+  /**
+   * Show full content in a dialog (for readonly fields with truncated content).
+   */
+  void ShowFullContent() noexcept;
 
 protected:
   void OnResize(PixelSize new_size) noexcept override;
@@ -122,11 +138,14 @@ public:
 
   void SetDataField(DataField *Value) noexcept;
 
+  void SetAlignment(Alignment a) noexcept { alignment = a; }
+  Alignment GetAlignment() const noexcept { return alignment; }
+
   void SetEditCallback(EditCallback _ec) noexcept {
     edit_callback = _ec;
   }
 
-  const TCHAR *GetText() const noexcept {
+  const char *GetText() const noexcept {
     return value.c_str();
   }
 
@@ -134,7 +153,7 @@ public:
    * Sets the Editors text to the given Value
    * @param Value The new text of the Editor Control
    */
-  void SetText(const TCHAR *_value) noexcept;
+  void SetText(const char *_value) noexcept;
 
 private:
   /**

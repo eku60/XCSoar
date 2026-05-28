@@ -20,31 +20,19 @@ my $icons_dir = $enable_opengl
   ? 'output/data/icons'
   : 'output/data/icons2';
 
-my %ids;
-open IDS, "output/include/resource.h" or die $!;
-while (<IDS>) {
-    $ids{$1} = $2 if /^#define (\S+) (\d+)/;
-}
-close IDS;
-
 while (<>) {
     next if /^\s*(?:#.*)?$/;
 
     if (/^bitmap_bitmap\s+([\w_]+)\s+"([^"]+)"\s*$/) {
-        die unless exists $ids{$1};
-        add_to_src("output/data/bitmaps/$2.png", "resource_$ids{$1}");
+        add_to_src("output/data/bitmaps/$2.png", "resource_$1");
     } elsif (/^bitmap_graphic\s+([\w_]+)\s+"([^"]+)"\s*$/) {
-        die unless exists $ids{$1};
-        add_to_src("output/data/graphics2/$2.png", "resource_$ids{$1}");
-    } elsif (/^hatch_bitmap\s+([\w_]+)\s+"([^"]+)"\s*$/) {
+        add_to_src("output/data/graphics2/$2.png", "resource_$1");
+    } elsif (/^(?:app_icon|hatch_bitmap)\s+([\w_]+)\s+"([^"]+)"\s*$/) {
         # only used on Windows
     } elsif (/^bitmap_icon_scaled\s+([\w_]+)\s+"([^"]+)"\s*$/) {
-        die unless exists $ids{$1};
-
-        add_to_src("$icons_dir/$2.png", "resource_$ids{$1}");
-
-        my $id = $ids{"$1_HD"};
-        add_to_src("$icons_dir/$2_160.png", "resource_$id");
+        add_to_src("$icons_dir/$2_96.png", "resource_$1");
+        add_to_src("$icons_dir/$2_160.png", "resource_$1_HD");
+        add_to_src("$icons_dir/$2_300.png", "resource_$1_UHD");
     } elsif (/^sound\s+([\w_]+)\s+"([^"]+)"\s*$/) {
         add_to_src("output/data/sound/$2.raw", "resource_$1") unless $target_is_android;
     } else {

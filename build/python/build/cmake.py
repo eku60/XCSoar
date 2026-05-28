@@ -14,14 +14,7 @@ def __write_cmake_compiler(f: TextIO, language: str, compiler: str) -> None:
         compiler = s[1]
     print(f'set(CMAKE_{language}_COMPILER {compiler})', file=f)
 
-def __write_cmake_toolchain_file(f: TextIO, toolchain: Toolchain, no_isystem: bool) -> None:
-    if toolchain.is_darwin:
-        cmake_system_name = 'Darwin'
-    elif toolchain.is_windows:
-        cmake_system_name = 'Windows'
-    else:
-        cmake_system_name = 'Linux'
-
+def __write_cmake_toolchain_file(f: TextIO, toolchain: Toolchain, no_isystem: bool, cmake_system_name: str) -> None:
     cppflags = toolchain.cppflags
     if no_isystem:
         cppflags = re.sub(r'\s*-isystem\s+\S+\s*', ' ', cppflags)
@@ -70,6 +63,25 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 """)
+    elif cmake_system_name == 'Windows':
+        # For Windows cross-compilation, restrict cmake to only search in
+        # the sysroot to avoid picking up host libraries like Homebrew's c-ares
+        f.write(f"""
+set(CMAKE_FIND_ROOT_PATH "{toolchain.install_prefix}")
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+""")
+    elif toolchain.is_android:
+        # Android uses the NDK compiler sysroot for platform headers/libs,
+        # but third-party package discovery must still stay inside our
+        # target prefix to avoid picking up host libraries such as zlib.
+        f.write(f"""
+set(CMAKE_FIND_ROOT_PATH "{toolchain.install_prefix}")
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+""")
 
 def configure(toolchain: AnyToolchain, src: str, build: str, args: list[str]=[], env: Optional[Mapping[str, str]]=None) -> None:
     cross_args: list[str] = []
@@ -103,9 +115,19 @@ def configure(toolchain: AnyToolchain, src: str, build: str, args: list[str]=[],
             # because "#include_next" ceases to work
             no_isystem = True
 
+        cmake_system_name = 'Linux'
+        if toolchain.is_darwin:
+            cmake_system_name = 'Darwin'
+            if toolchain.is_target_ios and 'SDL2' in src:
+                # SDL2 needs CMAKE_SYSTEM_NAME set to iOS, otherwise it will build for macOS
+                # but OpenSSL needs CMAKE_SYSTEM_NAME set to Darwin, otherwise it will fail to build
+                cmake_system_name = 'iOS'
+        elif toolchain.is_windows:
+            cmake_system_name = 'Windows'
+
         cmake_toolchain_file = os.path.join(build, 'cmake_toolchain_file')
         with open(cmake_toolchain_file, 'w') as f:
-            __write_cmake_toolchain_file(f, toolchain, no_isystem)
+            __write_cmake_toolchain_file(f, toolchain, no_isystem, cmake_system_name)
 
         configure.append('-DCMAKE_TOOLCHAIN_FILE=' + cmake_toolchain_file)
 
@@ -119,13 +141,17 @@ def configure(toolchain: AnyToolchain, src: str, build: str, args: list[str]=[],
 
 class CmakeProject(Project):
     def __init__(self, url: Union[str, Sequence[str]], md5: str, installed: str,
-                 configure_args: list[str]=[],
-                 windows_configure_args: list[str]=[],
+                 configure_args: Optional[list[str]]=None,
+                 windows_configure_args: Optional[list[str]]=None,
+                 android_configure_args: Optional[list[str]]=None,
+                 darwin_configure_args: Optional[list[str]]=None,
                  env: Optional[Mapping[str, str]]=None,
                  **kwargs):
         Project.__init__(self, url, md5, installed, **kwargs)
-        self.configure_args = configure_args
-        self.windows_configure_args = windows_configure_args
+        self.configure_args = configure_args or []
+        self.windows_configure_args = windows_configure_args or []
+        self.android_configure_args = android_configure_args or []
+        self.darwin_configure_args = darwin_configure_args or []
         self.env = env
 
     def configure(self, toolchain: AnyToolchain) -> str:
@@ -134,6 +160,10 @@ class CmakeProject(Project):
         configure_args = self.configure_args
         if toolchain.is_windows:
             configure_args = configure_args + self.windows_configure_args
+        if toolchain.is_android:
+            configure_args = configure_args + self.android_configure_args
+        if toolchain.is_darwin:
+            configure_args = configure_args + self.darwin_configure_args
         configure(toolchain, src, build, configure_args, self.env)
         return build
 

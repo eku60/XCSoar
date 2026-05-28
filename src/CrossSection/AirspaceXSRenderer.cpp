@@ -78,6 +78,7 @@ inline void
 AirspaceIntersectionVisitorSlice::RenderBox(const PixelRect rc,
                                             AirspaceClass type) const
 {
+  const Color text_color = canvas.GetTextColor();
   if (AirspacePreviewRenderer::PrepareFill(canvas, type, airspace_look,
                                            settings)) {
     const auto &class_settings = settings.classes[type];
@@ -110,7 +111,7 @@ AirspaceIntersectionVisitorSlice::RenderBox(const PixelRect rc,
       canvas.DrawRectangle(rc);
     }
 
-    AirspacePreviewRenderer::UnprepareFill(canvas);
+    AirspacePreviewRenderer::UnprepareFill(canvas, text_color);
   }
 
   // Use transparent brush and type-dependent pen for the outlines
@@ -122,13 +123,13 @@ AirspaceIntersectionVisitorSlice::RenderBox(const PixelRect rc,
 inline void
 AirspaceIntersectionVisitorSlice::Render(const AbstractAirspace &as) const
 {
-  AirspaceClass asclass = as.GetClass();
+  AirspaceClass asclass = as.GetTypeOrClass();
 
   // No intersections for this airspace
   if (intersections.empty())
     return;
 
-  if (!IsAirspaceTypeVisible(as, settings))
+  if (!IsAirspaceTypeOrClassVisible(as, settings))
     return;
 
   PixelRect rcd;
@@ -168,7 +169,7 @@ AirspaceIntersectionVisitorSlice::Render(const AbstractAirspace &as) const
   max_x -= Layout::GetTextPadding();
 
   /* draw the airspace name */
-  const TCHAR *name = as.GetName();
+  const char *name = as.GetName();
   if (name != nullptr && !StringIsEmpty(name) && min_x < max_x) {
     canvas.SetBackgroundTransparent();
     canvas.SetTextColor(COLOR_BLACK);

@@ -11,7 +11,7 @@
 class Font;
 
 struct InfoBoxLook {
-  static constexpr unsigned BORDER_WIDTH = 1;
+  unsigned border_width;
 
   bool inverse;
 
@@ -37,13 +37,14 @@ struct InfoBoxLook {
   Pen unit_fraction_pen;
 
   Font title_font;
+  Font title_font_bold;
 
   Color colors[6];
 
   void Initialise(bool inverse, bool use_colors,
-                  unsigned width);
+                  unsigned width, unsigned scale_title_font);
 
-  void ReinitialiseLayout(unsigned width);
+  void ReinitialiseLayout(unsigned width, unsigned scale_title_font);
 
   Color GetColor(int i, Color default_color) const {
     if (i < 0)

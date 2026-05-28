@@ -8,6 +8,7 @@
 #include "Screen/Layout.hpp"
 #include "AutoFont.hpp"
 #include "Asset.hpp"
+#include "ui/canvas/Color.hpp"
 
 #ifdef HAVE_TEXT_CACHE
 #include "ui/canvas/custom/Cache.hpp"
@@ -15,15 +16,10 @@
 
 #include <algorithm>
 
-#define COLOR_INVERSE_RED Color(0xff, 0x70, 0x70)
-#define COLOR_INVERSE_BLUE Color(0x90, 0x90, 0xff)
-#define COLOR_INVERSE_YELLOW COLOR_YELLOW
-#define COLOR_INVERSE_GREEN COLOR_GREEN
-#define COLOR_INVERSE_MAGENTA COLOR_MAGENTA
 
 void
 InfoBoxLook::Initialise(bool _inverse, bool use_colors,
-                        unsigned width)
+                        unsigned width, unsigned scale_title_font)
 {
   inverse = _inverse;
 
@@ -41,18 +37,13 @@ InfoBoxLook::Initialise(bool _inverse, bool use_colors,
     pressed_background_color = DarkColor(pressed_background_color);
   }
 
-  Color border_color = Color(128, 128, 128);
-  border_pen.Create(BORDER_WIDTH, border_color);
+  ReinitialiseLayout(width, scale_title_font);
 
-  ReinitialiseLayout(width);
-
-  unit_fraction_pen.Create(1, value.fg_color);
-
-  colors[0] = border_color;
+  colors[0] = COLOR_GRAY;
   if (HasColors() && use_colors) {
     colors[1] = inverse ? COLOR_INVERSE_RED : COLOR_RED;
     colors[2] = inverse ? COLOR_INVERSE_BLUE : COLOR_BLUE;
-    colors[3] = inverse ? COLOR_INVERSE_GREEN : Color(0, 192, 0);
+    colors[3] = inverse ? COLOR_INVERSE_GREEN : COLOR_LIGHT_GREEN;
     colors[4] = inverse ? COLOR_INVERSE_YELLOW : COLOR_YELLOW;
     colors[5] = inverse ? COLOR_INVERSE_MAGENTA : COLOR_MAGENTA;
   } else
@@ -60,23 +51,27 @@ InfoBoxLook::Initialise(bool _inverse, bool use_colors,
 }
 
 void
-InfoBoxLook::ReinitialiseLayout(unsigned width)
+InfoBoxLook::ReinitialiseLayout(unsigned width, unsigned scale_title_font)
 {
-  const unsigned max_font_height = Layout::FontScale(12);
+  border_width = Layout::ScaleFinePenWidth(1);
+
+  Color border_color = COLOR_GRAY;
+  border_pen.Create(border_width, border_color);
+  unit_fraction_pen.Create(Layout::ScaleFinePenWidth(1), value.fg_color);
 
   FontDescription title_font_d(8);
-  AutoSizeFont(title_font_d, width, _T("0123456789"));
-  if (title_font_d.GetHeight() > max_font_height)
-    title_font_d.SetHeight(max_font_height);
+  AutoSizeFont(title_font_d, (width * scale_title_font) / 100U,
+               "1234567890A");
 
   title_font.Load(title_font_d);
+  title_font_bold.Load(title_font_d.WithBold(true));
 
   FontDescription value_font_d(10, true);
-  AutoSizeFont(value_font_d, width, _T("1234m"));
+  AutoSizeFont(value_font_d, width, "1234m");
   value_font.Load(value_font_d);
 
   FontDescription small_value_font_d(10);
-  AutoSizeFont(small_value_font_d, width, _T("12345m"));
+  AutoSizeFont(small_value_font_d, width, "12345m");
   small_value_font.Load(small_value_font_d);
 
   unsigned unit_font_height = std::max(value_font_d.GetHeight() * 2u / 5u, 7u);

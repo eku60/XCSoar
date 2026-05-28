@@ -8,11 +8,12 @@
 #include "InfoBoxes/Panel/AltitudeInfo.hpp"
 #include "InfoBoxes/Panel/AltitudeSimulator.hpp"
 #include "InfoBoxes/Panel/AltitudeSetup.hpp"
+#include "NMEA/Info.hpp"
 #include "Units/Units.hpp"
 #include "Interface.hpp"
 #include "Language/Language.hpp"
 
-#include <tchar.h>
+#include <optional>
 
 /*
  * Subpart callback function pointers
@@ -33,6 +34,37 @@ const InfoBoxPanel *
 InfoBoxContentAltitude::GetDialogContent() noexcept
 {
   return altitude_infobox_panels;
+}
+
+namespace {
+
+/**
+ * Logger / IGC pressure or ISA pressure altitude only (no QNH baro, no GPS).
+ */
+[[gnu::pure]] std::optional<double>
+IgcOrIsaPressureAltitudeOrInvalid(const NMEAInfo &basic) noexcept
+{
+  if (basic.igc_pressure_altitude_available)
+    return basic.igc_pressure_altitude;
+  if (basic.pressure_altitude_available)
+    return basic.pressure_altitude;
+  return std::nullopt;
+}
+
+} // namespace
+
+void
+UpdateInfoBoxAltitudeIGC(InfoBoxData &data) noexcept
+{
+  const NMEAInfo &basic = CommonInterface::Basic();
+  const auto a = IgcOrIsaPressureAltitudeOrInvalid(basic);
+  if (!a) {
+    data.SetInvalid();
+    return;
+  }
+
+  data.SetValueFromAltitude(*a);
+  data.SetCommentFromAlternateAltitude(*a);
 }
 
 void
@@ -148,10 +180,10 @@ UpdateInfoBoxAltitudeFlightLevel(InfoBoxData &data) noexcept
     data.SetTitleColor(0);
 
     // Set Value
-    data.FmtValue(_T("{:03}"), iround(Altitude / 100));
+    data.FmtValue("{:03}", iround(Altitude / 100));
 
     // Set Comment
-    data.FmtComment(_T("{}ft"), iround(Altitude));
+    data.FmtComment("{}ft", iround(Altitude));
 
   } else if (basic.gps_altitude_available &&
              settings_computer.pressure_available) {
@@ -163,10 +195,10 @@ UpdateInfoBoxAltitudeFlightLevel(InfoBoxData &data) noexcept
     data.SetTitleColor(1);
 
     // Set Value
-    data.FmtValue(_T("{:03}"), iround(Altitude / 100));
+    data.FmtValue("{:03}", iround(Altitude / 100));
 
     // Set Comment
-    data.FmtComment(_T("{}ft"), iround(Altitude));
+    data.FmtComment("{}ft", iround(Altitude));
 
   } else if ((basic.baro_altitude_available || basic.gps_altitude_available) &&
              !settings_computer.pressure_available) {
@@ -175,4 +207,31 @@ UpdateInfoBoxAltitudeFlightLevel(InfoBoxData &data) noexcept
   } else {
     data.SetInvalid();
   }
+}
+
+void
+UpdateInfoBoxAltitudeQNH(InfoBoxData &data) noexcept
+{
+  const ComputerSettings &settings_computer =
+    CommonInterface::GetComputerSettings();
+
+  if (!settings_computer.pressure_available) {
+    data.SetInvalid();
+    data.SetComment(_("no QNH"));
+    return;
+  }
+
+  const AtmosphericPressure &qnh = settings_computer.pressure;
+  const Unit unit = Units::current.pressure_unit;
+  const double value = Units::ToUserPressure(qnh);
+
+  data.SetCommentInvalid();
+
+  if (unit == Unit::INCH_MERCURY) {
+    data.FmtValue("{:.2f}", value);
+  } else {
+    data.FmtValue("{}", iround(value));
+  }
+
+  data.SetValueUnit(unit);
 }

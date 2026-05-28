@@ -1,6 +1,6 @@
-BOOST_URL = https://fossies.org/linux/misc/boost_1_84_0.tar.bz2
-BOOST_ALTERNATIVE_URL = https://sourceforge.net/projects/boost/files/boost/1.84.0/boost_1_84_0.tar.bz2/download
-BOOST_MD5 = cc4b893acf645c9d4b698e9a0f08ca8846aa5d6c68275c14c3e7949c24109454
+BOOST_URL = https://archives.boost.io/release/1.90.0/source/boost_1_90_0.tar.bz2
+BOOST_ALTERNATIVE_URL = https://sourceforge.net/projects/boost/files/boost/1.90.0/boost_1_90_0.tar.bz2/download
+BOOST_MD5 = 49551aff3b22cbc5c5a9ed3dbc92f0e23ea50a0f7325b0d198b705e8ee3fc305
 
 BOOST_TARBALL_NAME = $(notdir $(BOOST_URL))
 BOOST_TARBALL = $(DOWNLOAD_DIR)/$(BOOST_TARBALL_NAME)
@@ -17,7 +17,7 @@ BOOST_UNTAR_STAMP = $(OUT)/src/stamp-$(BOOST_BASE_NAME)
 $(BOOST_UNTAR_STAMP): $(BOOST_TARBALL) $(BOOST_PATCHES_DIR)/series $(BOOST_PATCHES) | $(OUT)/src/dirstamp
 	@$(NQ)echo "  UNTAR   $(BOOST_TARBALL_NAME)"
 	$(Q)rm -rf $(BOOST_SRC)
-	$(Q)tar xjfC $< $(OUT)/src
+	$(Q)tar xjfC $< $(OUT)/src $(BOOST_BASE_NAME)/boost
 	$(Q)cd $(BOOST_SRC) && QUILT_PATCHES=$(abspath $(BOOST_PATCHES_DIR)) quilt push -a -q
 	@touch $@
 

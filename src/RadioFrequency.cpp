@@ -8,8 +8,8 @@
 #include "util/StringFormat.hpp"
 #include "util/NumberParser.hpp"
 
-TCHAR *
-RadioFrequency::Format(TCHAR *buffer, size_t max_size) const noexcept
+char *
+RadioFrequency::Format(char *buffer, size_t max_size) const noexcept
 {
   if (!IsDefined())
     return nullptr;
@@ -18,7 +18,7 @@ RadioFrequency::Format(TCHAR *buffer, size_t max_size) const noexcept
   unsigned mhz = khz / 1000;
   khz %= 1000;
 
-  StringFormat(buffer, max_size, _T("%u.%03u"), mhz, khz);
+  StringFormat(buffer, max_size, "%u.%03u", mhz, khz);
   return buffer;
 }
 
@@ -32,7 +32,7 @@ RadioFrequency::Parse(std::string_view src) noexcept
   else
     return Null();
 
-  if (mhz < MIN_KHZ / 1000. && mhz > MAX_KHZ / 1000.)
+  if (mhz < MIN_KHZ / 1000. || mhz > MAX_KHZ / 1000.)
     return Null();
 
   return FromKiloHertz(uround(mhz * 1000));

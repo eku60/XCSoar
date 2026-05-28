@@ -18,6 +18,7 @@
 #include "Look/Look.hpp"
 #include "Computer/GlideComputer.hpp"
 #include "Renderer/TextButtonRenderer.hpp"
+#include "Renderer/SymbolButtonRenderer.hpp"
 #include "Renderer/FlightStatisticsRenderer.hpp"
 #include "Renderer/GlidePolarRenderer.hpp"
 #include "Renderer/BarographRenderer.hpp"
@@ -39,6 +40,7 @@
 #include "ui/canvas/opengl/Scissor.hpp"
 #endif
 
+#include <algorithm>
 #include <stdio.h>
 
 using namespace UI;
@@ -83,6 +85,9 @@ public:
      dragging(false),
      blackboard(_blackboard), glide_computer(_glide_computer) {
     fs_renderer.SetTerrain(terrain);
+#ifdef ENABLE_OPENGL
+    fs_renderer.SetFullResolution();
+#endif
     fs_renderer.SetAirspaces(airspaces);
     cross_section_renderer.SetAirspaces(airspaces);
     cross_section_renderer.SetTerrain(terrain);
@@ -145,12 +150,12 @@ public:
   }
 
   void SetCalcVisibility(bool visible);
-  void SetCalcCaption(const TCHAR *caption);
+  void SetCalcCaption(const char *caption);
 
   void NextPage(int step);
   void Update();
 
-  void OnGesture(const TCHAR *gesture);
+  void OnGesture(const char *gesture);
 
 private:
   void OnCalcClicked();
@@ -217,6 +222,7 @@ AnalysisWidget::Layout::Layout(const DialogLook &look,
 {
   const unsigned width = rc.GetWidth(), height = rc.GetHeight();
   const unsigned button_height = ::Layout::GetMaximumControlHeight();
+  const unsigned padding = ::Layout::GetTextPadding();
 
   main = rc;
 
@@ -256,15 +262,21 @@ AnalysisWidget::Layout::Layout(const DialogLook &look,
     info.top = rc.top;
     info.bottom = details_button.top;
 
-    main.left = close_button.right;
+    main.left = close_button.right + padding;
   } else {
     /* there are at most 5 text lines in the "info" area */
     const unsigned info_height = 5 * look.text_font.GetLineSpacing();
+    
+    /* calculate total button stack height */
+    const unsigned button_stack_height = close_button.bottom - details_button.top;
+    
+    /* use the larger of info_height or button_stack_height to avoid overlap */
+    const unsigned bottom_area_height = std::max(info_height, button_stack_height);
 
-    main.bottom = rc.bottom - info_height;
-    info.left = close_button.right;
+    main.bottom = rc.bottom - bottom_area_height - padding;
+    info.left = close_button.right + padding;
     info.right = rc.right;
-    info.top = rc.bottom - info_height;
+    info.top = main.bottom + padding;
     info.bottom = rc.bottom;
   }
 }
@@ -281,12 +293,16 @@ AnalysisWidget::Prepare(ContainerWindow &parent, const PixelRect &rc) noexcept
   info.Create(parent, layout.info);
 
   const auto &button_look = dialog.GetLook().button;
-  details_button.Create(parent, button_look, _T("Calc"), layout.details_button,
+  details_button.Create(parent, button_look, "Calc", layout.details_button,
                         button_style, [this](){ OnCalcClicked(); });
-  previous_button.Create(parent, button_look, _T("<"), layout.previous_button,
-                         button_style, [this](){ NextPage(-1); });
-  next_button.Create(parent, button_look, _T(">"), layout.next_button,
-                     button_style, [this](){ NextPage(1); });
+  previous_button.Create(parent, layout.previous_button,
+                         button_style,
+                         std::make_unique<SymbolButtonRenderer>(button_look, "<"),
+                         [this](){ NextPage(-1); });
+  next_button.Create(parent, layout.next_button,
+                     button_style,
+                     std::make_unique<SymbolButtonRenderer>(button_look, ">"),
+                     [this](){ NextPage(1); });
   close_button.Create(parent, button_look, _("Close"), layout.close_button,
                       button_style, dialog.MakeModalResultCallback(mrOK));
 
@@ -303,7 +319,7 @@ AnalysisWidget::SetCalcVisibility(bool visible)
 }
 
 void
-AnalysisWidget::SetCalcCaption(const TCHAR *caption)
+AnalysisWidget::SetCalcCaption(const char *caption)
 {
   details_button.SetCaption(caption);
   SetCalcVisibility(!StringIsEmpty(caption));
@@ -325,7 +341,7 @@ ChartControl::OnPaint(Canvas &canvas) noexcept
   GLCanvasScissor scissor(canvas);
 #endif
 
-  canvas.SetTextColor(COLOR_BLACK);
+  canvas.SetTextColor(chart_look.text_color);
 
   PixelRect rcgfx = GetClientRect();
 
@@ -443,76 +459,76 @@ ChartControl::UpdateCrossSection(const MoreData &basic,
 void
 AnalysisWidget::Update()
 {
-  TCHAR sTmp[1000];
+  char sTmp[1000];
 
   const ComputerSettings &settings_computer = blackboard.GetComputerSettings();
   const DerivedInfo &calculated = blackboard.Calculated();
 
   switch (page) {
   case AnalysisPage::BAROGRAPH:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Barograph"));
     dialog.SetCaption(sTmp);
-    BarographCaption(sTmp, glide_computer.GetFlightStats());
+    BarographCaption(sTmp, sizeof(sTmp), glide_computer.GetFlightStats());
     info.SetText(sTmp);
     SetCalcCaption(_("Settings"));
     break;
 
   case AnalysisPage::CLIMB:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Climb"));
     dialog.SetCaption(sTmp);
-    ClimbChartCaption(sTmp, glide_computer.GetFlightStats());
+    ClimbChartCaption(sTmp, sizeof(sTmp), glide_computer.GetFlightStats());
     info.SetText(sTmp);
     SetCalcCaption(_("Task Calc"));
     break;
 
   case AnalysisPage::THERMAL_BAND:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Thermal Band"));
     dialog.SetCaption(sTmp);
-    ClimbChartCaption(sTmp, glide_computer.GetFlightStats());
+    ClimbChartCaption(sTmp, sizeof(sTmp), glide_computer.GetFlightStats());
     info.SetText(sTmp);
-    SetCalcCaption(_T(""));
+    SetCalcCaption("");
     break;
 
   case AnalysisPage::VARIO_HISTOGRAM:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Vario Histogram"));
     dialog.SetCaption(sTmp);
-    info.SetText(_T(""));
-    SetCalcCaption(_T(""));
+    info.SetText("");
+    SetCalcCaption("");
     break;
 
   case AnalysisPage::WIND:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Wind at Altitude"));
     dialog.SetCaption(sTmp);
-    info.SetText(_T(""));
+    info.SetText("");
     SetCalcCaption(_("Set Wind"));
     break;
 
   case AnalysisPage::POLAR:
-    StringFormatUnsafe(sTmp, _T("%s: %s (%s %d kg)"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s (%s %d kg)", _("Analysis"),
                        _("Glide Polar"), _("Mass"),
                        (int)settings_computer.polar.glide_polar_task.GetTotalMass());
     dialog.SetCaption(sTmp);
-    GlidePolarCaption(sTmp, settings_computer.polar.glide_polar_task);
+    GlidePolarCaption(sTmp, sizeof(sTmp), settings_computer.polar.glide_polar_task);
     info.SetText(sTmp);
     SetCalcCaption(_("Settings"));
     break;
 
   case AnalysisPage::MACCREADY:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("MacCready Speeds"));
     dialog.SetCaption(sTmp);
-    MacCreadyCaption(sTmp, settings_computer.polar.glide_polar_task);
+    MacCreadyCaption(sTmp, sizeof(sTmp), settings_computer.polar.glide_polar_task);
     info.SetText(sTmp);
     SetCalcCaption(_("Settings"));
     break;
 
   case AnalysisPage::TEMPTRACE:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Temperature Trace"));
     dialog.SetCaption(sTmp);
     TemperatureChartCaption(sTmp, glide_computer.GetCuSonde());
@@ -521,17 +537,17 @@ AnalysisWidget::Update()
     break;
 
   case AnalysisPage::TASK_SPEED:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Task Speed"));
     dialog.SetCaption(sTmp);
-    TaskSpeedCaption(sTmp, glide_computer.GetFlightStats(),
+    TaskSpeedCaption(sTmp, sizeof(sTmp), glide_computer.GetFlightStats(),
                      settings_computer.polar.glide_polar_task);
     info.SetText(sTmp);
     SetCalcCaption(_("Task Calc"));
     break;
 
   case AnalysisPage::TASK:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Task"));
     dialog.SetCaption(sTmp);
     FlightStatisticsRenderer::CaptionTask(sTmp, calculated);
@@ -540,20 +556,20 @@ AnalysisWidget::Update()
     break;
 
   case AnalysisPage::CONTEST:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        ContestToString(settings_computer.contest.contest));
     dialog.SetCaption(sTmp);
-    SetCalcCaption(_T(""));
+    SetCalcCaption("");
     FlightStatisticsRenderer::CaptionContest(sTmp, settings_computer.contest,
                                          calculated);
     info.SetText(sTmp);
     break;
 
   case AnalysisPage::AIRSPACE:
-    StringFormatUnsafe(sTmp, _T("%s: %s"), _("Analysis"),
+    StringFormatUnsafe(sTmp, "%s: %s", _("Analysis"),
                        _("Airspace"));
     dialog.SetCaption(sTmp);
-    info.SetText(_T(""));
+    info.SetText("");
     SetCalcCaption(_("Warnings"));
     break;
 
@@ -586,11 +602,11 @@ AnalysisWidget::NextPage(int Step)
 }
 
 void
-AnalysisWidget::OnGesture(const TCHAR *gesture)
+AnalysisWidget::OnGesture(const char *gesture)
 {
-  if (StringIsEqual(gesture, _T("R")))
+  if (StringIsEqual(gesture, "R"))
     NextPage(-1);
-  else if (StringIsEqual(gesture, _T("L")))
+  else if (StringIsEqual(gesture, "L"))
     NextPage(+1);
 }
 
@@ -619,7 +635,7 @@ ChartControl::OnMouseUp([[maybe_unused]] PixelPoint p) noexcept
     dragging = false;
     ReleaseCapture();
 
-    const TCHAR *gesture = gestures.Finish();
+    const char *gesture = gestures.Finish();
     if (gesture != NULL)
       analysis_widget.OnGesture(gesture);
   }

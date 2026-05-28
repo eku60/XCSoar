@@ -24,7 +24,7 @@ RenderVarioHistogram(Canvas &canvas, const PixelRect rc,
                      const GlidePolar &glide_polar)
 {
   ChartRenderer chart(chart_look, canvas, rc);
-  chart.SetYLabel(_T("w"), Units::GetVerticalSpeedName());
+  chart.SetYLabel("w", Units::GetVerticalSpeedName());
   chart.Begin();
 
   if (fs.vario_cruise_histogram.empty() &&
@@ -57,14 +57,16 @@ RenderVarioHistogram(Canvas &canvas, const PixelRect rc,
     rc_upper.bottom = chart.ScreenY(mc);
 
     DrawVerticalGradient(canvas, rc_upper,
-                         chart_look.color_positive, COLOR_WHITE, COLOR_WHITE);
+                         chart_look.color_positive, chart_look.background_color,
+                         chart_look.background_color);
   }
   {
     PixelRect rc_lower = chart.GetChartRect();
     rc_lower.top = chart.ScreenY(s);
 
     DrawVerticalGradient(canvas, rc_lower,
-                         COLOR_WHITE, chart_look.color_negative, COLOR_WHITE);
+                         chart_look.background_color, chart_look.color_negative,
+                         chart_look.background_color);
   }
 
   canvas.SelectNullPen();
@@ -81,7 +83,7 @@ RenderVarioHistogram(Canvas &canvas, const PixelRect rc,
   }
 
   // draw these after shaded regions, so they overlay
-  chart.DrawLineGraph(fs.vario_cruise_histogram.GetSlots(), ChartLook::STYLE_GREEN, true);
+  chart.DrawLineGraph(fs.vario_cruise_histogram.GetSlots(), ChartLook::STYLE_BLUE, true);
   chart.DrawLineGraph(fs.vario_circling_histogram.GetSlots(), ChartLook::STYLE_RED, true);
 
   // draw current MC setting
@@ -92,8 +94,8 @@ RenderVarioHistogram(Canvas &canvas, const PixelRect rc,
   chart.DrawYGrid(Units::ToSysVSpeed(1), 1, ChartRenderer::UnitFormat::NUMERIC);
 
   const double tref = chart.GetXMin()*0.1+chart.GetXMax()*0.9;
-  chart.DrawLabel({tref, mc}, _T("MC"));
-  chart.DrawLabel({tref, s}, _T("S cruise"));
+  chart.DrawLabel({tref, mc}, "MC");
+  chart.DrawLabel({tref, s}, "S cruise");
 
   chart.Finish();
 }

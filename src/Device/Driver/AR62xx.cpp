@@ -281,14 +281,12 @@ AR62xxDevice::Send(const uint8_t *msg,
       response = NO_RSP;
     }
     b_sending = true;
-/**
- * eku: 2024-03-05 geht so nicht
- *    std::span<const std::byte> sendbyte = (std::span<const std::byte>&) msg;
- */
     /* Send the message */
-     port.FullWrite(reinterpret_cast<const char*> (msg), env, CMD_TIMEOUT);
+    port.FullWrite(reinterpret_cast<const char*> (msg), env, CMD_TIMEOUT);
     // TODO(August2111): const char* or better with std::span...
-   response = ACK;
+    //std:array message-span = std::array<std::byte>[msg_size]msg;
+    //port.FullWrite(message-span, env, CMD_TIMEOUT);
+    response = ACK;
 
     /* Wait for the response */
     uint8_t _response;

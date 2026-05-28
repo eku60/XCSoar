@@ -119,6 +119,13 @@ InfoBoxManager::SetDirty() noexcept
 }
 
 void
+InfoBoxManager::InvalidateAfterLanguageChange() noexcept
+{
+  first = true;
+  SetDirty();
+}
+
+void
 InfoBoxManager::ScheduleRedraw() noexcept
 {
   if (infoboxes_hidden)
@@ -186,7 +193,7 @@ InfoBoxManager::ShowInfoBoxPicker(const int i) noexcept
 
   ComboList list;
   for (unsigned j = InfoBoxFactory::MIN_TYPE_VAL; j < InfoBoxFactory::NUM_TYPES; j++) {
-    const TCHAR *desc = InfoBoxFactory::GetDescription((InfoBoxFactory::Type)j);
+    const char *desc = InfoBoxFactory::GetDescription((InfoBoxFactory::Type)j);
     list.Append(j, gettext(InfoBoxFactory::GetName((InfoBoxFactory::Type)j)),
                 gettext(InfoBoxFactory::GetName((InfoBoxFactory::Type)j)),
                 desc != NULL ? gettext(desc) : NULL);
@@ -198,7 +205,7 @@ InfoBoxManager::ShowInfoBoxPicker(const int i) noexcept
   /* let the user select */
 
   StaticString<20> caption;
-  caption.Format(_T("%s: %d"), _("InfoBox"), i + 1);
+  caption.Format("%s: %d", _("InfoBox"), i + 1);
   int result = ComboPicker(caption, list, nullptr, true);
   if (result < 0)
     return;
@@ -215,4 +222,14 @@ InfoBoxManager::ShowInfoBoxPicker(const int i) noexcept
   DisplayInfoBox();
 
   Profile::Save(Profile::map, panel, panel_index);
+}
+
+void
+InfoBoxManager::ClearFocusExcept(unsigned except_id) noexcept
+{
+  for (unsigned i = 0; i < layout.count; i++) {
+    if (i != except_id && infoboxes[i] != nullptr && infoboxes[i]->HasFocus()) {
+      infoboxes[i]->FocusParent();
+    }
+  }
 }

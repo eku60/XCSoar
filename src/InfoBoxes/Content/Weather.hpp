@@ -8,8 +8,20 @@
 void
 UpdateInfoBoxHumidity(InfoBoxData &data) noexcept;
 
+class InfoBoxContentHumidity final : public InfoBoxContent {
+public:
+  void Update(InfoBoxData &data) noexcept override;
+  bool HandleClick() noexcept override;
+};
+
 void
 UpdateInfoBoxTemperature(InfoBoxData &data) noexcept;
+
+class InfoBoxContentTemperature final : public InfoBoxContent {
+public:
+  void Update(InfoBoxData &data) noexcept override;
+  bool HandleClick() noexcept override;
+};
 
 class InfoBoxContentTemperatureForecast : public InfoBoxContent
 {
@@ -18,24 +30,43 @@ public:
   bool HandleKey(const InfoBoxKeyCodes keycode) noexcept override;
 };
 
-extern const InfoBoxPanel wind_infobox_panels[];
+/**
+ * Base class for wind-related InfoBox content that opens the
+ * wind settings dialog on click.
+ */
+class InfoBoxContentWind : public InfoBoxContent
+{
+public:
+  bool HandleClick() noexcept override;
+};
 
-void
-UpdateInfoBoxWindSpeed(InfoBoxData &data) noexcept;
+class InfoBoxContentWindSpeed : public InfoBoxContentWind
+{
+public:
+  void Update(InfoBoxData &data) noexcept override;
+};
 
-void
-UpdateInfoBoxWindBearing(InfoBoxData &data) noexcept;
+class InfoBoxContentWindBearing : public InfoBoxContentWind
+{
+public:
+  void Update(InfoBoxData &data) noexcept override;
+};
 
-void
-UpdateInfoBoxHeadWind(InfoBoxData &data) noexcept;
+class InfoBoxContentHeadWind : public InfoBoxContentWind
+{
+public:
+  void Update(InfoBoxData &data) noexcept override;
+};
 
-void
-UpdateInfoBoxHeadWindSimplified(InfoBoxData &data) noexcept;
+class InfoBoxContentHeadWindSimplified : public InfoBoxContentWind
+{
+public:
+  void Update(InfoBoxData &data) noexcept override;
+};
 
-class InfoBoxContentWindArrow: public InfoBoxContent
+class InfoBoxContentWindArrow : public InfoBoxContentWind
 {
 public:
   void Update(InfoBoxData &data) noexcept override;
   void OnCustomPaint(Canvas &canvas, const PixelRect &rc) noexcept override;
-  const InfoBoxPanel *GetDialogContent() noexcept override;
 };

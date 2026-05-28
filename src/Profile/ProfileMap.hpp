@@ -10,8 +10,6 @@
 #include <span>
 #include <string_view>
 
-#include <tchar.h>
-
 class KeyValueFileWriter;
 
 namespace Profile {
@@ -43,13 +41,20 @@ const char *
 Get(std::string_view key, const char *default_value=nullptr) noexcept;
 
 /**
- * Reads a value from the profile map
+ * Reads a string value from the profile map into a span buffer
  * @param key Name of the value that should be read
  * @param value Pointer to the output buffer
- * @param max_size Maximum size of the output buffer
  */
 bool
-Get(std::string_view key, std::span<TCHAR> value) noexcept;
+Get(std::string_view key, std::span<char> value) noexcept;
+
+/**
+ * Reads a string value from the profile map as std::string
+ * @param key Name of the value that should be read
+ * @param value Reference to the output string
+ */
+bool
+Get(std::string_view key, std::string &value) noexcept;
 
 /**
  * Writes a value to the profile map
@@ -59,10 +64,8 @@ Get(std::string_view key, std::span<TCHAR> value) noexcept;
 void
 Set(std::string_view key, const char *value) noexcept;
 
-#ifdef _UNICODE
 void
-Set(std::string_view key, const TCHAR *value) noexcept;
-#endif
+Set(std::string_view key, const std::string &value) noexcept;
 
 bool
 Get(std::string_view key, int &value) noexcept;
@@ -100,7 +103,7 @@ GetEnum(std::string_view key, T &value) noexcept
 static inline void
 Set(std::string_view key, bool value) noexcept
 {
-  Set(key, value ? _T("1") : _T("0"));
+  Set(key, value ? "1" : "0");
 }
 
 void
@@ -130,7 +133,7 @@ SetEnum(std::string_view key, T value) noexcept
 
 template<std::size_t max>
 static inline bool
-Get(std::string_view key, BasicStringBuffer<TCHAR, max> &value) noexcept
+Get(std::string_view key, BasicStringBuffer<char, max> &value) noexcept
 {
   return Get(key, std::span{value.data(), value.capacity()});
 }

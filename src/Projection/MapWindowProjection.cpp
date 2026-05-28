@@ -5,6 +5,10 @@
 #include "Screen/Layout.hpp"
 #include "Waypoint/Waypoint.hpp"
 
+#ifdef ENABLE_OPENGL
+#include "ui/canvas/opengl/Globals.hpp"
+#endif
+
 #include <algorithm> // for std::clamp()
 #include <cassert>
 
@@ -32,10 +36,28 @@ static constexpr unsigned ScaleList[] = {
 
 static constexpr unsigned ScaleListCount = std::size(ScaleList);
 
+namespace {
+
+/**
+ * Largest #GetMapScale() at which this waypoint is still drawn (aligned with
+ * #ScaleList steps; lower threshold = hidden sooner when zooming out).
+ */
+static double
+WaypointDrawMaxScale(const Waypoint &wp) noexcept
+{
+  if (wp.IsLandable())
+    return 20000;
+  if (wp.type == Waypoint::Type::OBSTACLE)
+    return 5000;
+  return 10000;
+}
+
+} // namespace
+
 bool
 MapWindowProjection::WaypointInScaleFilter(const Waypoint &way_point) const noexcept
 {
-  return (GetMapScale() <= (way_point.IsLandable() ? 20000 : 10000));
+  return GetMapScale() <= WaypointDrawMaxScale(way_point);
 }
 
 double
@@ -44,6 +66,25 @@ MapWindowProjection::CalculateMapScale(unsigned scale) const noexcept
   assert(scale < ScaleListCount);
   return double(ScaleList[scale]) *
     GetMapResolutionFactor() / Layout::Scale(GetScreenSize().width);
+}
+
+/**
+ * Determine the effective number of usable entries in the ScaleList.
+ * May be reduced by OpenGL::max_map_scale to work around GPU driver
+ * bugs.
+ */
+static unsigned
+EffectiveScaleListCount() noexcept
+{
+#ifdef ENABLE_OPENGL
+  if (OpenGL::max_map_scale > 0) {
+    for (unsigned i = 0; i < ScaleListCount; i++)
+      if (ScaleList[i] > OpenGL::max_map_scale)
+        return i;
+  }
+#endif
+
+  return ScaleListCount;
 }
 
 double
@@ -56,18 +97,20 @@ double
 MapWindowProjection::StepMapScale(const double scale, int Step) const noexcept
 {
   int i = FindMapScale(scale) + Step;
-  i = std::clamp(i, 0, (int)ScaleListCount - 1);
+  i = std::clamp(i, 0, (int)EffectiveScaleListCount() - 1);
   return CalculateMapScale(i);
 }
 
 unsigned
 MapWindowProjection::FindMapScale(const double Value) const noexcept
 {
+  const unsigned effective_count = EffectiveScaleListCount();
+
   unsigned DesiredScale(Value * Layout::Scale(GetScreenSize().width)
                         / GetMapResolutionFactor());
 
   unsigned i;
-  for (i = 0; i < ScaleListCount; i++) {
+  for (i = 0; i < effective_count; i++) {
     if (DesiredScale < ScaleList[i]) {
       if (i == 0)
         return 0;
@@ -76,12 +119,17 @@ MapWindowProjection::FindMapScale(const double Value) const noexcept
     }
   }
 
-  return ScaleListCount - 1;
+  return effective_count - 1;
 }
 
 void
-MapWindowProjection::SetFreeMapScale(const double x) noexcept
+MapWindowProjection::SetFreeMapScale(double x) noexcept
 {
+#ifdef ENABLE_OPENGL
+  if (OpenGL::max_map_scale > 0)
+    x = std::min(x, double(OpenGL::max_map_scale));
+#endif
+
   SetScale(double(GetMapResolutionFactor()) / x);
 }
 

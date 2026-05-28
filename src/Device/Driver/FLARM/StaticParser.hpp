@@ -2,8 +2,9 @@
 // Copyright The XCSoar Project
 
 #pragma once
+#include <cstdint>
 
-/** \file 
+/** \file
  * Specific parsers for Flarm NMEA records.
  * @see https://flarm.com/wp-content/uploads/man/FTD-012-Data-Port-Interface-Control-Document-ICD.pdf
  */
@@ -11,9 +12,16 @@
 class TimeStamp;
 class NMEAInputLine;
 struct FlarmError;
+struct FlarmProgress;
+struct FlarmState;
 struct FlarmVersion;
 struct FlarmStatus;
 struct TrafficList;
+
+struct RangeFilter {
+  uint16_t horizontal;
+  uint16_t vertical;
+};
 
 /**
  * Parses a PFLAE sentence (self-test results).
@@ -59,4 +67,34 @@ ParsePFLAU(NMEAInputLine &line, FlarmStatus &flarm, TimeStamp clock) noexcept;
  * @param clock The time now.
  */
 void
-ParsePFLAA(NMEAInputLine &line, TrafficList &flarm, TimeStamp clock) noexcept;
+ParsePFLAA(NMEAInputLine &line, TrafficList &flarm, TimeStamp clock, RangeFilter &range) noexcept;
+
+/**
+ * Parses a PFLAJ sentence (flight and IGC recording state).
+ *
+ * @param line The Flarm NMEA record to parse.
+ * @param state The current Flarm state which will be updated.
+ * @param clock The time now.
+ */
+void
+ParsePFLAJ(NMEAInputLine &line, FlarmState &state,
+           TimeStamp clock) noexcept;
+
+/**
+ * Parses a PFLAQ sentence (operations progress information).
+ *
+ * @param line The Flarm NMEA record to parse.
+ * @param progress The current Flarm progress which will be updated.
+ * @param clock The time now.
+ */
+void
+ParsePFLAQ(NMEAInputLine &line, FlarmProgress &progress,
+           TimeStamp clock) noexcept;
+
+/**
+ * Parses a PFLAM sentence (messaging data).
+ *
+ * @param line The Flarm NMEA record to parse.
+ */
+void
+ParsePFLAM(NMEAInputLine &line) noexcept;

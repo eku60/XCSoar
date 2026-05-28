@@ -105,6 +105,12 @@ Main(UI::Display &display);
 
 #ifdef ENABLE_LOOK
 static Look *look;
+
+const MapLook &
+UIGlobals::GetMapLook()
+{
+  return look->map;
+}
 #endif
 
 #ifdef ENABLE_DIALOG_LOOK
@@ -162,7 +168,7 @@ protected:
     SingleWindow::OnCreate();
 
 #ifdef ENABLE_CLOSE_BUTTON
-    close_button.Create(*this, *button_look, _T("Close"),
+    close_button.Create(*this, *button_look, "Close",
                         GetCloseButtonRect(GetClientRect()),
                         WindowStyle(),
                         [this](){ Close(); });
@@ -287,7 +293,7 @@ WinMain([[maybe_unused]] HINSTANCE hInstance, [[maybe_unused]] HINSTANCE hPrevIn
 
 #ifdef ENABLE_MAIN_WINDOW
   main_window = new TestMainWindow(screen_init.GetDisplay());
-  main_window->Create(_T("Test"), window_size);
+  main_window->Create("Test", window_size);
   main_window->Show();
 #endif
 

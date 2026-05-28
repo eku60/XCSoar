@@ -29,27 +29,27 @@ ChartRenderer::ChartRenderer(const ChartLook &_look, Canvas &the_canvas,
 }
 
 void
-ChartRenderer::SetXLabel(const TCHAR *text) noexcept
+ChartRenderer::SetXLabel(const char *text) noexcept
 {
   CopyTruncateString(x_label.data(), x_label.capacity(), text);
 }
 
 void
-ChartRenderer::SetXLabel(const TCHAR *text, const TCHAR *unit) noexcept
+ChartRenderer::SetXLabel(const char *text, const char *unit) noexcept
 {
   StringFormat(x_label.data(), x_label.capacity(),
-               _T("%s [%s]"), text, unit);
+               "%s [%s]", text, unit);
 }
 
 void
-ChartRenderer::SetYLabel(const TCHAR *text, const TCHAR *unit) noexcept
+ChartRenderer::SetYLabel(const char *text, const char *unit) noexcept
 {
   StringFormat(y_label.data(), y_label.capacity(),
-               _T("%s [%s]"), text, unit);
+               "%s [%s]", text, unit);
 }
 
 void
-ChartRenderer::SetYLabel(const TCHAR *text) noexcept
+ChartRenderer::SetYLabel(const char *text) noexcept
 {
   CopyTruncateString(y_label.data(), y_label.capacity(), text);
 }
@@ -77,7 +77,7 @@ ChartRenderer::Begin() noexcept
   }
 
   if (!x_label.empty() || !y_label.empty())
-    canvas.DrawFilledRectangle(rc_chart, COLOR_WHITE);
+    canvas.DrawFilledRectangle(rc_chart, look.background_color);
 }
 
 void
@@ -88,6 +88,7 @@ ChartRenderer::Finish() noexcept
 
     canvas.Select(look.axis_label_font);
     canvas.SetBackgroundTransparent();
+    canvas.SetTextColor(look.text_color);
 
     PixelSize tsize = canvas.CalcTextSize(x_label.c_str());
     int x = rc.right - tsize.width - Layout::GetTextPadding();
@@ -101,6 +102,7 @@ ChartRenderer::Finish() noexcept
 
     canvas.Select(look.axis_label_font);
     canvas.SetBackgroundTransparent();
+    canvas.SetTextColor(look.text_color);
 
     canvas.DrawText(rc.WithPadding(Layout::GetTextPadding()).GetTopLeft(),
                     y_label.c_str());
@@ -193,10 +195,11 @@ ChartRenderer::ScaleXFromValue(const double value) noexcept
 }
 
 void
-ChartRenderer::DrawLabel(DoublePoint2D v, const TCHAR *text) noexcept
+ChartRenderer::DrawLabel(DoublePoint2D v, const char *text) noexcept
 {
   canvas.Select(look.label_font);
   canvas.SetBackgroundTransparent();
+  canvas.SetTextColor(look.text_color);
 
   auto tsize = canvas.CalcTextSize(text);
   auto pt = ToScreen(v);
@@ -214,10 +217,11 @@ ChartRenderer::DrawLabel(DoublePoint2D v, const TCHAR *text) noexcept
 }
 
 void
-ChartRenderer::DrawNoData(const TCHAR *text) noexcept
+ChartRenderer::DrawNoData(const char *text) noexcept
 {
   canvas.Select(look.label_font);
   canvas.SetBackgroundTransparent();
+  canvas.SetTextColor(look.text_color);
 
   canvas.DrawText(rc.CenteredTopLeft(canvas.CalcTextSize(text)), text);
 }
@@ -437,21 +441,21 @@ ChartRenderer::DrawLineGraph(const XYDataStore &lsdata,
   DrawLineGraph(lsdata, look.GetPen(style), swap);
 }
 
-BasicStringBuffer<TCHAR, 32>
+BasicStringBuffer<char, 32>
 ChartRenderer::FormatTicText(const double val, const double step,
                              UnitFormat units) noexcept
 {
-  BasicStringBuffer<TCHAR, 32> buffer;
+  BasicStringBuffer<char, 32> buffer;
 
   if (units == UnitFormat::TIME) {
     const unsigned total_minutes(val * 60);
-    StringFormat(buffer.data(), buffer.capacity(), _T("%u:%02u"),
+    StringFormat(buffer.data(), buffer.capacity(), "%u:%02u",
                  total_minutes / 60, total_minutes % 60);
   } else {
     if (step < 1) {
-      StringFormat(buffer.data(), buffer.capacity(), _T("%.1f"), val);
+      StringFormat(buffer.data(), buffer.capacity(), "%.1f", val);
     } else {
-      StringFormat(buffer.data(), buffer.capacity(), _T("%.0f"), val);
+      StringFormat(buffer.data(), buffer.capacity(), "%.0f", val);
     }
   }
 
@@ -466,6 +470,7 @@ ChartRenderer::DrawXGrid(double tic_step, double unit_step,
 
   canvas.Select(look.axis_value_font);
   canvas.SetBackgroundTransparent();
+  canvas.SetTextColor(look.text_color);
 
   PixelPoint line[4];
 
@@ -537,6 +542,7 @@ ChartRenderer::DrawYGrid(double tic_step, double unit_step,
 
   canvas.Select(look.axis_value_font);
   canvas.SetBackgroundTransparent();
+  canvas.SetTextColor(look.text_color);
 
   PixelPoint line[4];
 
@@ -673,6 +679,9 @@ ChartRenderer::DrawWeightBarGraph(const XYDataStore &lsdata) noexcept
   for (const auto &i : slots) {
     auto pt_base = ToScreen({i.x, y.min});
     auto pt_top = ToScreen({i.x+i.weight, i.y});
-    canvas.DrawRectangle({pt_base.x, pt_base.y, pt_top.x, pt_top.y});
+    auto screen_base = ToScreen({x.min, y.min});
+    if (pt_top.x > screen_base.x){
+      canvas.DrawRectangle({std::max(pt_base.x, screen_base.x), pt_base.y, pt_top.x, pt_top.y});
+    }
   }
 }

@@ -17,6 +17,10 @@
 #include "Math/Util.hpp"
 #include "Components.hpp"
 #include "BackendComponents.hpp"
+#include "LogFile.hpp"
+
+#include <fmt/format.h>
+#include <exception>
 
 static double VegaDemoW = 0;
 static double VegaDemoV = 0;
@@ -29,13 +33,21 @@ VegaWriteDemo()
   if (!last_time.CheckUpdate(std::chrono::milliseconds(250)))
     return;
 
-  TCHAR dbuf[100];
-  _stprintf(dbuf, _T("PDVDD,%d,%d"),
-            iround(VegaDemoW * 10),
-            iround(VegaDemoV * 10));
+  std::string payload;
+  try {
+    payload = fmt::format("PDVDD,{},{}",
+                          iround(VegaDemoW * 10),
+                          iround(VegaDemoV * 10));
+  } catch (const std::exception &e) {
+    LogFmt("VegaDemo: failed to format payload: {}", e.what());
+    return;
+  } catch (...) {
+    LogFmt("VegaDemo: failed to format payload");
+    return;
+  }
 
   PopupOperationEnvironment env;
-  backend_components->devices->VegaWriteNMEA(dbuf, env);
+  backend_components->devices->VegaWriteNMEA(payload.c_str(), env);
 }
 
 class VegaDemoWidget final
@@ -79,15 +91,15 @@ void
 VegaDemoWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_unused]] const PixelRect &rc) noexcept
 {
   AddFloat(_("TE vario"),
-           _("This produces a fake TE vario gross vertical velocity.  It can be used when in circling mode to demonstrate the lift tones.  When not in circling mode, set this to a realistic negative value so speed command tones are produced."),
-           _T("%.1f %s"), _T("%.1f"),
+           _("This produces a fake TE vario gross vertical velocity. It can be used when in circling mode to demonstrate the lift tones. When not in circling mode, set this to a realistic negative value so speed command tones are produced."),
+           "%.1f %s", "%.1f",
            Units::ToUserVSpeed(-20), Units::ToUserVSpeed(20),
            GetUserVerticalSpeedStep(),
            false, UnitGroup::VERTICAL_SPEED, VegaDemoW, this);
 
   AddFloat(_("Airspeed"),
-           _("This produces a fake airspeed.  It can be used when not in circling mode to demonstrate the speed command tones."),
-           _T("%.0f %s"), _T("%.0f"), 0, 200, 2,
+           _("This produces a fake airspeed. It can be used when not in circling mode to demonstrate the speed command tones."),
+           "%.0f %s", "%.0f", 0, 200, 2,
            false, UnitGroup::HORIZONTAL_SPEED, VegaDemoV, this);
 
   AddBoolean(_("Circling"),
@@ -99,8 +111,8 @@ void
 dlgVegaDemoShowModal()
 {
   PopupOperationEnvironment env;
-  backend_components->devices->VegaWriteNMEA(_T("PDVSC,S,DemoMode,0"), env);
-  backend_components->devices->VegaWriteNMEA(_T("PDVSC,S,DemoMode,3"), env);
+  backend_components->devices->VegaWriteNMEA("PDVSC,S,DemoMode,0", env);
+  backend_components->devices->VegaWriteNMEA("PDVSC,S,DemoMode,3", env);
 
   const DialogLook &look = UIGlobals::GetDialogLook();
   TWidgetDialog<VegaDemoWidget>
@@ -111,5 +123,5 @@ dlgVegaDemoShowModal()
   dialog.ShowModal();
 
   // deactivate demo.
-  backend_components->devices->VegaWriteNMEA(_T("PDVSC,S,DemoMode,0"), env);
+  backend_components->devices->VegaWriteNMEA("PDVSC,S,DemoMode,0", env);
 }

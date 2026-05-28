@@ -5,6 +5,7 @@
 #include "LabelBlock.hpp"
 #include "ui/canvas/Canvas.hpp"
 #include "Screen/Layout.hpp"
+#include "util/UTF8.hpp"
 
 #ifdef ENABLE_OPENGL
 #include "ui/canvas/opengl/Scope.hpp"
@@ -51,8 +52,8 @@ TextInBoxMoveInView(PixelRect &rc, const PixelRect &map_rc) noexcept
   return offset;
 }
 
-static void
-RenderShadowedText(Canvas &canvas, const TCHAR *text,
+void
+RenderShadowedText(Canvas &canvas, const char *text,
                    PixelPoint p,
                    bool inverted) noexcept
 {
@@ -71,11 +72,14 @@ RenderShadowedText(Canvas &canvas, const TCHAR *text,
 
 // returns true if really wrote something
 bool
-TextInBox(Canvas &canvas, const TCHAR *text, PixelPoint p,
+TextInBox(Canvas &canvas, const char *text, PixelPoint p,
           TextInBoxMode mode, const PixelRect &map_rc,
           LabelBlock *label_block) noexcept
 {
   // landable waypoint label inside white box
+
+  if (text == nullptr || text[0] == '\0' || !ValidateUTF8(text))
+    text = "?";
 
   PixelSize tsize = canvas.CalcTextSize(text);
 
@@ -144,7 +148,7 @@ TextInBox(Canvas &canvas, const TCHAR *text, PixelPoint p,
 }
 
 bool
-TextInBox(Canvas &canvas, const TCHAR *text, PixelPoint p,
+TextInBox(Canvas &canvas, const char *text, PixelPoint p,
           TextInBoxMode mode,
           PixelSize screen_size,
           LabelBlock *label_block) noexcept

@@ -3,10 +3,6 @@
 
 #pragma once
 
-#ifdef _UNICODE
-#include "WStringFormat.hpp"
-#endif
-
 #include <stdio.h>
 
 template<typename... Args>
@@ -17,9 +13,18 @@ StringFormat(char *buffer, size_t size, const char *fmt,
   return snprintf(buffer, size, fmt, args...);
 }
 
+#ifndef __MSVC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif  // !defined(__MSVC__)
+
 template<typename... Args>
 static inline int
 StringFormatUnsafe(char *buffer, const char *fmt, Args&&... args) noexcept
 {
   return sprintf(buffer, fmt, args...);
 }
+
+#ifndef __MSVC__
+#pragma GCC diagnostic pop
+#endif  // !defined(__MSVC__)

@@ -12,6 +12,8 @@
 #include "util/StaticString.hxx"
 #include "Asset.hpp"
 
+#include <algorithm>
+
 /**
  * Holds display and callbacks data for a single tab.
  */
@@ -24,7 +26,7 @@ public:
   PixelRect rc;
 
 public:
-  Button(const TCHAR *_caption, const MaskedIcon *_icon) noexcept
+  Button(const char *_caption, const MaskedIcon *_icon) noexcept
     :icon(_icon)
   {
     caption = _caption;
@@ -193,13 +195,13 @@ TabDisplay::CalculateLayout() noexcept
 }
 
 void
-TabDisplay::Add(const TCHAR *caption, const MaskedIcon *icon) noexcept
+TabDisplay::Add(const char *caption, const MaskedIcon *icon) noexcept
 {
   buttons.append(new Button(caption, icon));
   CalculateLayout();
 }
 
-const TCHAR *
+const char *
 TabDisplay::GetCaption(unsigned i) const noexcept
 {
   return buttons[i]->caption.c_str();
@@ -227,9 +229,12 @@ TabDisplay::OnResize(PixelSize new_size) noexcept
 void
 TabDisplay::OnPaint(Canvas &canvas) noexcept
 {
-  canvas.Clear(COLOR_BLACK);
+  canvas.Clear(look.dark_mode
+               ? DarkColor(look.background_color)
+               : COLOR_BLACK);
 
   const bool is_focused = !HasCursorKeys() || HasFocus();
+
   for (unsigned i = 0; i < buttons.size(); i++) {
     const auto &button = *buttons[i];
 
@@ -237,6 +242,31 @@ TabDisplay::OnPaint(Canvas &canvas) noexcept
     const bool is_selected = i == current_index;
 
     button.Draw(canvas, look, is_focused, is_down, is_selected);
+  }
+
+  if (!buttons.empty()) {
+    const PixelRect &selected_rc = buttons[current_index]->rc;
+    const Color indicator_color = look.dark_mode
+      ? look.focused.background_color
+      : look.list.focused.background_color;
+
+    PixelRect indicator_rc = selected_rc;
+    if (vertical) {
+      indicator_rc.left = selected_rc.right;
+      indicator_rc.right = selected_rc.right + (int)tab_line_height;
+    } else {
+      indicator_rc.top = selected_rc.bottom;
+      indicator_rc.bottom = selected_rc.bottom + (int)tab_line_height;
+    }
+
+    // TODO: add PixelRect::ClippedTo() in ui/dim/Rect.hpp and use it here.
+    const PixelRect client_rc = GetClientRect();
+    indicator_rc.left = std::max(indicator_rc.left, client_rc.left);
+    indicator_rc.top = std::max(indicator_rc.top, client_rc.top);
+    indicator_rc.right = std::min(indicator_rc.right, client_rc.right);
+    indicator_rc.bottom = std::min(indicator_rc.bottom, client_rc.bottom);
+    if (!indicator_rc.IsEmpty())
+      canvas.DrawFilledRectangle(indicator_rc, indicator_color);
   }
 }
 

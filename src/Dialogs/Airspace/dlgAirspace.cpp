@@ -70,17 +70,18 @@ AirspaceSettingsListWidget::OnPaintItem(Canvas &canvas, PixelRect rc,
     CommonInterface::GetMapSettings().airspace;
   const AirspaceLook &look = CommonInterface::main_window->GetLook().map.airspace;
 
-  const TCHAR *const name = AirspaceFormatter::GetClass((AirspaceClass)i);
+  const char *const name = AirspaceFormatter::GetClass((AirspaceClass)i);
 
   if (color_mode) {
     int second_x = row_renderer.NextColumn(canvas, rc, name);
 
     const int padding = Layout::GetTextPadding();
 
+    const Color text_color = canvas.GetTextColor();
     if (AirspacePreviewRenderer::PrepareFill(
         canvas, (AirspaceClass)i, look, renderer)) {
       canvas.DrawRectangle({second_x, rc.top + padding, rc.right - padding, rc.bottom - padding});
-      AirspacePreviewRenderer::UnprepareFill(canvas);
+      AirspacePreviewRenderer::UnprepareFill(canvas, text_color);
     }
     if (AirspacePreviewRenderer::PrepareOutline(
         canvas, (AirspaceClass)i, look, renderer)) {

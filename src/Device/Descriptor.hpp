@@ -11,6 +11,7 @@
 #include "Device/Parser.hpp"
 #include "RadioFrequency.hpp"
 #include "TransponderCode.hpp"
+#include "TransponderMode.hpp"
 #include "NMEA/ExternalSettings.hpp"
 #include "time/PeriodClock.hpp"
 #include "Job/Async.hpp"
@@ -18,30 +19,32 @@
 #include "thread/Mutex.hxx"
 #include "thread/Debug.hpp"
 #include "time/FloatDuration.hxx"
-#include "util/tstring.hpp"
 #include "util/StaticFifoBuffer.hxx"
+#include "ui/event/Timer.hpp"
+
+#include <optional>
 
 #ifdef HAVE_INTERNAL_GPS
 #include "SensorListener.hpp"
 #endif
 
-#ifdef ANDROID
 #include "Math/SelfTimingKalmanFilter1d.hpp"
 #include "Math/WindowFilter.hpp"
-#endif
 
+#include <string>
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <memory>
 
 #include <cassert>
-#include <tchar.h>
 #include <stdio.h>
 
 namespace Java { class GlobalCloseable; }
 class DeviceBlackboard;
 class NMEALogger;
+class GlidePolar;
+struct GeoPoint;
 struct NMEAInfo;
 struct MoreData;
 struct DerivedInfo;
@@ -75,6 +78,11 @@ class DeviceDescriptor final
   DeviceFactory &factory;
 
   UI::Notify job_finished_notify{[this]{ OnJobFinished(); }};
+
+  /**
+   * Timer for delayed device reopening (used by SlowReopen).
+   */
+  UI::Timer reopen_timer{[this]{ OnReopenTimer(); }};
 
   /**
    * This mutex protects modifications of the attribute "device".  If
@@ -158,12 +166,9 @@ class DeviceDescriptor final
    */
   InternalSensors *internal_sensors = nullptr;
 #endif
-
-#ifdef ANDROID
-  Java::GlobalCloseable *java_sensor = nullptr;
-  Java::GlobalCloseable *second_java_sensor = nullptr;
-
-  /* We use a Kalman filter to smooth Android device pressure sensor
+      
+#ifdef HAVE_INTERNAL_GPS
+  /* We use a Kalman filter to smooth device pressure sensor
      noise.  The filter requires two parameters: the first is the
      variance of the distribution of second derivatives of pressure
      values that we expect to see in flight, and the second is the
@@ -184,6 +189,11 @@ class DeviceDescriptor final
   static constexpr double KF_I2C_VAR_ACCEL_85 = KF_VAR_ACCEL;
 
   SelfTimingKalmanFilter1d kalman_filter{KF_MAX_DT, KF_VAR_ACCEL};
+#endif
+
+#ifdef ANDROID
+  Java::GlobalCloseable *java_sensor = nullptr;
+  Java::GlobalCloseable *second_java_sensor = nullptr;
 
   double voltage_offset;
   double voltage_factor;
@@ -228,10 +238,19 @@ class DeviceDescriptor final
   ExternalSettings settings_received;
 
   /**
+   * Cached LXNAV BRGPS baudrate for passthrough sessions.
+   *
+   * If reading BRGPS fails intermittently, this keeps the last known
+   * value so repeated DIRECT transitions can still switch the host
+   * port to the downstream device's baudrate.
+   */
+  std::optional<unsigned> cached_lxgps_baudrate;
+
+  /**
    * If this device has failed, then this attribute may contain an
    * error message.
    */
-  tstring error_message;
+  std::string error_message;
 
   /**
    * Number of port failures since the device was last reset.
@@ -267,6 +286,8 @@ class DeviceDescriptor final
    */
   bool borrowed = false;
 
+  bool waiting_to_call_open = false;
+
 public:
   DeviceDescriptor(DeviceBlackboard &_blackboard,
                    NMEALogger *_nmea_logger,
@@ -292,7 +313,7 @@ public:
   [[gnu::pure]]
   PortState GetState() const noexcept;
 
-  tstring GetErrorMessage() const noexcept {
+  std::string GetErrorMessage() const noexcept {
     const std::lock_guard lock{mutex};
     return error_message;
   }
@@ -402,6 +423,8 @@ public:
    */
   void Reopen(OperationEnvironment &env);
 
+  void SlowReopen();
+
   /**
    * Call this periodically to auto-reopen a failed device after a
    * certain delay.
@@ -420,12 +443,12 @@ public:
    */
   bool EnableNMEA(OperationEnvironment &env) noexcept;
 
-  const TCHAR *GetDisplayName() const noexcept;
+  const char *GetDisplayName() const noexcept;
 
   /**
    * Compares the driver's name.
    */
-  bool IsDriver(const TCHAR *name) const noexcept;
+  bool IsDriver(const char *name) const noexcept;
 
   [[gnu::pure]]
   bool CanDeclare() const noexcept;
@@ -434,15 +457,19 @@ public:
   bool IsLogger() const noexcept;
 
   bool IsCondor() const noexcept {
-    return IsDriver(_T("Condor"));
+    return IsDriver("Condor");
   }
 
   bool IsVega() const noexcept {
-    return IsDriver(_T("Vega"));
+    return IsDriver("Vega");
   }
 
   bool IsNMEAOut() const noexcept;
   bool IsManageable() const noexcept;
+
+  bool IsWaitingToCallOpen() const noexcept {
+    return waiting_to_call_open;
+  }
 
   bool IsBorrowed() const noexcept {
     return borrowed;
@@ -529,25 +556,31 @@ public:
   void ForwardLine(const char *line);
 
   bool WriteNMEA(const char *line, OperationEnvironment &env) noexcept;
-#ifdef _UNICODE
-  bool WriteNMEA(const TCHAR *line, OperationEnvironment &env) noexcept;
-#endif
-
   bool PutMacCready(double mac_cready, OperationEnvironment &env) noexcept;
   bool PutBugs(double bugs, OperationEnvironment &env) noexcept;
   bool PutBallast(double fraction, double overload,
                   OperationEnvironment &env) noexcept;
+  bool PutCrewMass(double crew_mass, OperationEnvironment &env) noexcept;
+  bool PutEmptyMass(double empty_mass, OperationEnvironment &env) noexcept;
+  bool PutPolar(const GlidePolar &polar, OperationEnvironment &env) noexcept;
+  bool PutTarget(const GeoPoint &location, const char *name,
+                 std::optional<double> elevation,
+                 OperationEnvironment &env) noexcept;
   bool PutVolume(unsigned volume, OperationEnvironment &env) noexcept;
   bool PutPilotEvent(OperationEnvironment &env) noexcept;
   bool PutActiveFrequency(RadioFrequency frequency,
-                          const TCHAR *name,
+                          const char *name,
                           OperationEnvironment &env) noexcept;
+  bool ExchangeRadioFrequencies(OperationEnvironment &env,
+                                NMEAInfo &info) noexcept;
   bool PutStandbyFrequency(RadioFrequency frequency,
-                           const TCHAR *name,
+                           const char *name,
                            OperationEnvironment &env) noexcept;
   bool PutTransponderCode(TransponderCode code, OperationEnvironment &env) noexcept;
   bool PutQNH(AtmosphericPressure pres,
               OperationEnvironment &env) noexcept;
+  bool PutElevation(int elevation, OperationEnvironment &env) noexcept;
+  bool RequestElevation(OperationEnvironment &env) noexcept;
 
   /**
    * Caller is responsible for calling Borrow() and Return().
@@ -567,6 +600,14 @@ public:
   bool DownloadFlight(const RecordedFlightInfo &flight, Path path,
                       OperationEnvironment &env);
 
+  /**
+   * Caller is responsible for calling Borrow() and Return().
+   *
+   * For passthrough configurations, this temporarily enables
+   * passthrough and asks the second device to switch back to NMEA.
+   */
+  bool EnableSecondDeviceNMEA(OperationEnvironment &env) noexcept;
+
   void OnSysTicker() noexcept;
 
   /**
@@ -581,11 +622,7 @@ public:
                           const DerivedInfo &calculated) noexcept;
 
 private:
-  void LockSetErrorMessage(const TCHAR *msg) noexcept;
-#ifdef _UNICODE
   void LockSetErrorMessage(const char *msg) noexcept;
-#endif
-
   void OnJobFinished() noexcept;
 
   /* virtual methods from class PortListener */
@@ -597,6 +634,8 @@ private:
 
   /* virtual methods from PortLineHandler */
   bool LineReceived(const char *line) noexcept override;
+
+  void OnReopenTimer() noexcept;
 
 #ifdef HAVE_INTERNAL_GPS
   /* methods from SensorListener */
@@ -617,8 +656,6 @@ private:
   void OnRotationSensor(float dtheta_x, float dtheta_y,
                         float dtheta_z) noexcept override;
   void OnMagneticFieldSensor(float h_x, float h_y, float h_z) noexcept override;
-  void OnBarometricPressureSensor(float pressure,
-                                  float sensor_noise_variance) noexcept override;
   void OnPressureAltitudeSensor(float altitude) noexcept override;
   void OnI2CbaroSensor(int index, int sensorType,
                        AtmosphericPressure pressure) noexcept override;
@@ -644,6 +681,9 @@ private:
   void OnSensorStateChanged() noexcept override;
   void OnSensorError(const char *msg) noexcept override;
 #endif // ANDROID
+
+  void OnBarometricPressureSensor(float pressure,
+                                  float sensor_noise_variance) noexcept override;
 #endif // HAVE_INTERNAL_GPS
 };
 

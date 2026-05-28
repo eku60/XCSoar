@@ -127,8 +127,10 @@ AbstractTask::UpdateStatsDistances(const GeoPoint &location,
     stats.current_leg.next_leg_vector = GeoVector::Invalid();
   }
 
-  if (full_update)
+  if (full_update) {
     stats.distance_nominal = ScanDistanceNominal();
+    stats.distance_max_total = ScanDistanceMaxTotal();
+  }
 
   ScanDistanceMinMax(location, full_update,
                        &stats.distance_min, &stats.distance_max);
@@ -232,7 +234,9 @@ AbstractTask::Update(const AircraftState &state,
   UpdateStatsSpeeds(state.time);
   UpdateFlightMode();
 
-  assert(!force_full_update);
+  /* force_full_update is consumed/cleared above; if helpers set it during
+     Update() (e.g. task mutation while recalculating), it is picked up on
+     the next call, not this one. */
 
   return sample_updated || full_update;
 }

@@ -14,8 +14,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <tchar.h>
-
 class Angle;
 
 struct InfoBoxData {
@@ -32,6 +30,7 @@ struct InfoBoxData {
 
   StaticString<32> title;
   StaticString<32> value;
+  /** UTF-8; truncated to fit (31 bytes + NUL). Keep user-visible msgids short. */
   StaticString<32> comment;
 
   Unit value_unit;
@@ -77,9 +76,9 @@ struct InfoBoxData {
    *
    * @param title New value of the InfoBox title
    */
-  void SetTitle(const TCHAR *title) noexcept;
+  void SetTitle(const char *title) noexcept;
 
-  const TCHAR *GetTitle() const {
+  const char *GetTitle() const {
     return title;
   };
 
@@ -105,7 +104,7 @@ struct InfoBoxData {
    * Sets the InfoBox value to the given Value
    * @param Value New value of the InfoBox value
    */
-  void SetValue(const TCHAR *value) noexcept;
+  void SetValue(const char *value) noexcept;
 
   void VFmtValue(fmt_tstring_view format_str, fmt_tformat_args args) noexcept {
     auto [p, _] = fmt::vformat_to_n(value.begin(), value.capacity() - 1,
@@ -128,7 +127,7 @@ struct InfoBoxData {
   /**
    * Sets the InfoBox value to the given angle.
    */
-  void SetValue(Angle value, const TCHAR *suffix=_T("")) noexcept;
+  void SetValue(Angle value, const char *suffix="") noexcept;
 
   void SetValueFromBearingDifference(Angle delta) noexcept;
 
@@ -176,7 +175,7 @@ struct InfoBoxData {
    * Sets the InfoBox comment to the given Value
    * @param Value New value of the InfoBox comment
    */
-  void SetComment(const TCHAR *comment) noexcept;
+  void SetComment(const char *comment) noexcept;
 
   void VFmtComment(fmt_tstring_view format_str, fmt_tformat_args args) noexcept {
     auto [p, _] = fmt::vformat_to_n(comment.begin(), comment.capacity() - 1,
@@ -199,7 +198,7 @@ struct InfoBoxData {
   /**
    * Sets the InfoBox comment to the given angle.
    */
-  void SetComment(Angle comment, const TCHAR *suffix=_T("")) noexcept;
+  void SetComment(Angle comment, const char *suffix="") noexcept;
 
   void SetCommentFromDistance(double value) noexcept;
 

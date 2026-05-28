@@ -11,14 +11,12 @@
 #include "Formatter/UserUnits.hpp"
 #include "Language/Language.hpp"
 
-#include <tchar.h>
-
 static void
 SetVSpeed(InfoBoxData &data, double value) noexcept
 {
-  TCHAR buffer[32];
+  char buffer[32];
   FormatUserVerticalSpeed(value, buffer, false);
-  data.SetValue(buffer[0] == _T('+') ? buffer + 1 : buffer);
+  data.SetValue(buffer[0] == '+' ? buffer + 1 : buffer);
   data.SetValueUnit(Units::current.vertical_speed_unit);
 }
 
@@ -49,7 +47,7 @@ InfoBoxContentMacCready::Update(InfoBoxData &data) noexcept
     CommonInterface::GetComputerSettings();
 
   data.SetTitle(settings_computer.task.auto_mc ? _("MC AUTO") : _("MC MANUAL"));
-  data.SetValueColor(settings_computer.task.auto_mc ? (0): (3));
+  data.SetValueColor(settings_computer.task.auto_mc ? (2) : (3));
 
   SetVSpeed(data, settings_computer.polar.glide_polar_task.GetMC());
 

@@ -95,9 +95,10 @@ PBB50(NMEAInputLine &line, NMEAInfo &info)
     break;
   }
 
-  info.temperature_available = line.ReadChecked(value);
-  if (info.temperature_available)
+  if (line.ReadChecked(value)) {
     info.temperature = Temperature::FromCelsius(value);
+    info.temperature_available.Update(info.clock);
+  }
 
   return true;
 }
@@ -152,8 +153,8 @@ B50CreateOnPort([[maybe_unused]] const DeviceConfig &config, Port &com_port)
 }
 
 const struct DeviceRegister b50_driver = {
-  _T("Borgelt B50"),
-  _T("Borgelt B50/B800"),
+  "Borgelt B50",
+  "Borgelt B50/B800",
   DeviceRegister::RECEIVE_SETTINGS | DeviceRegister::SEND_SETTINGS,
   B50CreateOnPort,
 };

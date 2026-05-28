@@ -4,7 +4,9 @@
 #include "WaypointFilter.hpp"
 #include "Waypoint/Waypoint.hpp"
 #include "Engine/Task/Shapes/FAITrianglePointValidator.hpp"
+#include "Engine/Waypoint/NameSearch.hpp"
 #include "util/Compiler.h"
+#include "util/StringUtil.hpp"
 
 inline bool
 WaypointFilter::CompareType(const Waypoint &waypoint, TypeFilter type,
@@ -38,16 +40,55 @@ WaypointFilter::CompareType(const Waypoint &waypoint, TypeFilter type,
   case TypeFilter::USER:
     return waypoint.origin == WaypointOrigin::USER;
 
-  case TypeFilter::FILE_1:
+  case TypeFilter::FILE:
+    // FILE filter is now handled in Matches() with file_num check
     return waypoint.origin == WaypointOrigin::PRIMARY;
-
-  case TypeFilter::FILE_2:
-    return waypoint.origin == WaypointOrigin::ADDITIONAL;
 
   case TypeFilter::MAP:
     return waypoint.origin == WaypointOrigin::MAP;
 
   case TypeFilter::LAST_USED:
+    return false;
+
+  case TypeFilter::MOUNTAIN_TOP:
+    return waypoint.type == Waypoint::Type::MOUNTAIN_TOP;
+  case TypeFilter::MOUNTAIN_PASS:
+    return waypoint.type == Waypoint::Type::MOUNTAIN_PASS;
+  case TypeFilter::BRIDGE:
+    return waypoint.type == Waypoint::Type::BRIDGE;
+  case TypeFilter::TUNNEL:
+    return waypoint.type == Waypoint::Type::TUNNEL;
+  case TypeFilter::TOWER:
+    return waypoint.type == Waypoint::Type::TOWER;
+  case TypeFilter::POWERPLANT:
+    return waypoint.type == Waypoint::Type::POWERPLANT;
+  case TypeFilter::OBSTACLE:
+    return waypoint.type == Waypoint::Type::OBSTACLE;
+  case TypeFilter::THERMAL_HOTSPOT:
+    return waypoint.type == Waypoint::Type::THERMAL_HOTSPOT;
+  case TypeFilter::MARKER:
+    return waypoint.type == Waypoint::Type::MARKER;
+  case TypeFilter::VOR:
+    return waypoint.type == Waypoint::Type::VOR;
+  case TypeFilter::NDB:
+    return waypoint.type == Waypoint::Type::NDB;
+  case TypeFilter::DAM:
+    return waypoint.type == Waypoint::Type::DAM;
+  case TypeFilter::CASTLE:
+    return waypoint.type == Waypoint::Type::CASTLE;
+  case TypeFilter::INTERSECTION:
+    return waypoint.type == Waypoint::Type::INTERSECTION;
+  case TypeFilter::REPORTING_POINT:
+    return waypoint.type == Waypoint::Type::REPORTING_POINT;
+  case TypeFilter::PG_TAKEOFF:
+    return waypoint.type == Waypoint::Type::PGTAKEOFF;
+  case TypeFilter::PG_LANDING:
+    return waypoint.type == Waypoint::Type::PGLANDING;
+
+  case TypeFilter::COUNT:
+  case TypeFilter::_DYNAMIC_FILE_ID_START:
+    // Sentinel values, not actual filter types
+    gcc_unreachable();
     return false;
   }
 
@@ -83,9 +124,15 @@ WaypointFilter::CompareDirection(const Waypoint &waypoint,
 }
 
 inline bool
-WaypointFilter::CompareName(const Waypoint &waypoint, const TCHAR *name)
+WaypointFilter::CompareName(const Waypoint &waypoint, const char *name)
 {
-  return StringIsEqualIgnoreCase(waypoint.name.c_str(), name, _tcslen(name));
+  /* Substring match against the normalised waypoint name (and
+     shortname).  Goes through the shared helper so this filter
+     path (within-range + name) agrees with the name-only path
+     (Waypoints::VisitNameSubstring). */
+  char needle[NAME_SEARCH_BUFFER_SIZE];
+  NormalizeSearchString(needle, name);
+  return WaypointMatchesNormalisedSubstring(waypoint, needle);
 }
 
 inline bool
@@ -98,6 +145,13 @@ bool
 WaypointFilter::Matches(const Waypoint &waypoint, GeoPoint location,
                         const FAITrianglePointValidator &triangle_validator) const
 {
+  // Check file_num filter for FILE type
+  if (type_index == TypeFilter::FILE && file_num >= 0) {
+    if (waypoint.origin != WaypointOrigin::PRIMARY ||
+        waypoint.file_num != static_cast<uint8_t>(file_num))
+      return false;
+  }
+
   return CompareType(waypoint, triangle_validator) &&
          (distance <= 0 || CompareName(waypoint)) &&
          CompareDirection(waypoint, location);

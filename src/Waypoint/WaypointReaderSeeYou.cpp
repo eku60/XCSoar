@@ -168,7 +168,7 @@ ParseStyle(std::string_view src, Waypoint::Type &type)
   case 20:
     type = Waypoint::Type::PGTAKEOFF;
     break;
-  case 22:
+  case 21:
     type = Waypoint::Type::PGLANDING;
     break;
   }
@@ -200,26 +200,36 @@ bool ParseSeeYou(WaypointFactory factory, Waypoints &waypoints, BufferedReader &
   std::array<std::string_view,14> params;
 
   bool tasks { false };
+  bool first_line = true;
+  bool has_rwwidth = false;
 
-  // Headers
-  {
-    params_num = ReadCsvRecord(reader, params);
-
-    // Empty file
-    if (params_num == 0)
-      return false;
-
-    // Newer cup/cupx specification adds rwwidth, shifts freq and desc right, and adds userdata, and pics
-    if ( params_num > iRWWidth &&
-         params[iRWWidth] == "rwwidth"sv ) {
-      iFrequency = 10;
-      iDescription = 11;
-    }
-  }
-
-  // Waypoints
   while ( true ) {
     params_num = ReadCsvRecord(reader, params);
+
+    // first line of file
+    if (first_line) {
+      first_line = false;
+
+      // Empty file
+      if (params_num == 0)
+        return false;
+
+      // Check whether this is a header (a line with only field names).
+      if (StringIsEqualIgnoreCase(params[iLatitude],"lat"sv)) {
+
+        /*
+         * Newer cup/cupx specification adds rwwidth, shifts freq and desc
+         * right, and adds userdata and pics.
+         */
+        if (params_num > iRWWidth &&
+            StringIsEqualIgnoreCase(params[iRWWidth], "rwwidth"sv)) {
+          has_rwwidth = true;
+          iFrequency = 10;
+          iDescription = 11;
+        }
+        continue;
+      }
+    }
 
     // Tasks section
     tasks = params_num == 1 &&
@@ -292,7 +302,16 @@ bool ParseSeeYou(WaypointFactory factory, Waypoints &waypoints, BufferedReader &
            rwlen > 0 && rwlen <= 30000)
         new_waypoint.runway.SetLength(uround(rwlen));
 
-      if ( params_num > iRWLen &&
+      // Runway width (e.g. 15.0m; available in newer CUP formats)
+      double rwwidth = -1;
+      if (has_rwwidth &&
+          params_num > iRWWidth &&
+          !params[iRWWidth].empty() &&
+          ParseDistance(params[iRWWidth], rwwidth) &&
+          rwwidth > 0 && rwwidth <= 30000)
+        new_waypoint.runway.SetWidth(uround(rwwidth));
+
+      if ( params_num > iRWDir &&
            !params[iRWDir].empty()) {
         if (auto value = ParseInteger<unsigned>(params[iRWDir])) {
           unsigned direction = *value;

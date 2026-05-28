@@ -8,10 +8,7 @@
 #include "util/StringStrip.hxx"
 #include "io/LineReader.hpp"
 #include "io/FileLineReader.hpp"
-
-#ifndef _UNICODE
 #include "util/UTF8.hpp"
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,15 +21,12 @@
  * @param res Pointer to be written in
  */
 static void
-LoadString(const char *bytes, size_t length, TCHAR *res, [[maybe_unused]] size_t res_size)
+LoadString(const char *bytes, size_t length, char *res, [[maybe_unused]] size_t res_size)
 {
   const char *const end = bytes + length * 2;
-
-#ifndef _UNICODE
   const char *const limit = res + res_size - 2;
-#endif
 
-  TCHAR *p = res;
+  char *p = res;
 
   char tmp[3];
   tmp[2] = 0;
@@ -44,24 +38,18 @@ LoadString(const char *bytes, size_t length, TCHAR *res, [[maybe_unused]] size_t
     /* FLARMNet files are ISO-Latin-1, which is kind of short-sighted */
 
     const unsigned char ch = (unsigned char)strtoul(tmp, NULL, 16);
-#ifdef _UNICODE
-    /* Latin-1 can be converted to WIN32 wchar_t by casting */
-    *p++ = ch;
-#else
-    /* convert to UTF-8 on all other platforms */
+
+    /* convert to UTF-8 */
 
     if (p >= limit)
       break;
 
     p = Latin1ToUTF8(ch, p);
-#endif
   }
 
   *p = 0;
 
-#ifndef _UNICODE
   assert(ValidateUTF8(res));
-#endif
 
   // Trim the string of any additional spaces
   StripRight(res);
@@ -86,18 +74,27 @@ LoadRecord(FlarmNetRecord &record, const char *line)
   if (strlen(line) < 172)
     return false;
 
-  LoadString(line, 6, record.id);
+  char id_buf[16];
+  LoadString(line, 6, id_buf, sizeof(id_buf));
+  record.id = FlarmId::Parse(id_buf, nullptr);
+
   LoadString(line + 12, 21, record.pilot);
   LoadString(line + 54, 21, record.airfield);
   LoadString(line + 96, 21, record.plane_type);
   LoadString(line + 138, 7, record.registration);
   LoadString(line + 152, 3, record.callsign);
-  LoadString(line + 158, 7, record.frequency);
+
+  StaticString<LatinBufferSize(8)> freq_text;
+  LoadString(line + 158, 7, freq_text);
+  char freq_ascii[16];
+  char *freq_end = CopyASCII(freq_ascii, sizeof(freq_ascii) - 1, freq_text);
+  *freq_end = '\0';
+  record.frequency = RadioFrequency::Parse(std::string_view(freq_ascii));
 
   // Terminate callsign string on first whitespace
-  for (TCHAR *i = record.callsign.buffer(); *i != _T('\0'); ++i)
+  for (char *i = record.callsign.buffer(); *i != '\0'; ++i)
     if (IsWhitespaceFast(*i))
-      *i = _T('\0');
+      *i = '\0';
 
   return true;
 }

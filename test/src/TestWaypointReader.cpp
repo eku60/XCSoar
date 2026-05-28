@@ -3,19 +3,24 @@
 
 #include "Waypoint/WaypointReader.hpp"
 #include "Waypoint/WaypointReaderBase.hpp"
+#include "Waypoint/WaypointReaderSeeYou.hpp"
 #include "Waypoint/CupWriter.hpp"
+#include "Waypoint/Factory.hpp"
 #include "Engine/Waypoint/Waypoints.hpp"
 #include "Terrain/RasterMap.hpp"
 #include "Units/System.hpp"
 #include "TestUtil.hpp"
 #include "system/Path.hpp"
 #include "io/BufferedOutputStream.hxx"
+#include "io/BufferedReader.hxx"
+#include "io/MemoryReader.hxx"
 #include "io/StringOutputStream.hxx"
-#include "util/tstring.hpp"
 #include "util/StringAPI.hxx"
 #include "util/StringStrip.hxx"
 #include "Operation/Operation.hpp"
 
+#include <string>
+#include <string_view>
 #include <vector>
 
 using std::string_view_literals::operator""sv;
@@ -86,7 +91,7 @@ static void
 TestWinPilot(const wp_vector &org_wp)
 {
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints.dat")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints.dat"), way_points,
                         org_wp.size())) {
     skip(10 * org_wp.size(), 0, "opening waypoint file failed");
     return;
@@ -126,7 +131,7 @@ TestSeeYou(const wp_vector &org_wp)
 {
   // Test a SeeYou waypoint file with no runway width field:
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints.cup")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints.cup"), way_points,
                         org_wp.size())) {
     skip(9 * org_wp.size(), 0, "opening waypoints.cup failed");
   } else {
@@ -138,7 +143,7 @@ TestSeeYou(const wp_vector &org_wp)
 
   // Test a SeeYou waypoint file with a runway width field:
   Waypoints way_points2;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints2.cup")), way_points2,
+  if (!TestWaypointFile(Path("test/data/waypoints2.cup"), way_points2,
                         org_wp.size())) {
     skip(9 * org_wp.size(), 0, "opening waypoints2.cup failed");
     return;
@@ -148,9 +153,14 @@ TestSeeYou(const wp_vector &org_wp)
     const auto wp2 = GetWaypoint(i, way_points2);
     TestSeeYouWaypoint(i, wp2.get());
   }
-  // Test a SeeYou waypoint file with useradata and pics fields:
+
+  const auto berg2 = way_points2.LookupName("Bergneustadt");
+  ok1(berg2 != nullptr);
+  ok1(berg2 != nullptr && berg2->runway.IsWidthDefined() &&
+      berg2->runway.GetWidth() == 15);
+  // Test a SeeYou waypoint file with userdata and pics fields:
   Waypoints way_points3;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints3.cup")), way_points3,
+  if (!TestWaypointFile(Path("test/data/waypoints3.cup"), way_points3,
                         org_wp.size())) {
     skip(9 * org_wp.size(), 0, "opening waypoints3.cup failed");
     return;
@@ -160,6 +170,11 @@ TestSeeYou(const wp_vector &org_wp)
     const auto wp3 = GetWaypoint(i, way_points3);
     TestSeeYouWaypoint(i, wp3.get());
   }
+
+  const auto berg3 = way_points3.LookupName("Bergneustadt");
+  ok1(berg3 != nullptr);
+  ok1(berg3 != nullptr && berg3->runway.IsWidthDefined() &&
+      berg3->runway.GetWidth() == 15);
 }
 
 static void
@@ -179,9 +194,9 @@ TestZanderWaypoint(const Waypoint org_wp, const Waypoint *wp)
 }
 
 static void
-TruncateStrip(tstring &s, std::size_t max_length) noexcept
+TruncateStrip(std::string &s, std::size_t max_length) noexcept
 {
-  tstring_view v = s;
+  std::string_view v = s;
   if (v.size() > max_length)
     v = v.substr(0, max_length);
   v = Strip(v);
@@ -192,7 +207,7 @@ static void
 TestZander(const wp_vector &org_wp)
 {
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints.wpz")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints.wpz"), way_points,
                         org_wp.size())) {
     skip(10 * org_wp.size(), 0, "opening waypoint file failed");
     return;
@@ -209,7 +224,7 @@ static void
 TestFS(const wp_vector &org_wp)
 {
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints_geo.wpt")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints_geo.wpt"), way_points,
                         org_wp.size())) {
     skip(3 * org_wp.size(), 0, "opening waypoint file failed");
     return;
@@ -225,7 +240,7 @@ static void
 TestFS_UTM(const wp_vector &org_wp)
 {
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints_utm.wpt")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints_utm.wpt"), way_points,
                         org_wp.size())) {
     skip(3 * org_wp.size(), 0, "opening waypoint file failed");
     return;
@@ -241,14 +256,14 @@ static void
 TestOzi(const wp_vector &org_wp)
 {
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints_ozi.wpt")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints_ozi.wpt"), way_points,
                         org_wp.size())) {
     skip(3 * org_wp.size(), 0, "opening waypoint file failed");
     return;
   }
 
   for (auto i : org_wp) {
-    i.name = tstring{Strip(i.name)};
+    i.name = std::string{Strip(i.name)};
     GetWaypoint(i, way_points);
   }
 }
@@ -257,7 +272,7 @@ static void
 TestCompeGPS(const wp_vector &org_wp)
 {
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints_compe_geo.wpt")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints_compe_geo.wpt"), way_points,
                         org_wp.size())) {
     skip(3 * org_wp.size(), 0, "opening waypoint file failed");
     return;
@@ -265,7 +280,7 @@ TestCompeGPS(const wp_vector &org_wp)
 
   for (auto i : org_wp) {
     size_t pos;
-    while ((pos = i.name.find_first_of(_T(' '))) != tstring::npos)
+    while ((pos = i.name.find_first_of(' ')) != std::string::npos)
       i.name.erase(pos, 1);
 
     TruncateStrip(i.name, 6);
@@ -278,7 +293,7 @@ static void
 TestCompeGPS_UTM(const wp_vector &org_wp)
 {
   Waypoints way_points;
-  if (!TestWaypointFile(Path(_T("test/data/waypoints_compe_utm.wpt")), way_points,
+  if (!TestWaypointFile(Path("test/data/waypoints_compe_utm.wpt"), way_points,
                         org_wp.size())) {
     skip(3 * org_wp.size(), 0, "opening waypoint file failed");
     return;
@@ -286,7 +301,7 @@ TestCompeGPS_UTM(const wp_vector &org_wp)
 
   for (auto i : org_wp) {
     size_t pos;
-    while ((pos = i.name.find_first_of(_T(' '))) != tstring::npos)
+    while ((pos = i.name.find_first_of(' ')) != std::string::npos)
       i.name.erase(pos, 1);
 
     TruncateStrip(i.name, 6);
@@ -296,10 +311,12 @@ TestCompeGPS_UTM(const wp_vector &org_wp)
 }
 
 static std::string
-WriteCupToString(const wp_vector &org_wp)
+WriteCupToString(const wp_vector &org_wp, bool with_header = false)
 {
   StringOutputStream sos;
   WithBufferedOutputStream(sos, [&](BufferedOutputStream &bos){
+    if (with_header)
+      WriteCupHeader(bos);
     for (const auto &i : org_wp)
       WriteCup(bos, i);
   });
@@ -309,13 +326,77 @@ WriteCupToString(const wp_vector &org_wp)
 static void
 TestCupWriter(const wp_vector &org_wp)
 {
+  // Test exact output format (2022 CUP spec with rwwidth, userdata, pics)
   const auto s = WriteCupToString(org_wp);
-  ok1(s == R"cup("Bergneustadt","",,5103.117N,00742.367E,488M,4,040,590M,,"Rabbit holes, 20" ditch south end of rwy"
-"Aconcagua","",,3239.200S,07000.700W,6962M,7,,,,"Highest mountain in south-america"
-"Golden Gate Bridge","",,3749.050N,12228.700W,227M,14,,,,""
-"Red Square","",,5545.250N,03737.200E,123M,3,090,016M,,""
-"Sydney Opera","",,3351.417S,15112.917E,5M,1,,,,""
+  ok1(s == R"cup("Bergneustadt","",,5103.117N,00742.367E,488M,4,040,590M,,,"Rabbit holes, 20"" ditch south end of rwy","",""
+"Aconcagua","",,3239.200S,07000.700W,6962M,7,,,,,"Highest mountain in south-america","",""
+"Golden Gate Bridge","",,3749.050N,12228.700W,227M,14,,,,,"","",""
+"Red Square","",,5545.250N,03737.200E,123M,3,090,016M,,,"","",""
+"Sydney Opera","",,3351.417S,15112.917E,5M,1,,,,,"","",""
 )cup"sv);
+}
+
+static void
+TestCupRoundTrip(const wp_vector &org_wp)
+{
+  // Write waypoints to CUP string (with header for 2022 format detection)
+  const auto s = WriteCupToString(org_wp, true);
+
+  // Parse them back
+  auto bytes = std::as_bytes(std::span{s.data(), s.size()});
+  MemoryReader mr(bytes);
+  BufferedReader br(mr);
+
+  Waypoints waypoints;
+  WaypointFactory factory(WaypointOrigin::USER);
+  ParseSeeYou(factory, waypoints, br);
+  waypoints.Optimise();
+
+  ok1(waypoints.size() == org_wp.size());
+
+  for (const auto &org : org_wp) {
+    auto wp = waypoints.LookupName(org.name);
+    if (!ok1(wp != nullptr)) {
+      skip(8, 0, "waypoint not found in round-trip");
+      continue;
+    }
+
+    ok1(wp->location.Distance(org.location) <= 1000);
+    ok1(wp->has_elevation == org.has_elevation);
+    ok1(!wp->has_elevation || fabs(wp->elevation - org.elevation) < 0.5);
+    ok1(wp->type == org.type);
+    ok1(wp->comment == org.comment);
+    ok1(wp->details == org.details);
+    ok1(wp->runway.IsDirectionDefined() == org.runway.IsDirectionDefined());
+    ok1(wp->runway.IsLengthDefined() == org.runway.IsLengthDefined());
+  }
+}
+
+static void
+TestCupx()
+{
+  Waypoints way_points;
+  if (!TestWaypointFile(Path("test/data/test.cupx"), way_points, 2)) {
+    skip(7, 0, "opening CUPX file failed");
+    return;
+  }
+
+  const auto wp = way_points.LookupName("Test Airfield");
+  ok1(wp != nullptr);
+  if (wp == nullptr) {
+    skip(6, 0, "waypoint not found");
+    return;
+  }
+
+  ok1(wp->type == Waypoint::Type::AIRFIELD);
+  ok1(wp->has_elevation);
+  ok1(fabs(wp->elevation - 500.0) < 0.5);
+  ok1(wp->comment == "A test airfield");
+
+  /* verify files_embed has the bare image filename */
+  ok1(!wp->files_embed.empty());
+  const auto &first_embed = wp->files_embed.front();
+  ok1(first_embed == "test_image.jpg");
 }
 
 static wp_vector
@@ -332,8 +413,8 @@ CreateOriginalWaypoints()
   Waypoint wp(loc);
   wp.elevation = 488;
   wp.has_elevation = true;
-  wp.name = _T("Bergneustadt");
-  wp.comment = _T("Rabbit holes, 20\" ditch south end of rwy");
+  wp.name = "Bergneustadt";
+  wp.comment = "Rabbit holes, 20\" ditch south end of rwy";
   wp.runway.SetDirection(Angle::Degrees(40));
   wp.runway.SetLength(590);
 
@@ -351,8 +432,8 @@ CreateOriginalWaypoints()
   Waypoint wp2(loc);
   wp2.elevation = 6962;
   wp2.has_elevation = true;
-  wp2.name = _T("Aconcagua");
-  wp2.comment = _T("Highest mountain in south-america");
+  wp2.name = "Aconcagua";
+  wp2.comment = "Highest mountain in south-america";
 
   wp2.type = Waypoint::Type::MOUNTAIN_TOP;
   wp2.flags.turn_point = true;
@@ -368,8 +449,8 @@ CreateOriginalWaypoints()
   Waypoint wp3(loc);
   wp3.elevation = 227;
   wp3.has_elevation = true;
-  wp3.name = _T("Golden Gate Bridge");
-  wp3.comment = _T("");
+  wp3.name = "Golden Gate Bridge";
+  wp3.comment = "";
 
   wp3.type = Waypoint::Type::BRIDGE;
   wp3.flags.turn_point = true;
@@ -385,7 +466,7 @@ CreateOriginalWaypoints()
   Waypoint wp4(loc);
   wp4.elevation = 123;
   wp4.has_elevation = true;
-  wp4.name = _T("Red Square");
+  wp4.name = "Red Square";
   wp4.runway.SetDirection(Angle::Degrees(90));
   wp4.runway.SetLength((unsigned)Units::ToSysUnit(0.01, Unit::STATUTE_MILES));
 
@@ -403,8 +484,8 @@ CreateOriginalWaypoints()
   Waypoint wp5(loc);
   wp5.elevation = 5;
   wp5.has_elevation = true;
-  wp5.name = _T("Sydney Opera");
-  wp5.comment = _T("");
+  wp5.name = "Sydney Opera";
+  wp5.comment = "";
 
   wp5.type = Waypoint::Type::NORMAL;
   wp5.flags.turn_point = true;
@@ -420,10 +501,11 @@ int main()
 {
   wp_vector org_wp = CreateOriginalWaypoints();
 
-  plan_tests(451);
+  plan_tests(507 + 4);
 
   TestWinPilot(org_wp);
   TestSeeYou(org_wp);
+  TestCupx();
   TestZander(org_wp);
   TestFS(org_wp);
   TestFS_UTM(org_wp);
@@ -431,6 +513,7 @@ int main()
   TestCompeGPS(org_wp);
   TestCompeGPS_UTM(org_wp);
   TestCupWriter(org_wp);
+  TestCupRoundTrip(org_wp);
 
   return exit_status();
 }

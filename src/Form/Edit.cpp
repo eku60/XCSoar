@@ -9,9 +9,16 @@
 #include "Screen/Layout.hpp"
 #include "ui/event/KeyCode.hpp"
 #include "Dialogs/DataField.hpp"
+#include "Dialogs/WidgetDialog.hpp"
+#include "Widget/LargeTextWidget.hpp"
+#include "UIGlobals.hpp"
+#include "Language/Language.hpp"
 #include "Asset.hpp"
+#include "system/Path.hpp"
+#include "system/RunFile.hpp"
 
 #include <cassert>
+#include <algorithm>
 
 bool
 WndProperty::OnKeyCheck(unsigned key_code) const noexcept
@@ -75,7 +82,7 @@ WndProperty::OnKillFocus() noexcept
 }
 
 WndProperty::WndProperty(ContainerWindow &parent, const DialogLook &_look,
-                         const TCHAR *Caption,
+                         const char *Caption,
                          const PixelRect &rc,
                          int CaptionWidth,
                          const WindowStyle style) noexcept
@@ -97,7 +104,7 @@ WndProperty::WndProperty(const DialogLook &_look) noexcept
 
 void
 WndProperty::Create(ContainerWindow &parent, const PixelRect &rc,
-                    const TCHAR *_caption,
+                    const char *_caption,
                     unsigned _caption_width,
                     const WindowStyle style=WindowStyle()) noexcept
 {
@@ -132,6 +139,12 @@ bool
 WndProperty::BeginEditing() noexcept
 {
   if (IsReadOnly() || data_field == nullptr || edit_callback == nullptr) {
+    /* If readonly and has content, show full content dialog */
+    if (IsReadOnly() && !value.empty()) {
+      ShowFullContent();
+      return false;
+    }
+    
     OnHelp();
     return false;
   } else {
@@ -141,6 +154,33 @@ WndProperty::BeginEditing() noexcept
     RefreshDisplay();
     return true;
   }
+}
+
+void
+WndProperty::ShowFullContent() noexcept
+{
+  if (value.empty())
+    return;
+
+  WidgetDialog dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
+                      UIGlobals::GetDialogLook(), GetCaption());
+  
+  auto *widget = new LargeTextWidget(UIGlobals::GetDialogLook(), value.c_str());
+  
+  dialog.FinishPreliminary(widget);
+  
+#if defined(HAVE_RUN_FILE) && !defined(ANDROID)
+  /* Only show "Open" button if the content is an absolute path
+   * Android handles external files via ContentProvider instead */
+  if (Path(value.c_str()).IsAbsolute()) {
+    dialog.AddButton(_("Open"), [this](){
+      RunFile(value.c_str());
+    });
+  }
+#endif
+  
+  dialog.AddButton(_("Close"), mrOK);
+  dialog.ShowModal();
 }
 
 void
@@ -259,19 +299,30 @@ WndProperty::DecValue() noexcept
 void
 WndProperty::OnPaint(Canvas &canvas) noexcept
 {
+  PixelRect visible_edit_rc = edit_rc;
+  const int canvas_width = (int)canvas.GetWidth();
+  const int canvas_height = (int)canvas.GetHeight();
+
+  if (visible_edit_rc.left < 0)
+    visible_edit_rc.left = 0;
+  if (visible_edit_rc.top < 0)
+    visible_edit_rc.top = 0;
+  if (visible_edit_rc.right > canvas_width)
+    visible_edit_rc.right = canvas_width;
+  if (visible_edit_rc.bottom > canvas_height)
+    visible_edit_rc.bottom = canvas_height;
+
   const bool focused = HasCursorKeys() && HasFocus();
 
   /* background and selector */
-  if (pressed) {
+  if (pressed)
     canvas.Clear(look.list.pressed.background_color);
-  } else if (focused) {
+  else if (focused)
     canvas.Clear(look.focused.background_color);
-  } else {
-    /* don't need to erase the background when it has been done by the
-       parent window already */
-    if (HaveClipping())
-      canvas.Clear(look.background_color);
-  }
+  else if (HaveClipping())
+    /* with clipping, the parent's background does not extend into
+       child windows, so we must fill the background ourselves */
+    canvas.Clear(look.background_color);
 
   if (!caption.empty()) {
     canvas.SetTextColor(focused && !pressed
@@ -306,41 +357,68 @@ WndProperty::OnPaint(Canvas &canvas) noexcept
 
   Color background_color, text_color;
   if (pressed) {
-    background_color = COLOR_BLACK;
-    text_color = COLOR_WHITE;
+    background_color = look.list.pressed.background_color;
+    text_color = look.list.pressed.text_color;
+  } else if (focused) {
+    background_color = look.list.focused.background_color;
+    text_color = look.list.focused.text_color;
   } else if (IsEnabled()) {
-    if (IsReadOnly())
-      background_color = Color(0xf0, 0xf0, 0xf0);
-    else
-      background_color = COLOR_WHITE;
-    text_color = COLOR_BLACK;
+    if (IsReadOnly()) {
+      background_color = look.ReadOnlyValueBackground();
+      text_color = look.list.text_color;
+    } else {
+      background_color = look.list.background_color;
+      text_color = look.list.text_color;
+    }
   } else {
-    background_color = COLOR_LIGHT_GRAY;
-    text_color = COLOR_DARK_GRAY;
+    background_color = look.dark_mode
+      ? DarkColor(look.list.background_color)
+      : COLOR_LIGHT_GRAY;
+    text_color = look.dark_mode ? COLOR_GRAY : COLOR_DARK_GRAY;
   }
 
-  canvas.DrawFilledRectangle(edit_rc, background_color);
+  if (!visible_edit_rc.IsEmpty()) {
+    canvas.DrawFilledRectangle(visible_edit_rc, background_color);
 
-  canvas.SelectHollowBrush();
-  canvas.SelectBlackPen();
-  canvas.DrawRectangle(edit_rc);
+    canvas.SelectHollowBrush();
+    canvas.Select(Pen(Layout::ScaleFinePenWidth(1),
+                      look.ReadOnlyValueBorderColor()));
+    canvas.DrawRectangle(visible_edit_rc);
+  }
 
-  if (!value.empty()) {
+  if (!value.empty() && !visible_edit_rc.IsEmpty()) {
     canvas.SetTextColor(text_color);
     canvas.SetBackgroundTransparent();
     canvas.Select(look.text_font);
 
-    const int x = edit_rc.left + Layout::GetTextPadding() * 2;
-    const int canvas_height = edit_rc.GetHeight();
+    const int x = visible_edit_rc.left + Layout::GetTextPadding() * 2;
+    const int control_height = visible_edit_rc.GetHeight();
     const int text_height = canvas.GetFontHeight();
-    const int y = edit_rc.top + (canvas_height - text_height) / 2;
+    const int y = visible_edit_rc.top + (control_height - text_height) / 2;
 
-    canvas.TextAutoClipped({x, y}, value.c_str());
+    // determine available pixel width for text inside edit rect
+    const int avail = std::max(0,
+                  static_cast<int>(visible_edit_rc.GetWidth()) -
+                  static_cast<int>(Layout::GetTextPadding()) * 4);
+
+    // measure full text width
+    PixelSize tsize = canvas.CalcTextSize(value.c_str());
+    const int text_width = tsize.width;
+
+    int shift = 0;
+    if (alignment == Alignment::RIGHT) {
+      shift = std::max(0, text_width - avail);
+    } else if (alignment == Alignment::AUTO) {
+      if (text_width > avail)
+        shift = std::max(0, text_width - avail);
+    }
+
+    canvas.TextAutoClipped({x - shift, y}, value.c_str());
   }
 }
 
 void
-WndProperty::SetText(const TCHAR *_value) noexcept
+WndProperty::SetText(const char *_value) noexcept
 {
   assert(_value != nullptr);
 

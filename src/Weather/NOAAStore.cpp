@@ -2,34 +2,13 @@
 // Copyright The XCSoar Project
 
 #include "NOAAStore.hpp"
-
-#ifdef _UNICODE
-#include "util/Macros.hpp"
-#include "util/ConvertString.hpp"
-
-#include <stringapiset.h>
-#endif
-
-#ifdef _UNICODE
-
-const TCHAR *
-NOAAStore::Item::GetCodeT() const
-{
-  static TCHAR code2[ARRAY_SIZE(Item::code)];
-  if (MultiByteToWideChar(CP_UTF8, 0, code, -1, code2, ARRAY_SIZE(code2)) <= 0)
-    return _T("");
-
-  return code2;
-}
-
-#endif
+#include "util/CharUtil.hxx"
 
 bool
 NOAAStore::IsValidCode(const char *code)
 {
   for (unsigned i = 0; i < 4; ++i)
-    if (! ((code[i] >= 'A' && code[i] <= 'Z') ||
-           (code[i] >= '0' && code[i] <= '9')))
+    if (!IsAlphaNumericASCII(code[i]))
       return false;
 
   if (code[4] != 0)
@@ -38,22 +17,6 @@ NOAAStore::IsValidCode(const char *code)
   return true;
 }
 
-#ifdef _UNICODE
-bool
-NOAAStore::IsValidCode(const TCHAR* code)
-{
-  for (unsigned i = 0; i < 4; ++i)
-    if (! ((code[i] >= _T('A') && code[i] <= _T('Z')) ||
-           (code[i] >= _T('0') && code[i] <= _T('9'))))
-      return false;
-
-  if (code[4] != _T('\0'))
-    return false;
-
-  return true;
-}
-#endif
-
 NOAAStore::iterator
 NOAAStore::AddStation(const char *code)
 {
@@ -61,8 +24,8 @@ NOAAStore::AddStation(const char *code)
 
   Item item;
 
-  // Copy station code
-  strncpy(item.code, code, 4);
+  for (unsigned i = 0; i < 4; ++i)
+    item.code[i] = ToUpperASCII(code[i]);
   item.code[4] = 0;
 
   // Reset available flags
@@ -73,15 +36,3 @@ NOAAStore::AddStation(const char *code)
   stations.push_back(item);
   return --end();
 }
-
-#ifdef _UNICODE
-NOAAStore::iterator
-NOAAStore::AddStation(const TCHAR *code)
-{
-  assert(IsValidCode(code));
-
-  WideToUTF8Converter code2(code);
-  assert(code2.IsValid());
-  return AddStation(code2);
-}
-#endif

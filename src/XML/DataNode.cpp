@@ -111,12 +111,12 @@ ConstDataNode::GetAttributeRoughTime(const char *name) const noexcept
   return RoughTime(hours, minutes);
 }
 
-RoughTimeSpan
+TimeSpan
 ConstDataNode::GetAttributeRoughTimeSpan(const char *start_name,
                                          const char *end_name) const noexcept
 {
-  return RoughTimeSpan(GetAttributeRoughTime(start_name),
-                       GetAttributeRoughTime(end_name));
+  return TimeSpan::FromRoughTimes(GetAttributeRoughTime(start_name),
+                                  GetAttributeRoughTime(end_name));
 }
 
 WritableDataNode::~WritableDataNode() noexcept
@@ -132,7 +132,7 @@ WritableDataNode::SetAttribute(const char *name, Angle value) noexcept
 void
 WritableDataNode::SetAttribute(const char *name, double value) noexcept
 {
-  NarrowString<48> buf;
+  StaticString<48> buf;
   buf.UnsafeFormat("%g", value);
   SetAttribute(name, buf);
 }
@@ -162,7 +162,7 @@ WritableDataNode::SetAttribute(const char *name, RoughTime value) noexcept
     /* no-op */
     return;
 
-  NarrowString<8> buffer;
+  StaticString<8> buffer;
   buffer.UnsafeFormat("%02u:%02u", value.GetHour(), value.GetMinute());
   SetAttribute(name, buffer);
 }

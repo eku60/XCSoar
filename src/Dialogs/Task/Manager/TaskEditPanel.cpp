@@ -112,9 +112,9 @@ TaskEditPanel::CreateButtons(ButtonPanel &buttons) noexcept
                             [this](){ OnEditTurnpointClicked(); });
   mutate_button = buttons.Add(_("Make Finish"),
                               [this](){ OnMakeFinish(); });
-  down_button = buttons.Add(std::make_unique<SymbolButtonRenderer>(buttons.GetLook(), _T("v")),
+  down_button = buttons.Add(std::make_unique<SymbolButtonRenderer>(buttons.GetLook(), "v"),
                             [this](){ MoveDown(); });
-  up_button = buttons.Add(std::make_unique<SymbolButtonRenderer>(buttons.GetLook(), _T("^")),
+  up_button = buttons.Add(std::make_unique<SymbolButtonRenderer>(buttons.GetLook(), "^"),
                           [this](){ MoveUp(); });
   reverse_button = buttons.Add(_("Reverse"),
                                [this](){ ReverseTask(); });
@@ -129,12 +129,12 @@ TaskEditPanel::UpdateButtons()
 {
   const unsigned index = GetList().GetCursorIndex();
 
-  mutate_button->SetVisible(index > 0 &&
+  mutate_button->SetEnabled(index > 0 &&
                             (index == ordered_task->TaskSize() - 1) &&
                             !ordered_task->HasFinish());
-  down_button->SetVisible((int)index < ((int)(ordered_task->TaskSize()) - 1));
-  up_button->SetVisible(index > 0 && index < ordered_task->TaskSize());
-  reverse_button->SetVisible(ordered_task->TaskSize() >= 2);
+  down_button->SetEnabled((int)index < ((int)(ordered_task->TaskSize()) - 1));
+  up_button->SetEnabled(index > 0 && index < ordered_task->TaskSize());
+  reverse_button->SetEnabled(ordered_task->TaskSize() >= 2);
 }
 
 void
@@ -151,7 +151,7 @@ TaskEditPanel::RefreshView()
   UpdateButtons();
 
   {
-    TCHAR text[300];
+    char text[300];
     OrderedTaskSummary(ordered_task, text, false);
     summary.SetText(text);
   }
@@ -221,7 +221,7 @@ TaskEditPanel::OnPaintItem(Canvas &canvas, const PixelRect rc,
   const unsigned padding = Layout::GetTextPadding();
   const unsigned line_height = rc.GetHeight();
 
-  TCHAR buffer[120];
+  char buffer[120];
 
   // Draw "Add turnpoint" label
   if (DrawListIndex == ordered_task->TaskSize()) {

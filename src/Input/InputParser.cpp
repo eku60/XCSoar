@@ -16,7 +16,6 @@
 #include "util/IterableSplitString.hxx"
 #include "LogFile.hpp"
 
-#include <tchar.h>
 #include <stdio.h>
 
 static bool
@@ -26,7 +25,7 @@ parse_assignment(char *buffer, const char *&key, const char *&value)
   if (separator == NULL || separator == buffer)
     return false;
 
-  *separator = _T('\0');
+  *separator = '\0';
 
   key = buffer;
   value = separator + 1;
@@ -59,7 +58,7 @@ struct EventBuilder {
     // General errors - these should be true
     assert(location < 1024);
 
-    const TCHAR *new_label = NULL;
+    const char *new_label = NULL;
 
     // For each mode
     for (const auto token : TIterableSplitString(mode.c_str(), ' ')) {
@@ -69,8 +68,8 @@ struct EventBuilder {
       // All modes are valid at this point
       int mode_id = config.MakeMode(token);
       if (mode_id < 0) {
-        LogFormat(_T("Too many modes: %.*s at %u"),
-                  int(token.size()), token.data(), line);
+        LogFormat("Too many modes at line %u: %.*s",
+                  line, int(token.size()), token.data());
         continue;
       }
 
@@ -87,34 +86,34 @@ struct EventBuilder {
 
       // Make key (Keyboard input)
       // key - Hardware key or keyboard
-      if (type.equals(_T("key"))) {
+      if (type.equals("key")) {
         // Get the int key (eg: APP1 vs 'a')
         unsigned key = ParseKeyCode(data);
         if (key > 0)
           config.SetKeyEvent(mode_id, key, event_id);
         else
-          LogFormat(_T("Invalid key data: %s at %u"), data.c_str(), line);
+          LogFormat("Invalid key data at line %u: %s", line, data.c_str());
 
         // Make gce (Glide Computer Event)
         // GCE - Glide Computer Event
-      } else if (type.equals(_T("gce"))) {
+      } else if (type.equals("gce")) {
         // Get the int key (eg: APP1 vs 'a')
         int key = InputEvents::findGCE(data);
         if (key >= 0)
           config.GC2Event[key] = event_id;
         else
-          LogFormat(_T("Invalid GCE data: %s at %u"), data.c_str(), line);
+          LogFormat("Invalid GCE data at line %u: %s", line, data.c_str());
 
         // Make gesture (Gesture Event)
         // Key - Key Event
-      } else if (type.equals(_T("gesture"))) {
+      } else if (type.equals("gesture")) {
         // Check data for invalid characters:
         bool valid = true;
-        for (const TCHAR* c = data; *c; c++)
-          if (*c != _T('U') &&
-              *c != _T('D') &&
-              *c != _T('R') &&
-              *c != _T('L'))
+        for (const char* c = data; *c; c++)
+          if (*c != 'U' &&
+              *c != 'D' &&
+              *c != 'R' &&
+              *c != 'L')
             valid = false;
         
         if (valid) {
@@ -122,24 +121,24 @@ struct EventBuilder {
           config.Gesture2Event.Remove(data.c_str());
           config.Gesture2Event.Add(data.c_str(), event_id);
         } else
-          LogFormat(_T("Invalid gesture data: %s at %u"), data.c_str(), line);
+          LogFormat("Invalid gesture data at line %u: %s", line, data.c_str());
 
         // Make ne (NMEA Event)
         // NE - NMEA Event
-      } else if (type.equals(_T("ne"))) {
+      } else if (type.equals("ne")) {
         // Get the int key (eg: APP1 vs 'a')
         int key = InputEvents::findNE(data);
         if (key >= 0)
           config.N2Event[key] = event_id;
         else
-          LogFormat(_T("Invalid GCE data: %s at %u"), data.c_str(), line);
+          LogFormat("Invalid NE data at line %u: %s", line, data.c_str());
 
         // label only - no key associated (label can still be touch screen)
-      } else if (type.equals(_T("label"))) {
+      } else if (type.equals("label")) {
         // Nothing to do here...
 
       } else {
-        LogFormat(_T("Invalid type: %s at %u"), type.c_str(), line);
+        LogFormat("Invalid type at line %u: %s", line, type.c_str());
       }
     }
   }
@@ -193,7 +192,7 @@ ParseInputFile(InputConfig &config, BufferedReader &reader)
         const auto [d_event, d_misc] = Split(v, ' ');
 
         if (d_event.empty()) {
-          LogFormat("Invalid event type at %i", line);
+          LogFormat("Invalid event type at line %i", line);
           continue;
         }
 
@@ -206,7 +205,7 @@ ParseInputFile(InputConfig &config, BufferedReader &reader)
           continue;
         }
 
-        TCHAR *allocated = UnescapeBackslash(string_converter.Convert(d_misc));
+        char *allocated = UnescapeBackslash(string_converter.Convert(d_misc));
         current.event_id = config.AppendEvent(event, allocated,
                                               current.event_id);
 
@@ -227,7 +226,7 @@ ParseInputFile(InputConfig &config, BufferedReader &reader)
         LogFmt("Invalid key/value pair {}={} at {}", key, value, line);
       }
     } else  {
-      LogFormat("Invalid line at %i", line);
+      LogFormat("Invalid line at line %i", line);
     }
 
   }

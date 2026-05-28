@@ -12,9 +12,8 @@
 #include "PixelTraits.hpp"
 #include "Buffer.hpp"
 #include "ActivePixelTraits.hpp"
-#include "util/tstring_view.hxx"
 
-#include <tchar.h>
+#include <string_view>
 
 #ifdef _WIN32
 /* those are WIN32 macros - undefine, or Canvas::background_mode will
@@ -55,6 +54,20 @@ public:
 
   void Create(WritableImageBuffer<ActivePixelTraits> _buffer) {
     buffer = _buffer;
+  }
+
+  /**
+   * Copy drawing state (pen/brush/font/colors) from another canvas.
+   * This is useful when painting to temporary canvases that should
+   * behave exactly like the caller's canvas.
+   */
+  void CopyStateFrom(const Canvas &other) noexcept {
+    pen = other.pen;
+    brush = other.brush;
+    font = other.font;
+    text_color = other.text_color;
+    background_color = other.background_color;
+    background_mode = other.background_mode;
   }
 
 protected:
@@ -250,10 +263,10 @@ public:
   }
 
   [[gnu::pure]]
-  const PixelSize CalcTextSize(tstring_view text) const noexcept;
+  const PixelSize CalcTextSize(std::string_view text) const noexcept;
 
   [[gnu::pure]]
-  unsigned CalcTextWidth(tstring_view text) const noexcept {
+  unsigned CalcTextWidth(std::string_view text) const noexcept {
     return CalcTextSize(text).width;
   }
 
@@ -262,22 +275,22 @@ public:
     return font != nullptr ? font->GetHeight() : 0;
   }
 
-  void DrawText(PixelPoint p, tstring_view text) noexcept;
+  void DrawText(PixelPoint p, std::string_view text) noexcept;
 
-  void DrawTransparentText(PixelPoint p, tstring_view text) noexcept;
+  void DrawTransparentText(PixelPoint p, std::string_view text) noexcept;
 
   void DrawOpaqueText(PixelPoint p, const PixelRect &rc,
-                      tstring_view text) noexcept;
+                      std::string_view text) noexcept;
 
   void DrawClippedText(PixelPoint p, const PixelRect &rc,
-                       tstring_view text) noexcept;
+                       std::string_view text) noexcept;
   void DrawClippedText(PixelPoint p, unsigned width,
-                       tstring_view text) noexcept;
+                       std::string_view text) noexcept;
 
   /**
    * Render text, clip it within the bounds of this Canvas.
    */
-  void TextAutoClipped(PixelPoint p, tstring_view t) noexcept {
+  void TextAutoClipped(PixelPoint p, std::string_view t) noexcept {
     DrawText(p, t);
   }
 
@@ -286,7 +299,7 @@ public:
    *
    * @return the resulting text height
    */
-  unsigned DrawFormattedText(PixelRect r, tstring_view text,
+  unsigned DrawFormattedText(PixelRect r, std::string_view text,
                              unsigned format) noexcept;
 
   void Copy(PixelPoint dest_position, PixelSize dest_size,
@@ -378,6 +391,11 @@ public:
 
   void CopyNotOr(PixelPoint dest_position, PixelSize dest_size,
                  const Bitmap &src, PixelPoint src_position) noexcept;
+
+  void CopyNotOr(PixelPoint dest_position, PixelSize dest_size,
+                 const Canvas &src, PixelPoint src_position) noexcept {
+    CopyNotOr(dest_position, dest_size, src.buffer, src_position);
+  }
 
   void CopyAnd(PixelPoint dest_position, PixelSize dest_size,
                ConstImageBuffer src, PixelPoint src_position) noexcept;

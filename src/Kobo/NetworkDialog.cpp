@@ -2,20 +2,18 @@
 // Copyright The XCSoar Project
 
 #include "NetworkDialog.hpp"
-#include "WifiDialog.hpp"
+#include "Dialogs/Message.hpp"
 #include "Dialogs/WidgetDialog.hpp"
 #include "UIGlobals.hpp"
-#include "ui/event/KeyCode.hpp"
 #include "Language/Language.hpp"
-#include "Form/Form.hpp"
 #include "Widget/RowFormWidget.hpp"
 #include "System.hpp"
 
 [[gnu::pure]]
-static const TCHAR *
-GetWifiToggleCaption()
+static const char *
+GetWifiToggleCaption() noexcept
 {
-  return IsKoboWifiOn() ? _T("Wifi OFF") : _T("Wifi ON");
+  return IsKoboWifiOn() ? _("WiFi Off") : _("WiFi On");
 }
 
 class NetworkWidget final
@@ -28,51 +26,56 @@ class NetworkWidget final
     FTP,
   };
 
-  Button *toggle_wifi_button, *wifi_button;
+  Button *toggle_wifi_button{nullptr};
 
 public:
   NetworkWidget(const DialogLook &look):RowFormWidget(look) {}
 
-  void UpdateButtons();
+  void UpdateButtons() noexcept;
 
   /* virtual methods from class Widget */
   void Prepare(ContainerWindow &parent,
                const PixelRect &rc) noexcept override;
 
 private:
-  void ToggleWifi();
+  void ToggleWifi() noexcept;
 };
 
 void
-NetworkWidget::UpdateButtons()
+NetworkWidget::UpdateButtons() noexcept
 {
-  toggle_wifi_button->SetCaption(GetWifiToggleCaption());
-  wifi_button->SetEnabled(IsKoboWifiOn());
+  if (toggle_wifi_button != nullptr)
+    toggle_wifi_button->SetCaption(GetWifiToggleCaption());
 }
 
 void
 NetworkWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_unused]] const PixelRect &rc) noexcept
 {
-  toggle_wifi_button = AddButton(GetWifiToggleCaption(),
-                                 [this](){ ToggleWifi(); });
+  toggle_wifi_button = AddButton(GetWifiToggleCaption(), [this]() {
+    ToggleWifi();
+  });
 
-  wifi_button = AddButton(_("Wifi"), [](){ ShowWifiDialog(); });
+  AddButton(_("WiFi"), []() {
+    ShowMessageBox(
+      _("Kobo WiFi settings have moved into XCSoar.\n\n"
+        "Open XCSoar and go to Menu > Config > Setup > Network."),
+      _("WiFi"), MB_OK);
+  });
 
-  AddButton(_T("Telnet server"), [](){ KoboRunTelnetd(); });
+  AddButton("Telnet server", [](){ KoboRunTelnetd(); });
 
-  AddButton(_T("Ftp server"), [](){ KoboRunFtpd(); });
+  AddButton("Ftp server", [](){ KoboRunFtpd(); });
 
   UpdateButtons();
 }
 
 void
-NetworkWidget::ToggleWifi()
+NetworkWidget::ToggleWifi() noexcept
 {
-  if (!IsKoboWifiOn()) {
+  if (!IsKoboWifiOn())
     KoboWifiOn();
-  } else {
+  else
     KoboWifiOff();
-  }
 
   UpdateButtons();
 }

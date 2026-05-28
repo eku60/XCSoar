@@ -10,8 +10,6 @@
 
 #include <chrono>
 
-#include <tchar.h>
-
 struct UISettings;
 struct DialogLook;
 namespace UI { class SingleWindow; }
@@ -50,6 +48,9 @@ private:
 
     StaticString<256u> text;
 
+    /** From #StatusMessage::sound; nullptr if none or not from status file. */
+    const char *sound = nullptr;
+
     constexpr Message() noexcept
     {
       text.clear();
@@ -71,8 +72,9 @@ private:
     }
 
     void Set(Type type, std::chrono::steady_clock::duration tshow,
-             const TCHAR *text,
-             std::chrono::steady_clock::time_point now) noexcept;
+             const char *text,
+             std::chrono::steady_clock::time_point now,
+             const char *_sound = nullptr) noexcept;
 
     /**
      * @return true if something was changed
@@ -117,14 +119,15 @@ public:
 protected:
   /** Caller must hold the lock. */
   void AddMessage(std::chrono::steady_clock::duration tshow, Type type,
-                  const TCHAR *Text) noexcept;
+                  const char *Text,
+                  const char *sound = nullptr) noexcept;
 
 public:
-  void AddMessage(const TCHAR* text, const TCHAR *data=nullptr) noexcept;
+  void AddMessage(const char* text, const char *data=nullptr) noexcept;
 
   /**
    * Repeats last non-visible message of specified type
-   * (or any message type=MSG_UNKNOWN).
+   * (or any message type=MSG_UNKNOWN), including its status sound if any.
    */
   void Repeat(Type type=MSG_UNKNOWN) noexcept;
 

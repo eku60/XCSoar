@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright The XCSoar Project
 
-#include "Profile/Profile.hpp"
 #include "Profile/Keys.hpp"
+#include "Profile/Profile.hpp"
 #include "system/Path.hpp"
 
 void
@@ -24,9 +24,9 @@ Profile::Get([[maybe_unused]] std::string_view key,
 
 bool
 Profile::Get([[maybe_unused]] std::string_view key,
-             std::span<TCHAR> value) noexcept
+             std::span<char> value) noexcept
 {
-  value[0] = _T('\0');
+  value[0] = '\0';
   return false;
 }
 
@@ -40,4 +40,17 @@ AllocatedPath
 Profile::GetPath([[maybe_unused]] std::string_view key) noexcept
 {
   return nullptr;
+}
+
+void
+Profile::SetPath([[maybe_unused]] std::string_view key,
+                 [[maybe_unused]] Path value) noexcept
+{
+}
+
+std::vector<AllocatedPath>
+Profile::GetMultiplePaths([[maybe_unused]] std::string_view key,
+                          [[maybe_unused]] const char *patterns)
+{
+  return std::vector<AllocatedPath>();
 }

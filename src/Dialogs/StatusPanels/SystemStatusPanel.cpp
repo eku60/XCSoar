@@ -25,7 +25,7 @@ enum Controls {
 };
 
 [[gnu::pure]]
-static const TCHAR *
+static const char *
 GetGPSStatus(const NMEAInfo &basic) noexcept
 {
   if (!basic.alive)
@@ -36,20 +36,6 @@ GetGPSStatus(const NMEAInfo &basic) noexcept
     return N_("2D fix");
   else
     return N_("3D fix");
-}
-
-static const TCHAR *const net_state_strings[] = {
-  N_("Unknown"),
-  N_("Disconnected"),
-  N_("Connected"),
-  N_("Roaming"),
-};
-
-[[gnu::pure]]
-static const TCHAR *
-ToString(NetState state) noexcept
-{
-  return gettext(net_state_strings[unsigned(state)]);
 }
 
 void
@@ -66,14 +52,20 @@ SystemStatusPanel::Refresh() noexcept
     ClearText(NumSat);
   else if (gps.satellites_used_available) {
     // known number of sats
-    Temp.Format(_T("%u"), gps.satellites_used);
+    Temp.Format("%u", gps.satellites_used);
     SetText(NumSat, Temp);
   } else
     // valid but unknown number of sats
     SetText(NumSat, _("Unknown"));
 
-  SetText(Vario, basic.total_energy_vario_available
-          ? _("Connected") : _("Disconnected"));
+  if (basic.netto_vario_available)
+    SetText(Vario, _("Netto"));
+  else if (basic.total_energy_vario_available)
+    SetText(Vario, _("Total energy"));
+  else if (basic.noncomp_vario_available)
+    SetText(Vario, _("Uncompensated"));
+  else
+    SetText(Vario, _("Disconnected"));
 
   Temp = basic.flarm.status.available
     ? _("Connected")
@@ -82,9 +74,9 @@ SystemStatusPanel::Refresh() noexcept
   if (basic.flarm.version.available &&
       !basic.flarm.version.software_version.empty()) {
     /* append FLARM firmware version */
-    Temp.append(_T(" (fw "));
+    Temp.append(" (fw ");
     Temp.UnsafeAppendASCII(basic.flarm.version.software_version.c_str());
-    Temp.push_back(_T(')'));
+    Temp.push_back(')');
   }
 
   SetText(FLARM, Temp);
@@ -98,17 +90,17 @@ SystemStatusPanel::Refresh() noexcept
 #ifdef HAVE_BATTERY
   const auto &battery = Power::global_info.battery;
   if (battery.remaining_percent) {
-    Temp.Format(_T("%u %% "), *battery.remaining_percent);
+    Temp.Format("%u %% ", *battery.remaining_percent);
   }
 #endif
   if (basic.voltage_available)
-    Temp.AppendFormat(_T("%.1f V"), (double)basic.voltage);
+    Temp.AppendFormat("%.1f V", (double)basic.voltage);
   else if (basic.battery_level_available)
-    Temp.AppendFormat(_T("%.0f%%"), (double)basic.battery_level);
+    Temp.AppendFormat("%.0f%%", (double)basic.battery_level);
 
   SetText(Battery, Temp);
 
-  SetText(Network, ToString(GetNetState()));
+  SetText(Network, NetStateText::ToString(GetNetState()));
 }
 
 void
@@ -118,7 +110,7 @@ SystemStatusPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
   AddReadOnly(_("GPS lock"));
   AddReadOnly(_("Satellites in view"));
   AddReadOnly(_("Variometer"));
-  AddReadOnly(_T("FLARM"));
+  AddReadOnly("FLARM");
   AddReadOnly(_("Logger"));
   AddReadOnly(_("Supply voltage"));
   AddReadOnly(_("Network"));

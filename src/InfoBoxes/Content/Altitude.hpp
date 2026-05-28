@@ -16,6 +16,9 @@ public:
 void
 UpdateInfoBoxAltitudeNav(InfoBoxData &data) noexcept;
 
+void
+UpdateInfoBoxAltitudeIGC(InfoBoxData &data) noexcept;
+
 class InfoBoxContentAltitudeGPS : public InfoBoxContentAltitude
 {
 public:
@@ -33,3 +36,6 @@ UpdateInfoBoxAltitudeQFE(InfoBoxData &data) noexcept;
 
 void
 UpdateInfoBoxAltitudeFlightLevel(InfoBoxData &data) noexcept;
+
+void
+UpdateInfoBoxAltitudeQNH(InfoBoxData &data) noexcept;

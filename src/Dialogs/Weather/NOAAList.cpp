@@ -158,19 +158,20 @@ UpdateTask(NOAAStore::Item &item, ProgressListener &progress) noexcept
 inline void
 NOAAListWidget::AddClicked()
 {
-  TCHAR code[5] = _T("");
+  char code[5] = "";
   if (!TextEntryDialog(code, 5, _("Airport ICAO code")))
     return;
 
-  if (_tcslen(code) != 4) {
+  if (strlen(code) != 4) {
     ShowMessageBox(_("Please enter the FOUR letter code of the desired station."),
                 _("Error"), MB_OK);
     return;
   }
 
   if (!NOAAStore::IsValidCode(code)) {
-    ShowMessageBox(_("Please don't use special characters in the four letter code of the desired station."),
-                  _("Error"), MB_OK);
+    ShowMessageBox(
+      _("Please enter four letters or digits only (ICAO station code)."),
+      _("Error"), MB_OK);
     return;
   }
 

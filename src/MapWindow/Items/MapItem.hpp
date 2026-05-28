@@ -21,8 +21,6 @@
 
 #include <chrono>
 
-#include <tchar.h>
-
 enum class TaskPointType : uint8_t;
 
 class ObservationZonePoint;
@@ -70,6 +68,15 @@ struct LocationMapItem: public MapItem
    */
   static constexpr double UNKNOWN_ELEVATION_THRESHOLD = -1e4;
 
+  /**
+   * The actual clicked location.
+   */
+  GeoPoint location;
+
+  /**
+   * Vector from current aircraft position to the clicked location.
+   * Used for display purposes.
+   */
   GeoVector vector;
 
   /**
@@ -77,8 +84,10 @@ struct LocationMapItem: public MapItem
    */
   double elevation;
 
-  LocationMapItem(const GeoVector &_vector, double _elevation)
-    :MapItem(Type::LOCATION), vector(_vector), elevation(_elevation) {}
+  LocationMapItem(const GeoPoint &_location, const GeoVector &_vector,
+                  double _elevation)
+    :MapItem(Type::LOCATION), location(_location), vector(_vector),
+     elevation(_elevation) {}
 
   bool HasElevation() const {
     return elevation > UNKNOWN_ELEVATION_THRESHOLD;
@@ -198,7 +207,7 @@ struct SkyLinesTrafficMapItem : public MapItem
 
   SkyLinesTrafficMapItem(uint32_t _id, Time _time_of_day_ms,
                          int _altitude,
-                         const TCHAR *_name)
+                         const char *_name)
     :MapItem(Type::SKYLINES_TRAFFIC), id(_id), time_of_day(_time_of_day_ms),
      altitude(_altitude),
      name(_name) {}

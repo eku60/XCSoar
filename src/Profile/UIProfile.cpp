@@ -57,6 +57,8 @@ Profile::Load(const ProfileMap &map, TrafficSettings &settings)
   map.Get(ProfileKeys::FlarmAutoZoom, settings.auto_zoom);
   map.Get(ProfileKeys::FlarmNorthUp, settings.north_up);
   map.GetEnum(ProfileKeys::FlarmLocation, settings.gauge_location);
+  map.Get(ProfileKeys::FlarmRadarZoom, settings.radar_zoom);
+  map.Get(ProfileKeys::NoPositionTargetDistanceRing, settings.no_position_target_distance_ring);
 }
 
 void
@@ -130,6 +132,7 @@ Profile::Load(const ProfileMap &map, UISettings &settings)
   map.GetEnum(ProfileKeys::HapticFeedback, settings.haptic_feedback);
 
   map.Get(ProfileKeys::ShowMenuButton, settings.show_menu_button);
+  map.Get(ProfileKeys::ShowZoomButton, settings.show_zoom_button);
 
   if (!map.GetEnum(ProfileKeys::DarkMode, settings.dark_mode)) {
     /* migrate the old AppInverseInfoBox setting */

@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "Version.hpp"
+#include "ProductName.hpp"
 
 #ifndef XCSOAR_VERSION
 #error Macro "XCSOAR_VERSION" is not defined.  Check build/version.mk!
@@ -37,7 +38,7 @@
 #endif
 
 const char XCSoar_Version[] = VERSION;
-const TCHAR XCSoar_VersionLong[] = _T(VERSION VERSION_SUFFIX);
-const TCHAR XCSoar_VersionString[] = _T(VERSION VERSION_SUFFIX "-" TARGET);
-const TCHAR XCSoar_VersionStringOld[] = _T(TARGET " " VERSION VERSION_SUFFIX);
-const TCHAR XCSoar_ProductToken[] = _T("XCSoar v" VERSION VERSION_SUFFIX "-" TARGET GIT_SUFFIX);
+const char XCSoar_VersionLong[] = VERSION VERSION_SUFFIX;
+const char XCSoar_VersionString[] = VERSION VERSION_SUFFIX "-" TARGET;
+const char XCSoar_VersionStringOld[] = TARGET " " VERSION VERSION_SUFFIX;
+const char XCSoar_ProductToken[] = PRODUCT_NAME " v" VERSION VERSION_SUFFIX "-" TARGET GIT_SUFFIX;

@@ -37,7 +37,7 @@ DeviceConfigOverlaps(const DeviceConfig &a, const DeviceConfig &b)
     return a.path.equals(b.path);
 
   case DeviceConfig::PortType::RFCOMM:
-  case DeviceConfig::PortType::BLE_HM10:
+  case DeviceConfig::PortType::BLE_SERIAL:
   case DeviceConfig::PortType::BLE_SENSOR:
     return a.bluetooth_mac.equals(b.bluetooth_mac);
 
@@ -114,7 +114,7 @@ devStartup(MultipleDevices &devices, const SystemSettings &settings)
     config.Clear();
     config.port_type = DeviceConfig::PortType::INTERNAL;
 
-    DeviceDescriptor &device = devices[0];
+    DeviceDescriptor &device = devices[INTERNAL_DEVICE_SLOT];
     devInitOne(device, config);
 #endif
   }

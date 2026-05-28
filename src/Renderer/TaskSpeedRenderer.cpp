@@ -13,25 +13,33 @@
 #include "TaskLegRenderer.hpp"
 #include "GradientRenderer.hpp"
 #include "Engine/GlideSolvers/GlidePolar.hpp"
+#include "util/UTF8.hpp"
+
+#include <fmt/format.h>
 
 void
-TaskSpeedCaption(TCHAR *sTmp,
+TaskSpeedCaption(char *s_tmp, size_t buffer_size,
                  const FlightStatistics &fs,
                  const GlidePolar &glide_polar)
 {
+  if (s_tmp == nullptr || buffer_size == 0)
+    return;
+
   if (!glide_polar.IsValid() || fs.task_speed.IsEmpty()) {
-    *sTmp = _T('\0');
+    *s_tmp = '\0';
     return;
   }
 
-  _stprintf(sTmp,
-            _T("%s: %d %s\r\n%s: %d %s"),
-            _("Vave"),
-            (int)Units::ToUserTaskSpeed(fs.task_speed.GetAverageY()),
-            Units::GetTaskSpeedName(),
-            _("Vest"),
-            (int)Units::ToUserTaskSpeed(glide_polar.GetAverageSpeed()),
-            Units::GetTaskSpeedName());
+  auto result = fmt::format_to_n(s_tmp, buffer_size - 1,
+                                 "{}: {} {}\r\n{}: {} {}",
+                                 C_("Average velocity abbreviation", "Vave"),
+                                 (int)Units::ToUserTaskSpeed(fs.task_speed.GetAverageY()),
+                                 Units::GetTaskSpeedName(),
+                                 _("Vest"),
+                                 (int)Units::ToUserTaskSpeed(glide_polar.GetAverageSpeed()),
+                                 Units::GetTaskSpeedName());
+  *result.out = '\0';
+  CropIncompleteUTF8(s_tmp);
 }
 
 void
@@ -44,8 +52,8 @@ RenderSpeed(Canvas &canvas, const PixelRect rc,
             const GlidePolar &glide_polar)
 {
   ChartRenderer chart(chart_look, canvas, rc);
-  chart.SetXLabel(_T("t"), _T("hr"));
-  chart.SetYLabel(_T("V"), Units::GetTaskSpeedName());
+  chart.SetXLabel("t", "hr");
+  chart.SetYLabel("V", Units::GetTaskSpeedName());
   chart.Begin();
 
   if (!fs.task_speed.HasResult() || !task.CheckOrderedTask()) {
@@ -70,14 +78,16 @@ RenderSpeed(Canvas &canvas, const PixelRect rc,
     rc_upper.bottom = chart.ScreenY(vref);
 
     DrawVerticalGradient(canvas, rc_upper,
-                         chart_look.color_positive, COLOR_WHITE, COLOR_WHITE);
+                         chart_look.color_positive, chart_look.background_color,
+                         chart_look.background_color);
   }
   {
     PixelRect rc_lower = chart.GetChartRect();
     rc_lower.top = chart.ScreenY(vref);
 
     DrawVerticalGradient(canvas, rc_lower,
-                         COLOR_WHITE, chart_look.color_negative, COLOR_WHITE);
+                         chart_look.background_color, chart_look.color_negative,
+                         chart_look.background_color);
   }
 
   RenderTaskLegs(chart, task, nmea_info, derived_info, 0.33);
@@ -93,10 +103,10 @@ RenderSpeed(Canvas &canvas, const PixelRect rc,
   chart.DrawTrend(fs.task_speed, ChartLook::STYLE_BLUETHINDASH);
 
   chart.DrawLabel({chart.GetXMin()*0.9+chart.GetXMax()*0.1, vref},
-                  _T("Vest"));
+                  "Vest");
 
   const double tref = chart.GetXMin()*0.5+chart.GetXMax()*0.5;
-  chart.DrawLabel({tref, fs.task_speed.GetYAt(tref)}, _T("Vave"));
+  chart.DrawLabel({tref, fs.task_speed.GetYAt(tref)}, "Vave");
 
   chart.Finish();
 }

@@ -3,6 +3,7 @@
 
 #include "OffsetButtonsWidget.hpp"
 #include "Screen/Layout.hpp"
+#include "util/StringFormat.hpp"
 
 #include <algorithm>  // for std::any_of
 #include <stdio.h>
@@ -41,8 +42,12 @@ inline Button
 OffsetButtonsWidget::MakeButton(ContainerWindow &parent, const PixelRect &r,
                                 unsigned i) noexcept
 {
-  TCHAR caption[16];
-  _stprintf(caption, format, offsets[i]);
+  char caption[16];
+  const int n = StringFormat(caption, sizeof(caption), format, offsets[i]);
+  if (n < 0 || n >= (int)sizeof(caption)) {
+    caption[0] = '?';
+    caption[1] = '\0';
+  }
 
   WindowStyle style;
   style.TabStop();

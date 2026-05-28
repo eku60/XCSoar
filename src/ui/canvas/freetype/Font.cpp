@@ -14,9 +14,7 @@
 #include "thread/Mutex.hxx"
 #endif
 
-#ifndef _UNICODE
 #include "util/UTF8.hpp"
-#endif
 
 #if defined(__clang__) && defined(__arm__)
 /* work around warning: 'register' storage class specifier is
@@ -75,21 +73,14 @@ FT_CEIL(FT_Long x) noexcept
   return FT_FLOOR(x + 63);
 }
 
-[[gnu::pure]]
 static unsigned
-NextChar(tstring_view &s) noexcept
+NextChar(std::string_view &s) noexcept
 {
   assert(!s.empty());
 
-#ifdef _UNICODE
-  const unsigned ch = s.front();
-  s.remove_prefix(1);
-  return ch;
-#else
   auto n = NextUTF8(s.data());
   s.remove_prefix(n.second - s.data());
   return n.first;
-#endif
 }
 
 void
@@ -211,11 +202,9 @@ Font::Destroy() noexcept
 }
 
 static void
-ForEachChar(tstring_view text, std::invocable<unsigned> auto f)
+ForEachChar(std::string_view text, std::invocable<unsigned> auto f)
 {
-#ifndef _UNICODE
   assert(ValidateUTF8(text));
-#endif
 
   while (!text.empty()) {
     const unsigned ch = NextChar(text);
@@ -271,12 +260,14 @@ ForEachGlyph(const FT_Face face, unsigned ascent_height, T &&text,
 }
 
 PixelSize
-Font::TextSize(tstring_view text) const noexcept
+Font::TextSize(std::string_view text) const noexcept
 {
   int maxx = 0;
+  int max_advance = 0;
 
   ForEachGlyph(face, ascent_height, text,
-               [&maxx](int x, [[maybe_unused]] int y, const FT_GlyphSlot glyph){
+               [&maxx, &max_advance](int x, [[maybe_unused]] int y,
+                                     const FT_GlyphSlot glyph){
       const FT_Glyph_Metrics &metrics = glyph->metrics;
       const int glyph_minx = FT_FLOOR(metrics.horiBearingX);
       const int glyph_maxx = glyph_minx + FT_CEIL(metrics.width);
@@ -284,9 +275,15 @@ Font::TextSize(tstring_view text) const noexcept
       int z = x + glyph_maxx;
       if (z > maxx)
         maxx = z;
+
+      max_advance = x + FT_CEIL(metrics.horiAdvance);
     });
 
-  return PixelSize{unsigned(maxx), height};
+  /* Use the wider of the visual bounding box (maxx) and the total
+     advance (max_advance).  The advance accounts for trailing
+     whitespace that has no visible pixels but still occupies layout
+     space. */
+  return PixelSize{unsigned(std::max(maxx, max_advance)), height};
 }
 
 static void
@@ -380,7 +377,7 @@ RenderGlyph(uint8_t *buffer, size_t width, size_t height,
 }
 
 void
-Font::Render(tstring_view text, const PixelSize size,
+Font::Render(std::string_view text, const PixelSize size,
              void *_buffer) const noexcept
 {
   uint8_t *buffer = (uint8_t *)_buffer;

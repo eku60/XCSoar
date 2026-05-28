@@ -7,12 +7,7 @@
 #include "util/StringAPI.hxx"
 #include "util/CharUtil.hxx"
 
-#ifdef _UNICODE
-#include "util/ConvertString.hpp"
-#endif
-
 #include <algorithm>
-
 #include <cassert>
 
 std::string
@@ -21,15 +16,7 @@ Path::ToUTF8() const noexcept
   if (*this == nullptr)
     return std::string();
 
-#ifdef _UNICODE
-  const WideToUTF8Converter utf8(c_str());
-  if (!utf8.IsValid())
-    return std::string();
-
-  return (const char *)utf8;
-#else
   return c_str();
-#endif
 }
 
 AllocatedPath
@@ -78,9 +65,9 @@ Path::IsBase() const noexcept
   assert(*this != nullptr);
 
 #ifdef _WIN32
-  return _tcspbrk(c_str(), _T("/\\")) == nullptr;
+  return strpbrk(c_str(), "/\\") == nullptr;
 #else
-  return StringFind(c_str(), _T('/')) == nullptr;
+  return StringFind(c_str(), '/') == nullptr;
 #endif
 }
 
@@ -88,9 +75,9 @@ Path::IsBase() const noexcept
 static Path::const_pointer
 LastSeparator(Path::const_pointer path) noexcept
 {
-  const auto *p = StringFindLast(path, _T('/'));
+  const auto *p = StringFindLast(path, '/');
 #ifdef _WIN32
-  const auto *backslash = StringFindLast(path, _T('\\'));
+  const auto *backslash = StringFindLast(path, '\\');
   if (p == nullptr || backslash > p)
     p = backslash;
 #endif
@@ -105,7 +92,7 @@ Path::GetParent() const noexcept
   const const_pointer v = c_str();
   const const_pointer p = LastSeparator(v);
   if (p == nullptr || p == v)
-    return AllocatedPath(_T("."));
+    return AllocatedPath(".");
 
   return AllocatedPath(v, p);
 }
@@ -161,14 +148,14 @@ Path::GetSuffix() const noexcept
 
   assert(!StringIsEmpty(base.c_str()));
 
-  return StringFindLast(base.c_str() + 1, _T('.'));
+  return StringFindLast(base.c_str() + 1, '.');
 }
 
 AllocatedPath
 Path::WithSuffix(const_pointer new_suffix) const noexcept
 {
   assert(new_suffix != nullptr);
-  assert(*new_suffix == _T('.'));
+  assert(*new_suffix == '.');
 
   auto old_suffix = GetSuffix();
   return old_suffix != nullptr

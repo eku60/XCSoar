@@ -5,31 +5,45 @@
 #include "NOAAList.hpp"
 #include "RASPDialog.hpp"
 #include "PCMetDialog.hpp"
+#include "Weather/Features.hpp"
 #if 0
 #include "MapOverlayWidget.hpp"
 #endif
+#include "Widget/TextWidget.hpp"
 #include "Dialogs/WidgetDialog.hpp"
 #include "Widget/TabWidget.hpp"
 #include "Widget/ButtonWidget.hpp"
+#ifdef HAVE_EDL
+#include "MapOverlayControlsWidget.hpp"
+#endif
 #include "UIGlobals.hpp"
 #include "Look/DialogLook.hpp"
 #include "Language/Language.hpp"
-#include "Weather/Features.hpp"
 #include "util/StaticString.hxx"
 
 static int weather_page = 0;
+
+#ifndef HAVE_EDL
+static std::unique_ptr<Widget>
+CreateEDLUnavailableWidget() noexcept
+{
+  auto widget = std::make_unique<TextWidget>();
+  widget->SetText(_("EDL weather is not available because this build has no OpenGL renderer."));
+  return widget;
+}
+#endif
 
 static void
 SetTitle(WndForm &form, const TabWidget &pager)
 {
   StaticString<128> title;
-  title.Format(_T("%s: %s"), _("Weather"),
+  title.Format("%s: %s", _("Weather"),
                pager.GetButtonCaption(pager.GetCurrentIndex()));
   form.SetCaption(title);
 }
 
 void
-ShowWeatherDialog(const TCHAR *page)
+ShowWeatherDialog(const char *page)
 {
   const DialogLook &look = UIGlobals::GetDialogLook();
 
@@ -53,22 +67,32 @@ ShowWeatherDialog(const TCHAR *page)
   /* setup tabs */
 
 #ifdef HAVE_NOAA
-  if (page != nullptr && StringIsEqual(page, _T("list")))
+  if (page != nullptr && StringIsEqual(page, "list"))
     start_page = widget.GetSize();
 
   widget.AddTab(CreateNOAAListWidget(), _("METAR and TAF"));
 #endif
 
-  if (page != nullptr && StringIsEqual(page, _T("rasp")))
+  if (page != nullptr && StringIsEqual(page, "rasp"))
     start_page = widget.GetSize();
 
-  widget.AddTab(CreateRaspWidget(), _T("RASP"));
+  widget.AddTab(CreateRaspWidget(), "RASP");
+
+  if (page != nullptr && StringIsEqual(page, "edl"))
+    start_page = widget.GetSize();
+
+#ifdef HAVE_EDL
+  widget.AddTab(CreateMapOverlayControlsOverlayWidget(PageLayout::Overlay::EDL),
+                "EDL");
+#else
+  widget.AddTab(CreateEDLUnavailableWidget(), "EDL");
+#endif
 
 #ifdef HAVE_PCMET
-  if (page != nullptr && StringIsEqual(page, _T("pc_met")))
+  if (page != nullptr && StringIsEqual(page, "pc_met"))
     start_page = widget.GetSize();
 
-  widget.AddTab(CreatePCMetWidget(), _T("pc_met"));
+  widget.AddTab(CreatePCMetWidget(), "pc_met");
 #endif
 
 #if 0
@@ -77,11 +101,11 @@ ShowWeatherDialog(const TCHAR *page)
      eventually, we should refactor the code to be generic, allowing
      arbitrary georeferenced images */
 
-  if (page != nullptr && StringIsEqual(page, _T("overlay")))
+  if (page != nullptr && StringIsEqual(page, "overlay"))
     start_page = widget.GetSize();
 
   // TODO: better and translatable title?
-  widget.AddTab(CreateWeatherMapOverlayWidget(), _T("Overlay"));
+  widget.AddTab(CreateWeatherMapOverlayWidget(), "Overlay");
 #endif
 
   /* restore previous page */

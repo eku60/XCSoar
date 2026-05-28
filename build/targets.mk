@@ -6,12 +6,16 @@ TARGETS = PC WIN64 \
 	ANDROID ANDROID7 ANDROID86 \
 	ANDROIDAARCH64 ANDROIDX64 \
 	ANDROIDFAT \
-	OSX64 IOS32 IOS64
+	OSX64 MACOS IOS32 IOS64 IOS64SIM
 
 ifeq ($(TARGET),)
   ifeq ($(HOST_IS_UNIX),y)
     ifeq ($(HOST_IS_DARWIN),y)
-      TARGET = OSX64
+      ifeq ($(HOST_IS_AARCH64),y)
+        TARGET = MACOS
+      else
+        TARGET = OSX64
+      endif
     else
       TARGET = UNIX
     endif
@@ -43,6 +47,7 @@ X86 := n
 FAT_BINARY := n
 
 TARGET_IS_DARWIN := n
+TARGET_IS_IOS := n
 TARGET_IS_LINUX := n
 TARGET_IS_ANDROID := n
 TARGET_IS_PI := n
@@ -53,6 +58,7 @@ TARGET_IS_CUBIE := n
 HAVE_POSIX := n
 HAVE_WIN32 := y
 HAVE_MSVCRT := y
+HAVE_HTTP := y
 
 TARGET_ARCH :=
 
@@ -99,6 +105,10 @@ ifeq ($(TARGET),ANDROIDFAT)
   FAT_BINARY := y
   override TARGET = ANDROID
   override TARGET_FLAVOR = ANDROID
+endif
+
+ifeq ($(ANDROID_BUNDLE_BUILD),y)
+  override TARGET_FLAVOR = ANDROID_BUNDLE
 endif
 
 # real targets
@@ -237,6 +247,21 @@ ifeq ($(TARGET),OSX64)
   TARGET_ARCH += -mmacosx-version-min=$(OSX_MIN_SUPPORTED_VERSION)
 endif
 
+ifeq ($(TARGET),MACOS)
+  override TARGET = UNIX
+  TARGET_IS_DARWIN = y
+  TARGET_IS_OSX = y
+  OSX_MIN_SUPPORTED_VERSION = 12.0
+  HOST_TRIPLET = aarch64-apple-darwin
+  LLVM_TARGET = $(HOST_TRIPLET)
+  ifeq ($(HOST_IS_DARWIN),y)
+    DARWIN_SDK ?= /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+  endif
+  CLANG = y
+  TARGET_ARCH += -mmacosx-version-min=$(OSX_MIN_SUPPORTED_VERSION)
+  TARGET_IS_ARM = y
+endif
+
 ifeq ($(TARGET),IOS32)
   override TARGET = UNIX
   TARGET_IS_DARWIN = y
@@ -255,7 +280,7 @@ ifeq ($(TARGET),IOS64)
   override TARGET = UNIX
   TARGET_IS_DARWIN = y
   TARGET_IS_IOS = y
-  IOS_MIN_SUPPORTED_VERSION = 10.0
+  IOS_MIN_SUPPORTED_VERSION = 11.0
   HOST_TRIPLET = aarch64-apple-darwin
   LLVM_TARGET = $(HOST_TRIPLET)
   ifeq ($(HOST_IS_DARWIN),y)
@@ -263,6 +288,21 @@ ifeq ($(TARGET),IOS64)
   endif
   CLANG = y
   TARGET_ARCH += -miphoneos-version-min=$(IOS_MIN_SUPPORTED_VERSION) -arch arm64
+  ASFLAGS += -arch arm64
+endif
+
+ifeq ($(TARGET),IOS64SIM)
+  override TARGET = UNIX
+  TARGET_IS_DARWIN = y
+  TARGET_IS_IOS = y
+  IOS_MIN_SUPPORTED_VERSION = 11.0
+  HOST_TRIPLET = aarch64-apple-darwin
+  LLVM_TARGET = $(HOST_TRIPLET)
+  ifeq ($(HOST_IS_DARWIN),y)
+    DARWIN_SDK ?= /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk
+  endif
+  CLANG = y
+  TARGET_ARCH += -mios-simulator-version-min=$(IOS_MIN_SUPPORTED_VERSION) -arch arm64
   ASFLAGS += -arch arm64
 endif
 
@@ -313,9 +353,14 @@ ifeq ($(TARGET),UNIX)
 endif
 
 ifeq ($(TARGET),ANDROID)
-  ANDROID_NDK ?= $(HOME)/opt/android-ndk-r26c
+  ifeq ($(HOST_IS_DARWIN),y)
+    ANDROID_SDK ?= $(HOME)/Library/Android/sdk
+    ANDROID_NDK ?= $(shell ls -d $(ANDROID_SDK)/ndk/26.* 2>/dev/null | head -n 1)
+  else
+    ANDROID_NDK ?= $(HOME)/opt/android-ndk-r26d
+  endif
 
-  ANDROID_SDK_PLATFORM = android-33
+  ANDROID_SDK_PLATFORM = android-35
   ANDROID_NDK_API = 21
 
   # The naming of CPU ABIs, architectures, and various NDK directory names is an unholy mess.
@@ -358,7 +403,7 @@ ifeq ($(TARGET),ANDROID)
   override LIBCXX = y
 
   ifeq ($(HOST_IS_DARWIN),y)
-    ifeq ($(UNAME_M),x86_64)
+    ifneq (,$(filter $(UNAME_M),x86_64 arm64))
       ANDROID_HOST_TAG = darwin-x86_64
     else
       ANDROID_HOST_TAG = darwin-x86
@@ -421,9 +466,12 @@ ifeq ($(HAVE_POSIX),y)
   TARGET_CPPFLAGS += -DHAVE_VASPRINTF
 endif
 
+ifeq ($(HAVE_HTTP),y)
+  TARGET_CPPFLAGS += -DHAVE_HTTP
+endif
+
 ifeq ($(HAVE_MSVCRT),y)
   TARGET_CPPFLAGS += -DHAVE_MSVCRT
-  TARGET_CPPFLAGS += -DUNICODE -D_UNICODE
   TARGET_CPPFLAGS += -DSTRICT
 endif
 
@@ -473,7 +521,8 @@ endif
 ifeq ($(TARGET),ANDROID)
   TARGET_CPPFLAGS += -DANDROID
   CXXFLAGS += -D__STDC_VERSION__=199901L
-
+  # disable pretty printer embedding
+  CXXFLAGS += -DBOOST_ALL_NO_EMBEDDED_GDB_SCRIPTS
   ifeq ($(X86),y)
     # On NDK r6, the macro _BYTE_ORDER never gets defined - workaround:
     TARGET_CPPFLAGS += -D_BYTE_ORDER=_LITTLE_ENDIAN
@@ -544,6 +593,8 @@ endif
 
 ifeq ($(TARGET),ANDROID)
   TARGET_LDFLAGS += -Wl,--no-undefined
+  # Support 16KB memory pages (required for Android 15+ devices)
+  TARGET_LDFLAGS += -Wl,-z,max-page-size=16384
 
   ifeq ($(ARMV7),y)
     TARGET_LDFLAGS += -Wl,--fix-cortex-a8
@@ -561,7 +612,7 @@ ifeq ($(TARGET),UNIX)
 endif
 
 ifeq ($(TARGET),ANDROID)
-  TARGET_LDLIBS += -llog -landroid
+  TARGET_LDLIBS += -llog -landroid -ljnigraphics
 endif
 
 ######## output files

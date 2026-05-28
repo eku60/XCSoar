@@ -116,50 +116,44 @@ namespace InfoBoxFactory
     CruiseEfficiency,
     WIND_ARROW,
     THERMAL_ASSISTANT,
-
+    /* 100..109 */
     START_OPEN_TIME,
     START_OPEN_ARRIVAL_TIME,
-
     NEXT_RADIAL,
     ATC_RADIAL,
-
     TASK_SPEED_HOUR,
     WP_NOMINAL_DIST, /* The nominal distance to the currently selected waypoint. For AAT tasks, this is the distance to the origin of the AAT sector */
-
     CIRCLE_DIAMETER,
-
     TAKEOFF_DISTANCE,
     CONTEST_SPEED,
-
     FIN_MC0_ALTD,
-
     /* 110..119 */
     NEXT_ARROW,
     e_WP_ETA_VMG, /* Estimated arrival time at next waypoint assuming current speed is maintained*/
-
     e_NonCircling_Climb_Perc,
-
     e_Climb_Perc_Chart,
-
     e_NbrSat, /* Number of used Sat by GPS module */
-
     e_ActiveRadio, /* Active Radio Frequency */
-
     e_StandbyRadio, /* Standby Radio Frequency */
     e_Thermal_Time, /* Time in Thermal*/
-
     e_Alternate_2_GR, /* Geometric gradient to the arrival height above the second alternate. This is not adjusted for total energy */
-
     e_HeartRate,
-
+    /* 120..129 */
     e_TransponderCode, /* Transponder code */
-
     e_EngineCHT,  /* Engine Cylinder Head Temperature */
     e_EngineEGT,  /* Engine Exhaust Gas Temperature */
     e_EngineRPM,  /* Engine Revolutions Per Minute */
-
     e_AAT_dT_or_ETA, /* Delta time in AAT task and ETA in racing task */
-
+    e_SpeedTaskEst, /* Estimated (predicted) whole-task average cross-country speed for current task. Affected by MC setting. */
+    e_Home_AltDiff, /* Arrival altitude at the home waypoint (if defined) relative to the safety arrival height */
+    e_SpeedTaskLeg, /* Average cross country speed while on current task leg, not compensated for altitude */
+    e_Alternate_1_AltDiff, /* Arrival altitude at the best alternate landing location relative to the safety arrival height */
+    e_Alternate_2_AltDiff, /* Arrival altitude at the second-best alternate landing location relative to the safety arrival height */
+    /* 130 */
+    e_Home, /* Combined home waypoint infobox: shows waypoint name, arrival altitude diff, and distance */
+    e_AltitudeIGC, /* Logger or ISA pressure altitude only (no QNH baro / GPS) */
+    e_QNH, /* Current QNH pressure setting; tap to adjust manually */
+    e_ActiveWaypoint, /* Active waypoint: next task WP or Goto; arrival diff and distance */
     e_NUM_TYPES /* Last item */
   };
 

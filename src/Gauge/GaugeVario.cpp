@@ -9,13 +9,14 @@
 #include "Math/FastRotation.hpp"
 #include "Units/Units.hpp"
 #include "Units/Descriptor.hpp"
+#include "lib/fmt/ToBuffer.hxx"
 
 #include <algorithm> // for std::clamp()
 
 static constexpr double DELTA_V_STEP = 4.0;
 static constexpr double DELTA_V_LIMIT = 16.0;
-#define TEXT_BUG _T("Bug")
-#define TEXT_BALLAST _T("Bal")
+#define TEXT_BUG "Bug"
+#define TEXT_BALLAST "Bal"
 
 inline
 GaugeVario::BallastGeometry::BallastGeometry(const VarioLook &look,
@@ -26,42 +27,42 @@ GaugeVario::BallastGeometry::BallastGeometry(const VarioLook &look,
   // position of ballast label
   label_pos.x = 1;
   label_pos.y = rc.top + 2
-    + look.text_font->GetCapitalHeight() * 2
-    - look.text_font->GetAscentHeight();
+    + look.label_font.GetCapitalHeight() * 2
+    - look.label_font.GetAscentHeight();
 
   // position of ballast value
   value_pos.x = 1;
   value_pos.y = rc.top + 1
-    + look.text_font->GetCapitalHeight()
-    - look.text_font->GetAscentHeight();
+    + look.label_font.GetCapitalHeight()
+    - look.label_font.GetAscentHeight();
 
   // set upper left corner
   label_rect.left = label_pos.x;
   label_rect.top = label_pos.y
-    + look.text_font->GetAscentHeight()
-    - look.text_font->GetCapitalHeight();
+    + look.label_font.GetAscentHeight()
+    - look.label_font.GetCapitalHeight();
 
   // set upper left corner
   value_rect.left = value_pos.x;
   value_rect.top = value_pos.y
-    + look.text_font->GetAscentHeight()
-    - look.text_font->GetCapitalHeight();
+    + look.label_font.GetAscentHeight()
+    - look.label_font.GetCapitalHeight();
 
   // get max label size
-  tSize = look.text_font->TextSize(TEXT_BALLAST);
+  tSize = look.label_font.TextSize(TEXT_BALLAST);
 
   // update back rect with max label size
   label_rect.right = label_rect.left + tSize.width;
   label_rect.bottom = label_rect.top +
-    look.text_font->GetCapitalHeight();
+    look.label_font.GetCapitalHeight();
 
   // get max value size
-  tSize = look.text_font->TextSize(_T("100%"));
+  tSize = look.label_font.TextSize("100%");
 
   value_rect.right = value_rect.left + tSize.width;
   // update back rect with max label size
   value_rect.bottom = value_rect.top +
-    look.text_font->GetCapitalHeight();
+    look.label_font.GetCapitalHeight();
 }
 
 inline
@@ -72,35 +73,35 @@ GaugeVario::BugsGeometry::BugsGeometry(const VarioLook &look,
 
   label_pos.x = 1;
   label_pos.y = rc.bottom - 2
-    - look.text_font->GetCapitalHeight()
-    - look.text_font->GetAscentHeight();
+    - look.label_font.GetCapitalHeight()
+    - look.label_font.GetAscentHeight();
 
   value_pos.x = 1;
   value_pos.y = rc.bottom - 1
-    - look.text_font->GetAscentHeight();
+    - look.label_font.GetAscentHeight();
 
   label_rect.left = label_pos.x;
   label_rect.top = label_pos.y
-    + look.text_font->GetAscentHeight()
-    - look.text_font->GetCapitalHeight();
+    + look.label_font.GetAscentHeight()
+    - look.label_font.GetCapitalHeight();
   value_rect.left = value_pos.x;
   value_rect.top = value_pos.y
-    + look.text_font->GetAscentHeight()
-    - look.text_font->GetCapitalHeight();
+    + look.label_font.GetAscentHeight()
+    - look.label_font.GetCapitalHeight();
 
-  tSize = look.text_font->TextSize(TEXT_BUG);
+  tSize = look.label_font.TextSize(TEXT_BUG);
 
   label_rect.right = label_rect.left + tSize.width;
   label_rect.bottom = label_rect.top
-    + look.text_font->GetCapitalHeight()
-    + look.text_font->GetHeight()
-    - look.text_font->GetAscentHeight();
+    + look.label_font.GetCapitalHeight()
+    + look.label_font.GetHeight()
+    - look.label_font.GetAscentHeight();
 
-  tSize = look.text_font->TextSize(_T("100%"));
+  tSize = look.label_font.TextSize("100%");
 
   value_rect.right = value_rect.left + tSize.width;
   value_rect.bottom = value_rect.top +
-    look.text_font->GetCapitalHeight();
+    look.label_font.GetCapitalHeight();
 }
 
 inline
@@ -108,9 +109,9 @@ GaugeVario::LabelValueGeometry::LabelValueGeometry(const VarioLook &look,
                                                    PixelPoint position) noexcept
   :label_right(position.x),
    label_top(position.y + Layout::Scale(1)),
-   label_bottom(label_top + look.text_font->GetCapitalHeight()),
-   label_y(label_top + look.text_font->GetCapitalHeight()
-           - look.text_font->GetAscentHeight()),
+   label_bottom(label_top + look.label_font.GetCapitalHeight()),
+   label_y(label_top + look.label_font.GetCapitalHeight()
+           - look.label_font.GetAscentHeight()),
    // TODO: update after units got reconfigured?
    value_right(position.x - UnitSymbolRenderer::GetSize(look.unit_font,
                                                         Units::current.vertical_speed_unit).width),
@@ -125,7 +126,7 @@ inline unsigned
 GaugeVario::LabelValueGeometry::GetHeight(const VarioLook &look) noexcept
 {
   return Layout::Scale(4) + look.value_font.GetCapitalHeight()
-    + look.text_font->GetCapitalHeight();
+    + look.label_font.GetCapitalHeight();
 }
 
 inline
@@ -138,10 +139,11 @@ GaugeVario::Geometry::Geometry(const VarioLook &look, const PixelRect &rc) noexc
   nline = Layout::Scale(8);
 
   offset = rc.GetMiddleRight();
+  offset.x -= Layout::GetTextPadding();
 
   const PixelSize value_offset{0u, LabelValueGeometry::GetHeight(look)};
 
-  const PixelPoint gross_position = offset + value_offset / 2u;
+  const PixelPoint gross_position = offset - value_offset / 2u;
   gross = {look, gross_position};
   average = {look, gross_position - value_offset};
   mc = {look, gross_position + value_offset};
@@ -231,8 +233,8 @@ GaugeVario::RenderBackground(Canvas &canvas, const PixelRect &rc) noexcept
                     TransformRotatedPoint(r.Rotate(tick_end),
                                           geometry.offset));
 
-    TCHAR label[16];
-    StringFormatUnsafe(label, _T("%d"), i * tick_value_step);
+    char label[16];
+    StringFormatUnsafe(label, "%d", i * tick_value_step);
 
     const auto label_size = canvas.CalcTextSize(label);
 
@@ -258,14 +260,14 @@ GaugeVario::OnPaintBuffer(Canvas &canvas) noexcept
     // JMW averager now displays netto average if not circling
     RenderValue(canvas, geometry.average, average_di,
                 Units::ToUserVSpeed(Calculated().circling ? Calculated().average : Calculated().netto_average),
-                Calculated().circling ? _T("Avg") : _T("NetAvg"));
+                Calculated().circling ? "Avg" : "NetAvg");
   }
 
   if (Settings().show_mc) {
     auto mc = Units::ToUserVSpeed(GetGlidePolar().GetMC());
     RenderValue(canvas, geometry.mc, mc_di,
                 mc,
-                GetComputerSettings().task.auto_mc ? _T("Auto MC") : _T("MC"));
+                GetComputerSettings().task.auto_mc ? "Auto MC" : "MC");
   }
 
   if (Settings().show_speed_to_fly)
@@ -336,7 +338,7 @@ GaugeVario::OnPaintBuffer(Canvas &canvas) noexcept
 
     RenderValue(canvas, geometry.gross, gross_di,
                 vvaldisplay,
-                _T("Gross"));
+                "Gross");
   }
 
   RenderZero(canvas);
@@ -484,7 +486,7 @@ GaugeVario::RenderNeedle(Canvas &canvas, int i, bool average,
 void
 GaugeVario::RenderValue(Canvas &canvas, const LabelValueGeometry &g,
                         LabelValueDrawInfo &di,
-                        double value, const TCHAR *label) noexcept
+                        double value, const char *label) noexcept
 {
   value = (double)iround(value * 10) / 10; // prevent the -0.0 case
 
@@ -492,7 +494,7 @@ GaugeVario::RenderValue(Canvas &canvas, const LabelValueGeometry &g,
 
   if (!IsPersistent() || (dirty && !StringIsEqual(di.label.last_text, label))) {
     canvas.SetTextColor(look.dimmed_text_color);
-    canvas.Select(*look.text_font);
+    canvas.Select(look.label_font);
     const unsigned width = canvas.CalcTextSize(label).width;
 
     const PixelPoint text_position{g.label_right - (int)width, g.label_y};
@@ -507,19 +509,18 @@ GaugeVario::RenderValue(Canvas &canvas, const LabelValueGeometry &g,
       canvas.SetBackgroundColor(look.background_color);
       canvas.DrawOpaqueText(text_position, rc, label);
       di.label.last_width = width;
-      _tcscpy(di.label.last_text, label);
+      strcpy(di.label.last_text, label);
     } else {
       canvas.DrawText(text_position, label);
     }
   }
 
   if (!IsPersistent() || (dirty && di.value.last_value != value)) {
-    TCHAR buffer[18];
+    const auto buffer = FmtBuffer<18>("{:.1f}", value);
     canvas.SetBackgroundColor(look.background_color);
     canvas.SetTextColor(look.text_color);
-    _stprintf(buffer, _T("%.1f"), (double)value);
     canvas.Select(look.value_font);
-    const unsigned width = canvas.CalcTextSize(buffer).width;
+    const unsigned width = canvas.CalcTextSize(buffer.c_str()).width;
 
     const PixelPoint text_position{g.value_right - (int)width, g.value_y};
 
@@ -530,12 +531,12 @@ GaugeVario::RenderValue(Canvas &canvas, const LabelValueGeometry &g,
       rc.right = g.value_right;
       rc.bottom = g.value_bottom;
 
-      canvas.DrawOpaqueText(text_position, rc, buffer);
+      canvas.DrawOpaqueText(text_position, rc, buffer.c_str());
 
       di.value.last_width = width;
       di.value.last_value = value;
     } else {
-      canvas.DrawText(text_position, buffer);
+      canvas.DrawText(text_position, buffer.c_str());
     }
   }
 
@@ -674,12 +675,14 @@ GaugeVario::RenderSpeedToFly(Canvas &canvas, int x, int y) noexcept
 inline void
 GaugeVario::RenderBallast(Canvas &canvas) noexcept
 {
-  int ballast = iround(GetGlidePolar().GetBallast() * 100);
+  const GlidePolar &polar = GetGlidePolar();
+  const double ballast_fraction = polar.GetBallastFraction();
+  int ballast = iround(ballast_fraction * 100);
 
   if (!IsPersistent() || ballast != last_ballast) {
     // ballast hase been changed
 
-    canvas.Select(*look.text_font);
+    canvas.Select(look.label_font);
 
     if (IsPersistent())
       canvas.SetBackgroundColor(look.background_color);
@@ -703,14 +706,13 @@ GaugeVario::RenderBallast(Canvas &canvas) noexcept
 
     // new ballast 0, hide value
     if (ballast > 0) {
-      TCHAR buffer[18];
-      _stprintf(buffer, _T("%u%%"), ballast);
+      const auto buffer = FmtBuffer<18>("{}%", ballast);
       canvas.SetTextColor(look.text_color);
 
       if (IsPersistent())
-        canvas.DrawOpaqueText(g.value_pos, g.value_rect, buffer);
+        canvas.DrawOpaqueText(g.value_pos, g.value_rect, buffer.c_str());
       else
-        canvas.DrawText(g.value_pos, buffer);
+        canvas.DrawText(g.value_pos, buffer.c_str());
     } else if (IsPersistent())
       canvas.DrawFilledRectangle(g.value_rect, look.background_color);
 
@@ -725,7 +727,7 @@ GaugeVario::RenderBugs(Canvas &canvas) noexcept
   int bugs = iround((1 - GetComputerSettings().polar.bugs) * 100);
   if (!IsPersistent() || bugs != last_bugs) {
 
-    canvas.Select(*look.text_font);
+    canvas.Select(look.label_font);
 
     if (IsPersistent())
       canvas.SetBackgroundColor(look.background_color);
@@ -746,13 +748,12 @@ GaugeVario::RenderBugs(Canvas &canvas) noexcept
     }
 
     if (bugs > 0) {
-      TCHAR buffer[18];
-      _stprintf(buffer, _T("%d%%"), bugs);
+      const auto buffer = FmtBuffer<18>("{}%", bugs);
       canvas.SetTextColor(look.text_color);
       if (IsPersistent())
-        canvas.DrawOpaqueText(g.value_pos, g.value_rect, buffer);
-      else 
-        canvas.DrawText(g.value_pos, buffer);
+        canvas.DrawOpaqueText(g.value_pos, g.value_rect, buffer.c_str());
+      else
+        canvas.DrawText(g.value_pos, buffer.c_str());
     } else if (IsPersistent())
       canvas.DrawFilledRectangle(g.value_rect, look.background_color);
 

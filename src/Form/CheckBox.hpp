@@ -4,13 +4,24 @@
 #pragma once
 
 #include "ui/window/PaintWindow.hpp"
-#include "util/tstring.hpp"
 
+#include <string>
 #include <cassert>
 #include <functional>
 
 struct DialogLook;
 class ContainerWindow;
+class Canvas;
+struct PixelRect;
+
+/**
+ * Draw the checkbox box and optional check mark into the given rectangle.
+ * Reusable helper used by `CheckBoxControl::OnPaint` and list renderers.
+ */
+void DrawCheckBox(Canvas &canvas, const DialogLook &look,
+                  const PixelRect &box_rc,
+                  bool checked, bool focused, bool pressed,
+                  bool enabled) noexcept;
 
 /**
  * This class is used for creating buttons.
@@ -19,21 +30,31 @@ class CheckBoxControl : public PaintWindow {
   bool checked, dragging, pressed;
 
   const DialogLook *look;
-  tstring caption;
+  std::string caption;
 
   using Callback = std::function<void(bool)>;
   Callback callback;
 
 public:
   void Create(ContainerWindow &parent, const DialogLook &look,
-              tstring::const_pointer caption,
+              std::string::const_pointer caption,
               const PixelRect &rc,
               const WindowStyle style,
               Callback _callback) noexcept;
 
+  /**
+   * Same as @ref Create, but with the @c WindowStyle that dialog bottom
+   * bars and configuration panels use (@c Hide + @c TabStop) — the pattern
+   * used for the configuration dialog "Expert" check box and the quick
+   * guide.
+   */
+  void CreateInDialogForm(ContainerWindow &parent, const DialogLook &look,
+                          std::string::const_pointer caption, const PixelRect &rc,
+                          Callback callback) noexcept;
+
   [[gnu::pure]]
   static unsigned GetMinimumWidth(const DialogLook &look, unsigned height,
-                                  tstring::const_pointer caption) noexcept;
+                                  std::string::const_pointer caption) noexcept;
 
   /**
    * Set the function that will receive click events.

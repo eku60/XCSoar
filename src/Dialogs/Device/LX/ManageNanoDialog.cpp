@@ -57,10 +57,15 @@ ManageNanoWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_unus
     AddReadOnly(_("Firmware version"), NULL, buffer.c_str());
   }
 
+  if (!info.license.empty()) {
+    buffer.SetASCII(info.license.c_str());
+    AddReadOnly(_("License"), NULL, buffer.c_str());
+  }
+
   AddButton(_("Setup"), [this](){
     NanoConfigWidget widget(GetLook(), device);
     DefaultWidgetDialog(UIGlobals::GetMainWindow(), GetLook(),
-                        _T("LXNAV Nano"), widget);
+                        "LXNAV Nano", widget);
   });
 }
 
@@ -69,7 +74,7 @@ ManageNanoDialog(Device &device, const DeviceInfo &info)
 {
   WidgetDialog dialog(WidgetDialog::Auto{}, UIGlobals::GetMainWindow(),
                       UIGlobals::GetDialogLook(),
-                      _T("LXNAV Nano"),
+                      "LXNAV Nano",
                       new ManageNanoWidget(UIGlobals::GetDialogLook(),
                                            (LXDevice &)device, info));
   dialog.AddButton(_("Close"), mrCancel);

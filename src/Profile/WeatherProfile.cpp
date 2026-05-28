@@ -22,11 +22,16 @@ namespace Profile {
 void
 Profile::Load(const ProfileMap &map, WeatherSettings &settings)
 {
+#if !defined(HAVE_PCMET) && !defined(HAVE_HTTP)
+  (void)map;
+  (void)settings;
+#endif
 #ifdef HAVE_PCMET
   Load(map, settings.pcmet);
 #endif
 
 #ifdef HAVE_HTTP
   map.Get(ProfileKeys::EnableThermalInformationMap, settings.enable_tim);
+  map.Get(ProfileKeys::EnableEDLWeather, settings.edl.enabled);
 #endif
 }

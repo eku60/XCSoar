@@ -12,6 +12,7 @@
 struct NMEAInfo;
 class ProtectedTaskManager;
 class ProtectedAirspaceWarningManager;
+class Waypoints;
 
 class TaskComputer
 {
@@ -51,6 +52,10 @@ public:
     return trace;
   }
 
+  TraceComputer &GetTraceComputer() noexcept {
+    return trace;
+  }
+
   void LockedCopyTraceTo(TracePointVector &v) const {
     trace.LockedCopyTo(v);
   }
@@ -79,7 +84,8 @@ public:
   /**
    * Auto-create a task on takeoff that leads back home.
    */
-  void ProcessAutoTask(const NMEAInfo &basic, const DerivedInfo &calculated);
+  void ProcessAutoTask(const NMEAInfo &basic, const DerivedInfo &calculated,
+                       Waypoints &waypoints);
 
   void ProcessIdle(const MoreData &basic, DerivedInfo &calculated,
                    const ComputerSettings &settings_computer,

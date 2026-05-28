@@ -3,104 +3,167 @@
 
 #include "TimeFormatter.hpp"
 #include "time/BrokenDateTime.hpp"
+#include "time/Calendar.hxx"
+#include "time/Convert.hxx"
 #include "Math/Util.hpp"
+#include "util/CharUtil.hxx"
+#include "util/StringFormat.hpp"
 #include "util/StringCompare.hxx"
 #include "util/StaticString.hxx"
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
 
 void
 FormatISO8601(char *buffer, const BrokenDate &date) noexcept
 {
-  sprintf(buffer, "%04u-%02u-%02u",
-          date.year, date.month, date.day);
+  StringFormat(buffer, 11, "%04u-%02u-%02u",
+               date.year, date.month, date.day);
 }
-
-#ifdef _UNICODE
-void
-FormatISO8601(TCHAR *buffer, const BrokenDate &date) noexcept
-{
-  _stprintf(buffer, _T("%04u-%02u-%02u"),
-            date.year, date.month, date.day);
-}
-#endif
 
 void
 FormatISO8601(char *buffer, const BrokenDateTime &stamp) noexcept
 {
-  sprintf(buffer, "%04u-%02u-%02uT%02u:%02u:%02uZ",
-          stamp.year, stamp.month, stamp.day,
-          stamp.hour, stamp.minute, stamp.second);
+  StringFormat(buffer, 21, "%04u-%02u-%02uT%02u:%02u:%02uZ",
+               stamp.year, stamp.month, stamp.day,
+               stamp.hour, stamp.minute, stamp.second);
 }
 
-#ifdef _UNICODE
-void
-FormatISO8601(TCHAR *buffer, const BrokenDateTime &stamp) noexcept
+std::chrono::system_clock::time_point
+ParseISO8601Utc(const std::string_view iso_string)
 {
-  _stprintf(buffer, _T("%04u-%02u-%02uT%02u:%02u:%02uZ"),
-            stamp.year, stamp.month, stamp.day,
-            stamp.hour, stamp.minute, stamp.second);
+  const std::string iso(iso_string);
+
+  struct tm tm = {};
+  const char *str = iso.c_str();
+
+  int year = 0, month = 0, day = 0, hour = 0, min = 0, sec = 0;
+  int consumed = 0;
+  const int scanned = sscanf(str, "%d-%d-%dT%d:%d:%d%n",
+                           &year, &month, &day, &hour, &min, &sec,
+                           &consumed);
+
+  if (scanned < 6)
+    throw std::runtime_error("Failed to parse ISO8601 timestamp: " + iso);
+
+  if (year < 0)
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                             "': year out of range");
+
+  if (month < 1 || month > 12)
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                             "': month out of range");
+
+  if (day < 1 || day > 31)
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                             "': day out of range");
+
+  if (static_cast<unsigned>(day) > DaysInMonth(month, year))
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                           "': impossible date");
+
+  if (hour < 0 || hour > 23)
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                             "': hour out of range");
+
+  if (min < 0 || min > 59)
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                             "': minute out of range");
+
+  if (sec < 0 || sec > 59)
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                             "': second out of range");
+
+  const char *suffix = str + consumed;
+  if (*suffix == '.') {
+    ++suffix;
+    if (!IsDigitASCII(*suffix))
+      throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                               "': non-UTC timezone or extra characters");
+
+    while (IsDigitASCII(*suffix))
+      ++suffix;
+  }
+
+  if (!(suffix[0] == 'Z' && suffix[1] == '\0'))
+    throw std::runtime_error("Invalid ISO8601 timestamp '" + iso +
+                             "': UTC suffix 'Z' required");
+
+  tm.tm_year = year - 1900;
+  tm.tm_mon = month - 1;
+  tm.tm_mday = day;
+  tm.tm_hour = hour;
+  tm.tm_min = min;
+  tm.tm_sec = sec;
+  tm.tm_isdst = 0;
+
+  return TimeGm(tm);
 }
-#endif
 
 void
-FormatTime(TCHAR *buffer, FloatDuration _time) noexcept
+FormatTime(char *buffer, FloatDuration _time) noexcept
 {
   if (_time.count() < 0) {
-    *buffer++ = _T('-');
+    *buffer++ = '-';
     _time = -_time;
   }
 
   const BrokenTime time = BrokenTime::FromSinceMidnightChecked(_time);
-  _stprintf(buffer, _T("%02u:%02u:%02u"),
-            time.hour, time.minute, time.second);
+  StringFormat(buffer, 9, "%02u:%02u:%02u",
+               time.hour, time.minute, time.second);
 }
 
 void
-FormatTimeLong(TCHAR *buffer, FloatDuration _time) noexcept
+FormatTimeLong(char *buffer, FloatDuration _time) noexcept
 {
   if (_time.count() < 0) {
-    *buffer++ = _T('-');
+    *buffer++ = '-';
     _time = -_time;
   }
 
-  const BrokenTime time = BrokenTime::FromSinceMidnightChecked(_time);
+  auto time = BrokenTime::FromSinceMidnightChecked(_time);
 
   _time -= FloatDuration{trunc(_time.count())};
   unsigned millisecond = uround(_time.count() * 1000);
 
-  _stprintf(buffer, _T("%02u:%02u:%02u.%03u"),
-            time.hour, time.minute, time.second, millisecond);
+  if (millisecond == 1000) {
+    millisecond = 0;
+    time = time + std::chrono::seconds{1};
+  }
+
+  StringFormat(buffer, 13, "%02u:%02u:%02u.%03u",
+               time.hour, time.minute, time.second, millisecond);
 }
 
 void
-FormatSignedTimeHHMM(TCHAR *buffer, std::chrono::seconds _time) noexcept
+FormatSignedTimeHHMM(char *buffer, std::chrono::seconds _time) noexcept
 {
   if (_time.count() < 0) {
-    *buffer++ = _T('-');
+    *buffer++ = '-';
     _time = -_time;
   }
 
   const BrokenTime time = BrokenTime::FromSinceMidnightChecked(_time);
-  _stprintf(buffer, _T("%02u:%02u"), time.hour, time.minute);
+  StringFormat(buffer, 6, "%02u:%02u", time.hour, time.minute);
 }
 
 void
-FormatTimeTwoLines(TCHAR *buffer1, TCHAR *buffer2, std::chrono::seconds _time) noexcept
+FormatTimeTwoLines(char *buffer1, char *buffer2, std::chrono::seconds _time) noexcept
 {
   if (_time >= std::chrono::hours{24}) {
-    _tcscpy(buffer1, _T(">24h"));
+    strcpy(buffer1, ">24h");
     buffer2[0] = '\0';
     return;
   }
   if (_time <= -std::chrono::hours{24}) {
-    _tcscpy(buffer1, _T("<-24h"));
+    strcpy(buffer1, "<-24h");
     buffer2[0] = '\0';
     return;
   }
   if (_time.count() < 0) {
-    *buffer1++ = _T('-');
+    *buffer1++ = '-';
     _time = -_time;
   }
 
@@ -108,10 +171,10 @@ FormatTimeTwoLines(TCHAR *buffer1, TCHAR *buffer2, std::chrono::seconds _time) n
 
   if (time.hour > 0) { // hh:mm, ss
     // Set Value
-    _stprintf(buffer1, _T("%02u:%02u"), time.hour, time.minute);
-    _stprintf(buffer2, _T("%02u"), time.second);
+    StringFormat(buffer1, 6, "%02u:%02u", time.hour, time.minute);
+    StringFormat(buffer2, 3, "%02u", time.second);
   } else { // mm'ss
-    _stprintf(buffer1, _T("%02u'%02u"), time.minute, time.second);
+    StringFormat(buffer1, 6, "%02u'%02u", time.minute, time.second);
     buffer2[0] = '\0';
   }
 }
@@ -142,9 +205,9 @@ CalculateTimespanComponents(unsigned timespan, unsigned &days, unsigned &hours,
 }
 
 void
-FormatTimespanSmart(TCHAR *buffer, std::chrono::seconds timespan,
+FormatTimespanSmart(char *buffer, std::chrono::seconds timespan,
                     unsigned max_tokens,
-                    const TCHAR *separator) noexcept
+                    const char *separator) noexcept
 {
   assert(max_tokens > 0 && max_tokens <= 4);
 
@@ -196,40 +259,40 @@ FormatTimespanSmart(TCHAR *buffer, std::chrono::seconds timespan,
 
   // Output
   if (timespan.count() < 0) {
-    *buffer = _T('-');
+    *buffer = '-';
     buffer++;
   }
 
-  *buffer = _T('\0');
+  *buffer = '\0';
 
   StaticString<16> component_buffer;
 
   if (show_days) {
-    component_buffer.Format(_T("%u days"), days);
-    _tcscat(buffer, component_buffer);
+    component_buffer.Format("%u days", days);
+    strcat(buffer, component_buffer);
   }
 
   if (show_hours) {
     if (!StringIsEmpty(buffer))
-      _tcscat(buffer, separator);
+      strcat(buffer, separator);
 
-    component_buffer.Format(_T("%u h"), hours);
-    _tcscat(buffer, component_buffer);
+    component_buffer.Format("%u h", hours);
+    strcat(buffer, component_buffer);
   }
 
   if (show_minutes) {
     if (!StringIsEmpty(buffer))
-      _tcscat(buffer, separator);
+      strcat(buffer, separator);
 
-    component_buffer.Format(_T("%u min"), minutes);
-    _tcscat(buffer, component_buffer);
+    component_buffer.Format("%u min", minutes);
+    strcat(buffer, component_buffer);
   }
 
   if (show_seconds) {
     if (!StringIsEmpty(buffer))
-      _tcscat(buffer, separator);
+      strcat(buffer, separator);
 
-    component_buffer.Format(_T("%u sec"), seconds);
-    _tcscat(buffer, component_buffer);
+    component_buffer.Format("%u sec", seconds);
+    strcat(buffer, component_buffer);
   }
 }

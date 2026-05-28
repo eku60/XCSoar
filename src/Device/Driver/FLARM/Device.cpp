@@ -3,7 +3,6 @@
 
 #include "Device.hpp"
 #include "Device/Port/Port.hpp"
-#include "util/ConvertString.hpp"
 #include "util/StaticString.hxx"
 #include "util/TruncateString.hpp"
 #include "util/Macros.hpp"
@@ -16,6 +15,9 @@
 void
 FlarmDevice::LinkTimeout()
 {
+  if (mode == Mode::BINARY)
+    was_binary = true;
+
   mode = Mode::UNKNOWN;
 }
 
@@ -94,80 +96,80 @@ FlarmDevice::SetBaudRate(unsigned baud_id, OperationEnvironment &env)
 }
 
 bool
-FlarmDevice::GetPilot(TCHAR *buffer, size_t length, OperationEnvironment &env)
+FlarmDevice::GetPilot(char *buffer, size_t length, OperationEnvironment &env)
 {
   return GetConfig("PILOT", buffer, length, env);
 }
 
 bool
-FlarmDevice::SetPilot(const TCHAR *pilot_name, OperationEnvironment &env)
+FlarmDevice::SetPilot(const char *pilot_name, OperationEnvironment &env)
 {
   return SetConfig("PILOT", pilot_name, env);
 }
 
 bool
-FlarmDevice::GetCoPilot(TCHAR *buffer, size_t length,
+FlarmDevice::GetCoPilot(char *buffer, size_t length,
                         OperationEnvironment &env)
 {
   return GetConfig("COPIL", buffer, length, env);
 }
 
 bool
-FlarmDevice::SetCoPilot(const TCHAR *copilot_name, OperationEnvironment &env)
+FlarmDevice::SetCoPilot(const char *copilot_name, OperationEnvironment &env)
 {
   return SetConfig("COPIL", copilot_name, env);
 }
 
 bool
-FlarmDevice::GetPlaneType(TCHAR *buffer, size_t length,
+FlarmDevice::GetPlaneType(char *buffer, size_t length,
                           OperationEnvironment &env)
 {
   return GetConfig("GLIDERTYPE", buffer, length, env);
 }
 
 bool
-FlarmDevice::SetPlaneType(const TCHAR *plane_type, OperationEnvironment &env)
+FlarmDevice::SetPlaneType(const char *plane_type, OperationEnvironment &env)
 {
   return SetConfig("GLIDERTYPE", plane_type, env);
 }
 
 bool
-FlarmDevice::GetPlaneRegistration(TCHAR *buffer, size_t length,
+FlarmDevice::GetPlaneRegistration(char *buffer, size_t length,
                                   OperationEnvironment &env)
 {
   return GetConfig("GLIDERID", buffer, length, env);
 }
 
 bool
-FlarmDevice::SetPlaneRegistration(const TCHAR *registration,
+FlarmDevice::SetPlaneRegistration(const char *registration,
                                   OperationEnvironment &env)
 {
   return SetConfig("GLIDERID", registration, env);
 }
 
 bool
-FlarmDevice::GetCompetitionId(TCHAR *buffer, size_t length,
+FlarmDevice::GetCompetitionId(char *buffer, size_t length,
                               OperationEnvironment &env)
 {
   return GetConfig("COMPID", buffer, length, env);
 }
 
 bool
-FlarmDevice::SetCompetitionId(const TCHAR *competition_id,
+FlarmDevice::SetCompetitionId(const char *competition_id,
                               OperationEnvironment &env)
 {
   return SetConfig("COMPID", competition_id, env);
 }
 
 bool
-FlarmDevice::GetCompetitionClass(TCHAR *buffer, size_t length,
+FlarmDevice::GetCompetitionClass(char *buffer, size_t length,
                                  OperationEnvironment &env)
 {
   return GetConfig("COMPCLASS", buffer, length, env);
 }
 
 bool
-FlarmDevice::SetCompetitionClass(const TCHAR *competition_class,
+FlarmDevice::SetCompetitionClass(const char *competition_class,
                                  OperationEnvironment &env)
 {
   return SetConfig("COMPCLASS", competition_class, env);
@@ -177,10 +179,10 @@ bool
 FlarmDevice::GetConfig(const char *setting, char *buffer, size_t length,
                        OperationEnvironment &env)
 {
-  NarrowString<90> request;
+  StaticString<90> request;
   request.Format("PFLAC,R,%s", setting);
 
-  NarrowString<90> expected_answer(request);
+  StaticString<90> expected_answer(request);
   expected_answer[6u] = 'A';
   expected_answer.push_back(',');
 
@@ -210,10 +212,10 @@ bool
 FlarmDevice::SetConfig(const char *setting, const char *value,
                        OperationEnvironment &env)
 {
-  NarrowString<90> buffer;
+  StaticString<90> buffer;
   buffer.Format("PFLAC,S,%s,%s", setting, value);
 
-  NarrowString<90> expected_answer(buffer);
+  StaticString<90> expected_answer(buffer);
   expected_answer[6u] = 'A';
 
   Send(buffer, env);
@@ -221,44 +223,16 @@ FlarmDevice::SetConfig(const char *setting, const char *value,
   return ExpectChecksum(port, NMEAChecksum(expected_answer), env);
 }
 
-#ifdef _UNICODE
-
-bool
-FlarmDevice::GetConfig(const char *setting, TCHAR *buffer, size_t length,
-                       OperationEnvironment &env)
-{
-  char narrow_buffer[90];
-  if (!GetConfig(setting, narrow_buffer, ARRAY_SIZE(narrow_buffer), env))
-    return false;
-
-  if (StringIsEmpty(narrow_buffer)) {
-    *buffer = _T('\0');
-    return true;
-  }
-
-  UTF8ToWideConverter wide(narrow_buffer);
-  if (!wide.IsValid())
-    return false;
-
-  CopyTruncateString(buffer, length, wide);
-  return true;
-}
-
-bool
-FlarmDevice::SetConfig(const char *setting, const TCHAR *value,
-                       OperationEnvironment &env)
-{
-  WideToUTF8Converter narrow_value(value);
-  if (!narrow_value.IsValid())
-    return false;
-
-  return SetConfig(setting, narrow_value, env);
-}
-
-#endif
-
 void
 FlarmDevice::Restart(OperationEnvironment &env)
 {
   Send("PFLAR,0", env);
+}
+
+void
+FlarmDevice::RunSimulation(unsigned scenario, OperationEnvironment &env)
+{
+  StaticString<32> buffer;
+  buffer.Format("PFLAF,S,%u", scenario);
+  Send(buffer, env);
 }

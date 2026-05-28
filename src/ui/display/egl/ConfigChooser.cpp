@@ -132,6 +132,7 @@ ChooseConfig(EGLDisplay display)
     EGL_RED_SIZE, 4,
     EGL_GREEN_SIZE, 4,
     EGL_BLUE_SIZE, 4,
+    EGL_ALPHA_SIZE, 4,
 
 #else //  !ANDROID
 
@@ -177,7 +178,7 @@ ChooseConfig(EGLDisplay display)
 #elif defined(ANDROID)
   const auto closest_config =
     FindClosestConfig(display, {configs.data(), std::size_t(num_configs)},
-                      5, 6, 5, 0, 0, 1);
+                      8, 8, 8, 0, 0, 1);
   if (closest_config == nullptr)
     throw std::runtime_error("eglChooseConfig() failed");
 

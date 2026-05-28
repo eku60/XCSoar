@@ -11,6 +11,9 @@
 #include "Topography/TopographyStore.hpp"
 #include "Topography/TopographyGlue.hpp"
 #include "Dialogs/Dialogs.h"
+#include "Profile/Keys.hpp"
+#include "Profile/Profile.hpp"
+#include "system/FileUtil.hpp"
 #include "Device/device.hpp"
 #include "Interface.hpp"
 #include "ActionInterface.hpp"
@@ -43,6 +46,8 @@
 #include "BackendComponents.hpp"
 #include "DataComponents.hpp"
 #include "DataGlobals.hpp"
+#include "Repository/Glue.hpp"
+#include "net/http/Features.hpp"
 
 bool DevicePortChanged = false;
 bool MapFileChanged = false;
@@ -51,12 +56,14 @@ bool AirfieldFileChanged = false;
 bool WaypointFileChanged = false;
 bool FlarmFileChanged = false;
 bool RaspFileChanged = false;
+bool ChecklistFileChanged = false;
 bool InputFileChanged = false;
 bool LanguageChanged = false;
+bool UserRepositoriesListChanged = false;
 bool require_restart;
 
-static void
-SettingsEnter()
+void
+SettingsEnter() noexcept
 {
   CommonInterface::main_window->SuspendThreads();
 
@@ -69,13 +76,15 @@ SettingsEnter()
   WaypointFileChanged = false;
   FlarmFileChanged = false;
   RaspFileChanged = false;
+  ChecklistFileChanged = false;
   InputFileChanged = false;
   DevicePortChanged = false;
   LanguageChanged = false;
+  UserRepositoriesListChanged = false;
   require_restart = false;
 }
 
-static void
+void
 SettingsLeave(const UISettings &old_ui_settings)
 {
   if (!global_running)
@@ -87,8 +96,10 @@ SettingsLeave(const UISettings &old_ui_settings)
 
   MainWindow &main_window = *CommonInterface::main_window;
 
-  if (LanguageChanged)
+  if (LanguageChanged) {
     ReadLanguageFile();
+    InfoBoxManager::InvalidateAfterLanguageChange();
+  }
 
   bool TerrainFileChanged = false, TopographyFileChanged = false;
   if (MapFileChanged) {
@@ -103,6 +114,16 @@ SettingsLeave(const UISettings &old_ui_settings)
 
   if (TerrainFileChanged)
     main_window.LoadTerrain();
+
+  /* If the terrain wasn't changed via the settings UI but no terrain is
+     currently loaded (e.g. a previous automated load failed), attempt
+     to load the configured map file when it now exists. */
+  if (!TerrainFileChanged && data_components->terrain == nullptr) {
+    if (const auto path = Profile::GetPath(ProfileKeys::MapFile); path != nullptr) {
+      if (File::Exists(path))
+        main_window.LoadTerrain();
+    }
+  }
 
   auto &way_points = *data_components->waypoints;
 
@@ -172,7 +193,20 @@ SettingsLeave(const UISettings &old_ui_settings)
   }
 
   if (RaspFileChanged)
-    DataGlobals::SetRasp(LoadConfiguredRasp());
+    DataGlobals::SetRasp(LoadConfiguredRasp(false));
+
+  if (ChecklistFileChanged)
+    dlgChecklistNotifySiteFileChanged();
+
+#ifdef HAVE_HTTP
+  if (UserRepositoriesListChanged) {
+#ifdef HAVE_DOWNLOAD_MANAGER
+    DownloadRepositoriesModal(false, true);
+#else
+    EnqueueRepositoryDownload(true, false, true);
+#endif
+  }
+#endif
 
   const UISettings &ui_settings = CommonInterface::GetUISettings();
 
@@ -184,6 +218,7 @@ SettingsLeave(const UISettings &old_ui_settings)
 
   if (ui_settings.dark_mode != old_ui_settings.dark_mode ||
       ui_settings.info_boxes.use_colors != old_ui_settings.info_boxes.use_colors ||
+      ui_settings.info_boxes.theme != old_ui_settings.info_boxes.theme ||
       settings_map.trail.type != old_settings_map.trail.type ||
       settings_map.trail.scaling_enabled != old_settings_map.trail.scaling_enabled ||
       settings_map.waypoint.landable_style != old_settings_map.waypoint.landable_style)

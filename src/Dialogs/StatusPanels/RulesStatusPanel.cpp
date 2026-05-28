@@ -7,6 +7,7 @@
 #include "Interface.hpp"
 #include "Formatter/UserUnits.hpp"
 #include "Formatter/LocalTimeFormatter.hpp"
+#include "Formatter/TimeFormatter.hpp"
 #include "Language/Language.hpp"
 #include "Task/ProtectedTaskManager.hpp"
 #include "Engine/Task/TaskManager.hpp"
@@ -15,12 +16,15 @@
 #include "Components.hpp"
 #include "BackendComponents.hpp"
 
+#include <chrono>
+
 enum Controls {
   ValidStart,
   StartTime,
   StartHeight,
   StartPoint,
   StartSpeed,
+  PevOffsetAtStart,
   FinishAlt,
   ValidFinish,
 };
@@ -28,7 +32,7 @@ enum Controls {
 void
 RulesStatusPanel::Refresh() noexcept
 {
-  TCHAR Temp[80];
+  char Temp[80];
 
   const DerivedInfo &calculated = CommonInterface::Calculated();
   const TaskStats &task_stats = calculated.ordered_task_stats;
@@ -37,10 +41,10 @@ RulesStatusPanel::Refresh() noexcept
 
   /// @todo proper task validity check
   SetText(ValidStart, start_stats.HasStarted()
-          ? _("Yes") : _T("No"));
+          ? _("Yes") : "No");
 
   SetText(ValidFinish, task_stats.task_finished
-          ? _("Yes") : _T("No"));
+          ? _("Yes") : "No");
 
   if (start_stats.HasStarted()) {
     SetText(StartTime,
@@ -50,13 +54,21 @@ RulesStatusPanel::Refresh() noexcept
             FormatUserTaskSpeed(start_stats.ground_speed));
 
     SetText(StartHeight, FormatUserAltitude(start_stats.altitude));
+
+    if (start_stats.pev_offset_available) {
+      const auto buf = FormatTimespanSmart(
+          std::chrono::seconds{start_stats.pev_offset_seconds}, 3);
+      SetText(PevOffsetAtStart, buf.c_str());
+    } else
+      SetText(PevOffsetAtStart, _("—"));
   } else {
     ClearValue(StartTime);
     ClearValue(StartSpeed);
     ClearValue(StartHeight);
+    ClearValue(PevOffsetAtStart);
   }
 
-  Temp[0] = _T('\0');
+  Temp[0] = '\0';
   double finish_height(0);
 
   if (backend_components->protected_task_manager) {
@@ -85,6 +97,7 @@ RulesStatusPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
   AddReadOnly(_("Start alt."));
   AddReadOnly(_("Start point"));
   AddReadOnly(_("Start speed"));
+  AddReadOnly(_("PEV offset at start"));
   AddReadOnly(_("Finish min. alt."));
   AddReadOnly(_("Valid finish"));
 }

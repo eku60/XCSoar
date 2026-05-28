@@ -13,7 +13,7 @@ ANDROID_BUILD = $(TARGET_OUTPUT_DIR)/$(XCSOAR_ABI)/build
 ANDROID_BIN = $(TARGET_BIN_DIR)
 
 ifeq ($(HOST_IS_DARWIN),y)
-  ANDROID_SDK ?= $(HOME)/opt/android-sdk-macosx
+  ANDROID_SDK ?= $(HOME)/Library/Android/sdk
 else
   ANDROID_SDK ?= $(HOME)/opt/android-sdk-linux
 endif
@@ -22,7 +22,7 @@ ANDROID_ABI_DIR = $(ANDROID_BUILD)/lib/$(ANDROID_APK_LIB_ABI)
 
 JAVA_CLASSFILES_DIR = $(ANDROID_OUTPUT_DIR)/classes
 
-ANDROID_BUILD_TOOLS_DIR = $(ANDROID_SDK)/build-tools/33.0.2
+ANDROID_BUILD_TOOLS_DIR = $(ANDROID_SDK)/build-tools/35.0.0
 APKSIGNER = $(ANDROID_BUILD_TOOLS_DIR)/apksigner
 ZIPALIGN = $(ANDROID_BUILD_TOOLS_DIR)/zipalign
 AAPT = $(ANDROID_BUILD_TOOLS_DIR)/aapt
@@ -45,6 +45,46 @@ APKSIGN_RELEASE += --ks-pass env:ANDROID_KEYSTORE_PASS
 endif
 
 JAVA_PACKAGE = org.xcsoar
+
+# Use template manifest for all builds
+MANIFEST_TEMPLATE = android/AndroidManifest.xml.template
+
+# Determine package name for manifest based on build flags
+# Priority: FOSS > PLAY > TESTING > default
+ifeq ($(FOSS),y)
+MANIFEST_PACKAGE = org.xcsoar.foss
+MANIFEST_APP_LABEL = @string/app_name
+else ifeq ($(PLAY),y)
+MANIFEST_PACKAGE = org.xcsoar.play
+MANIFEST_APP_LABEL = @string/app_name
+else ifeq ($(TESTING),y)
+MANIFEST_PACKAGE = org.xcsoar.testing
+MANIFEST_APP_LABEL = @string/app_name_testing
+else
+MANIFEST_PACKAGE = org.xcsoar
+MANIFEST_APP_LABEL = @string/app_name
+endif
+
+# Set XCSOAR_TESTING based on package name (for red resources in testing builds)
+ifeq ($(MANIFEST_PACKAGE),org.xcsoar.testing)
+  TARGET_CPPFLAGS += -DXCSOAR_TESTING
+endif
+
+# Generate a processed manifest with the custom package name
+MANIFEST_PROCESSED = $(ANDROID_OUTPUT_DIR)/AndroidManifest.xml
+MANIFEST_PACKAGE_STAMP = $(ANDROID_OUTPUT_DIR)/.manifest_package.stamp
+MANIFEST = $(MANIFEST_PROCESSED)
+
+$(MANIFEST_PACKAGE_STAMP): FORCE | $(ANDROID_OUTPUT_DIR)/dirstamp
+	@if [ ! -f $@ ] || [ "$$(cat $@ 2>/dev/null)" != "$(MANIFEST_PACKAGE)" ]; then \
+		echo "$(MANIFEST_PACKAGE)" > $@.tmp && mv $@.tmp $@; \
+	fi
+
+$(MANIFEST_PROCESSED): $(MANIFEST_TEMPLATE) $(MANIFEST_PACKAGE_STAMP) | $(ANDROID_OUTPUT_DIR)/dirstamp
+	@$(NQ)echo "  PROCESS $@"
+	$(Q)sed -e 's/@PACKAGE_NAME@/$(MANIFEST_PACKAGE)/g' \
+		-e 's|@APP_LABEL@|$(MANIFEST_APP_LABEL)|g' \
+		$< > $@
 
 NATIVE_CLASSES := \
 	FileProvider \
@@ -143,6 +183,7 @@ JAVA_SOURCES := \
 	android/ioio/IOIOLibAndroid/src/main/java/ioio/lib/spi/LogImpl.java \
 	android/ioio/IOIOLibAndroid/src/main/java/ioio/lib/util/android/ContextWrapperDependent.java \
 	android/ioio/IOIOLibAndroidAccessory/src/main/java/ioio/lib/android/accessory/AccessoryConnectionBootstrap.java \
+	android/ioio/IOIOLibAndroidAccessory/src/main/java/ioio/lib/android/accessory/Adapter.java \
 	android/ioio/IOIOLibAndroidBluetooth/src/main/java/ioio/lib/android/bluetooth/BluetoothIOIOConnectionBootstrap.java \
 	android/ioio/IOIOLibAndroidBluetooth/src/main/java/ioio/lib/android/bluetooth/BluetoothIOIOConnection.java \
 	android/ioio/IOIOLibAndroidDevice/src/main/java/ioio/lib/android/device/DeviceConnectionBootstrap.java \
@@ -157,7 +198,12 @@ RAW_DIR = $(RES_DIR)/raw
 ANDROID_XML_RES := $(wildcard android/res/*/*.xml)
 ANDROID_XML_RES_COPIES := $(patsubst android/res/%,$(RES_DIR)/%,$(ANDROID_XML_RES))
 
-ifeq ($(TESTING),y)
+# Filter out strings.xml for special handling with product name replacement
+ANDROID_XML_RES_NO_STRINGS := $(filter-out android/res/values/strings.xml,$(ANDROID_XML_RES))
+ANDROID_XML_RES_COPIES_NO_STRINGS := $(patsubst android/res/%,$(RES_DIR)/%,$(ANDROID_XML_RES_NO_STRINGS))
+
+# Use red icon only for testing package (check package name, not just TESTING flag)
+ifeq ($(MANIFEST_PACKAGE),org.xcsoar.testing)
 ICON_SVG = $(topdir)/Data/graphics/logo_red.svg
 else
 ICON_SVG = $(topdir)/Data/graphics/logo.svg
@@ -165,22 +211,28 @@ endif
 
 ICON_WHITE_SVG = $(topdir)/Data/graphics/logo_white.svg
 
-$(RES_DIR)/drawable-ldpi/icon.png: $(ICON_SVG) | $(RES_DIR)/drawable-ldpi/dirstamp
+ICON_PACKAGE_STAMP = $(RES_DIR)/.icon_package.stamp
+$(ICON_PACKAGE_STAMP): FORCE | $(RES_DIR)/dirstamp
+	@if [ ! -f $@ ] || [ "$$(cat $@ 2>/dev/null)" != "$(MANIFEST_PACKAGE)" ]; then \
+		echo "$(MANIFEST_PACKAGE)" > $@.tmp && mv $@.tmp $@; \
+	fi
+
+$(RES_DIR)/drawable-ldpi/icon.png: $(ICON_SVG) $(ICON_PACKAGE_STAMP) | $(RES_DIR)/drawable-ldpi/dirstamp
 	$(Q)rsvg-convert --width=36 $< -o $@
 
-$(RES_DIR)/drawable/icon.png: $(ICON_SVG) | $(RES_DIR)/drawable/dirstamp
+$(RES_DIR)/drawable/icon.png: $(ICON_SVG) $(ICON_PACKAGE_STAMP) | $(RES_DIR)/drawable/dirstamp
 	$(Q)rsvg-convert --width=48 $< -o $@
 
-$(RES_DIR)/drawable-hdpi/icon.png: $(ICON_SVG) | $(RES_DIR)/drawable-hdpi/dirstamp
+$(RES_DIR)/drawable-hdpi/icon.png: $(ICON_SVG) $(ICON_PACKAGE_STAMP) | $(RES_DIR)/drawable-hdpi/dirstamp
 	$(Q)rsvg-convert --width=72 $< -o $@
 
-$(RES_DIR)/drawable-xhdpi/icon.png: $(ICON_SVG) | $(RES_DIR)/drawable-xhdpi/dirstamp
+$(RES_DIR)/drawable-xhdpi/icon.png: $(ICON_SVG) $(ICON_PACKAGE_STAMP) | $(RES_DIR)/drawable-xhdpi/dirstamp
 	$(Q)rsvg-convert --width=96 $< -o $@
 
-$(RES_DIR)/drawable-xxhdpi/icon.png: $(ICON_SVG) | $(RES_DIR)/drawable-xxhdpi/dirstamp
+$(RES_DIR)/drawable-xxhdpi/icon.png: $(ICON_SVG) $(ICON_PACKAGE_STAMP) | $(RES_DIR)/drawable-xxhdpi/dirstamp
 	$(Q)rsvg-convert --width=144 $< -o $@
 
-$(RES_DIR)/drawable-xxxhdpi/icon.png: $(ICON_SVG) | $(RES_DIR)/drawable-xxxhdpi/dirstamp
+$(RES_DIR)/drawable-xxxhdpi/icon.png: $(ICON_SVG) $(ICON_PACKAGE_STAMP) | $(RES_DIR)/drawable-xxxhdpi/dirstamp
 	$(Q)rsvg-convert --width=192 $< -o $@
 
 $(RES_DIR)/drawable/notification_icon.png: $(ICON_WHITE_SVG) | $(RES_DIR)/drawable/dirstamp
@@ -198,8 +250,10 @@ $(RES_DIR)/drawable-xxhdpi/notification_icon.png: $(ICON_WHITE_SVG) | $(RES_DIR)
 $(RES_DIR)/drawable-xxxhdpi/notification_icon.png: $(ICON_WHITE_SVG) | $(RES_DIR)/drawable-xxxhdpi/dirstamp
 	$(Q)rsvg-convert --width=96 $< -o $@
 
-OGGENC = oggenc --quiet --quality 1
+# Vorbis -q 5: nominal quality (~160 kb/s class); was 1 for smallest APK
+OGGENC = oggenc --quiet --quality 5
 
+# Uncompressed in resources.apk: see android_bundle.mk (-0 ogg) for why.
 SOUNDS = fail insert remove beep_bweep beep_clear beep_drip
 SOUND_FILES = $(patsubst %,$(RAW_DIR)/%.ogg,$(SOUNDS))
 
@@ -210,25 +264,59 @@ $(SOUND_FILES): $(RAW_DIR)/%.ogg: Data/sound/%.wav | $(RAW_DIR)/dirstamp
 PNG1 := $(patsubst Data/bitmaps/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_BITMAPS))
 
 $(PNG1): $(DRAWABLE_DIR)/%.png: Data/bitmaps/%.bmp | $(DRAWABLE_DIR)/dirstamp
-	$(Q)$(IM_PREFIX)convert $< $@
+	$(Q)$(IM_CONVERT) $< $@
 
 PNG2 := $(patsubst $(DATA)/graphics/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_LAUNCH_ALL))
 $(PNG2): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics/%.bmp | $(DRAWABLE_DIR)/dirstamp
-	$(Q)$(IM_PREFIX)convert $< $@
+	$(Q)$(IM_CONVERT) $< $@
 
-PNG3 := $(patsubst $(DATA)/graphics/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_SPLASH_80) $(BMP_SPLASH_160) $(BMP_TITLE_110) $(BMP_TITLE_320))
-$(PNG3): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics/%.bmp | $(DRAWABLE_DIR)/dirstamp
-	$(Q)$(IM_PREFIX)convert $< $@
+# Copy splash/title PNGs directly from SVG-rendered PNGs (preserving alpha)
+# instead of going through BMP (which flattens onto white background)
+PNG3_SPLASH := $(patsubst $(DATA)/graphics/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_SPLASH_320) $(BMP_SPLASH_160) $(BMP_SPLASH_80))
+$(PNG3_SPLASH): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics/%.png | $(DRAWABLE_DIR)/dirstamp
+	$(Q)cp $< $@
 
-PNG4 := $(patsubst $(DATA)/icons/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_ICONS) $(BMP_ICONS_160))
+PNG3_TITLE := $(patsubst $(DATA)/graphics/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_TITLE_640) $(BMP_TITLE_320) $(BMP_TITLE_110))
+$(PNG3_TITLE): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics/%.png | $(DRAWABLE_DIR)/dirstamp
+	$(Q)cp $< $@
+
+PNG3 := $(PNG3_SPLASH) $(PNG3_TITLE)
+
+PNG4 := $(patsubst $(DATA)/icons/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_ICONS_ALL))
 $(PNG4): $(DRAWABLE_DIR)/%.png: $(DATA)/icons/%.png | $(DRAWABLE_DIR)/dirstamp
 	$(Q)cp $< $@
 
 PNG5 := $(patsubst $(DATA)/graphics/%.bmp,$(DRAWABLE_DIR)/%.png,$(BMP_DIALOG_TITLE) $(BMP_PROGRESS_BORDER))
 $(PNG5): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics/%.bmp | $(DRAWABLE_DIR)/dirstamp
-	$(Q)$(IM_PREFIX)convert $< $@
+	$(Q)$(IM_CONVERT) $< $@
 
-PNG_FILES = $(PNG1) $(PNG1b) $(PNG2) $(PNG3) $(PNG4) $(PNG5) \
+####### gesture icons from SVG sources
+GESTURES_ANDROID = down dl dr du left ldr ldrdl lu right rd rl up ud uldr urd urdl
+PNG6 := $(addprefix $(DRAWABLE_DIR)/gesture_,$(addsuffix .png,$(GESTURES_ANDROID)))
+$(PNG6): $(DRAWABLE_DIR)/gesture_%.png: doc/manual/figures/gesture_%.svg | $(DRAWABLE_DIR)/dirstamp
+	$(Q)rsvg-convert --width=82 --height=82 $< -o $@
+
+####### permission disclosure graphics from SVG sources
+PNG7 := $(DRAWABLE_DIR)/location_pin.png $(DRAWABLE_DIR)/notification_bell.png $(DRAWABLE_DIR)/bluetooth.png $(DRAWABLE_DIR)/warning_triangle.png $(DRAWABLE_DIR)/rotate.png
+$(PNG7): $(DRAWABLE_DIR)/%.png: Data/graphics/%.svg | $(DRAWABLE_DIR)/dirstamp
+	$(Q)rsvg-convert --width=80 --height=80 $< -o $@
+
+####### RGBA splash logos for dark mode (transparent background)
+PNG8a := $(patsubst $(DATA)/graphics2/%.png,$(DRAWABLE_DIR)/%.png,$(PNG_SPLASH_320_RGBA) $(PNG_SPLASH_160_RGBA) $(PNG_SPLASH_80_RGBA))
+$(PNG8a): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics2/%.png | $(DRAWABLE_DIR)/dirstamp
+	$(Q)cp $< $@
+
+####### title PNGs with alpha (normal + white)
+PNG8 := $(patsubst $(DATA)/graphics2/%.png,$(DRAWABLE_DIR)/%.png,$(PNG_TITLE_320_RGBA) $(PNG_TITLE_WHITE_320_RGBA) $(PNG_TITLE_WHITE_640_RGBA))
+$(PNG8): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics2/%.png | $(DRAWABLE_DIR)/dirstamp
+	$(Q)cp $< $@
+
+####### launcher RGBA halves (preserving alpha for dark mode)
+PNG9 := $(patsubst $(DATA)/graphics2/%.png,$(DRAWABLE_DIR)/%.png,$(PNG_LAUNCH_FLY_640_RGBA) $(PNG_LAUNCH_SIM_640_RGBA))
+$(PNG9): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics2/%.png | $(DRAWABLE_DIR)/dirstamp
+	$(Q)cp $< $@
+
+PNG_FILES = $(PNG1) $(PNG1b) $(PNG2) $(PNG3) $(PNG4) $(PNG5) $(PNG6) $(PNG7) $(PNG8a) $(PNG8) $(PNG9) \
 	$(RES_DIR)/drawable-ldpi/icon.png \
 	$(RES_DIR)/drawable/icon.png \
 	$(RES_DIR)/drawable-hdpi/icon.png \
@@ -241,19 +329,19 @@ PNG_FILES = $(PNG1) $(PNG1b) $(PNG2) $(PNG3) $(PNG4) $(PNG5) \
 	$(RES_DIR)/drawable-xxhdpi/notification_icon.png \
 	$(RES_DIR)/drawable-xxxhdpi/notification_icon.png
 
-ifeq ($(TESTING),y)
-MANIFEST = android/testing/AndroidManifest.xml
-else
-MANIFEST = android/AndroidManifest.xml
-endif
-
-$(ANDROID_XML_RES_COPIES): $(RES_DIR)/%: android/res/%
+$(ANDROID_XML_RES_COPIES_NO_STRINGS): $(RES_DIR)/%: android/res/%
 	$(Q)-$(MKDIR) -p $(dir $@)
 	$(Q)cp $< $@
 
-$(ANDROID_OUTPUT_DIR)/resources.apk: $(PNG_FILES) $(SOUND_FILES) $(ANDROID_XML_RES_COPIES) $(MANIFEST) | $(GEN_DIR)/dirstamp
+# Special handling for strings.xml to replace product name
+$(RES_DIR)/values/strings.xml: android/res/values/strings.xml | $(RES_DIR)/values/dirstamp
+	$(Q)-$(MKDIR) -p $(dir $@)
+	$(Q)sed 's/XCSoar/$(PRODUCT_NAME)/g' $< > $@
+
+$(ANDROID_OUTPUT_DIR)/resources.apk: $(PNG_FILES) $(SOUND_FILES) $(ANDROID_XML_RES_COPIES_NO_STRINGS) $(RES_DIR)/values/strings.xml $(MANIFEST) | $(GEN_DIR)/dirstamp
 	@$(NQ)echo "  AAPT"
-	$(Q)$(AAPT) package -f -m --auto-add-overlay \
+	$(Q)find $(RES_DIR) -name dirstamp -type f -delete
+	$(Q)$(AAPT) package -f -m --auto-add-overlay -0 ogg \
 		--custom-package $(JAVA_PACKAGE) \
 		-M $(MANIFEST) \
 		-S $(RES_DIR) \
@@ -264,28 +352,31 @@ $(ANDROID_OUTPUT_DIR)/resources.apk: $(PNG_FILES) $(SOUND_FILES) $(ANDROID_XML_R
 # R.java is generated by aapt, when resources.apk is generated
 $(GEN_DIR)/org/xcsoar/R.java: $(ANDROID_OUTPUT_DIR)/resources.apk
 
-$(ANDROID_OUTPUT_DIR)/classes.zip: $(JAVA_SOURCES) $(GEN_DIR)/org/xcsoar/R.java | $(JAVA_CLASSFILES_DIR)/dirstamp
+# Note: Requires JDK 17 or later. JAVA_HOME should point to JDK 17 installation.
+$(ANDROID_OUTPUT_DIR)/classes.jar: $(JAVA_SOURCES) $(GEN_DIR)/org/xcsoar/R.java | $(JAVA_CLASSFILES_DIR)/dirstamp
 	@$(NQ)echo "  JAVAC   $(JAVA_CLASSFILES_DIR)"
-	$(Q)$(JAVAC) \
-		-source 1.7 -target 1.7 \
+	$(Q)$(filter-out -Werror,$(JAVAC)) \
+		--release 17 \
 		-Xlint:all \
 		-Xlint:-deprecation \
 		-Xlint:-options \
+		-Xlint:-serial \
 		-Xlint:-static \
+		-Xlint:-this-escape \
 		-cp $(ANDROID_SDK_PLATFORM_DIR)/android.jar:$(JAVA_CLASSFILES_DIR) \
 		-d $(JAVA_CLASSFILES_DIR) $(GEN_DIR)/org/xcsoar/R.java \
 		-h $(NATIVE_INCLUDE) \
 		$(JAVA_SOURCES)
-	$(Q)$(ZIP) -0 -r $(ANDROID_OUTPUT_DIR)/classes.zip $(JAVA_CLASSFILES_DIR)
+	$(Q)cd $(JAVA_CLASSFILES_DIR) && $(ZIP) -0 -r $(abspath $(ANDROID_OUTPUT_DIR)/classes.jar) .
 
-# Note: desugaring causes crashes on Android 13 (Pixel 6); as a
-# workaround, it's disabled for now.
-$(ANDROID_OUTPUT_DIR)/classes.dex: $(ANDROID_OUTPUT_DIR)/classes.zip
+# Note: Using Java 17, but desugaring is still needed because Java 17
+# generates invoke-dynamic for lambdas/method references which D8 must convert.
+$(ANDROID_OUTPUT_DIR)/classes.dex: $(ANDROID_OUTPUT_DIR)/classes.jar
 	@$(NQ)echo "  D8      $@"
 	$(Q)$(D8) \
-		--no-desugaring \
 		--min-api 21 \
-		--output $(ANDROID_OUTPUT_DIR) $(ANDROID_OUTPUT_DIR)/classes.zip
+		--lib $(ANDROID_SDK_PLATFORM_DIR)/android.jar \
+		--output $(ANDROID_OUTPUT_DIR) $(ANDROID_OUTPUT_DIR)/classes.jar
 
 ifeq ($(FAT_BINARY),y)
 
@@ -312,10 +403,10 @@ $$(TARGET_OUTPUT_DIR)/$(2)/thirdparty.stamp: FORCE
 $$(TARGET_OUTPUT_DIR)/$(2)/$$(XCSOAR_ABI)/bin/lib$(1).so: $(NATIVE_HEADERS) generate boost FORCE
 	$$(Q)$$(MAKE) TARGET_OUTPUT_DIR=$$(TARGET_OUTPUT_DIR) TARGET=$(3) DEBUG=$$(DEBUG) USE_CCACHE=$$(USE_CCACHE) $$@
 
-# extract symbolication files for Google Play
-ANDROID_SYMBOLICATION_BUILD += $$(ANDROID_BUILD)/symbols/$(2)/lib$(1).so
-$$(ANDROID_BUILD)/symbols/$(2)/lib$(1).so: $$(TARGET_OUTPUT_DIR)/$(2)/$$(XCSOAR_ABI)/bin/lib$(1)-ns.so | $$(ANDROID_BUILD)/symbols/$(2)/dirstamp
-	$$(Q)$$(TCPREFIX)objcopy$$(EXE) --strip-debug $$< $$@
+# Unstripped .so for Google Play; same -ns rationale as android_bundle.mk.
+ANDROID_SYMBOLICATION_BUILD += $$(ANDROID_BUILD)/symbols/lib/$(2)/lib$(1).so
+$$(ANDROID_BUILD)/symbols/lib/$(2)/lib$(1).so: $$(TARGET_OUTPUT_DIR)/$(2)/$$(XCSOAR_ABI)/bin/lib$(1).so | $$(ANDROID_BUILD)/symbols/lib/$(2)/dirstamp
+	$$(Q)cp $$(dir $$<)lib$(1)-ns.so $$@
 
 endef
 
@@ -333,10 +424,12 @@ $(foreach NAME,$(ANDROID_LIB_NAMES),$(eval $(call generate-all-abis,$(NAME))))
 libs: $(ANDROID_THIRDPARTY_STAMPS)
 compile: $(ANDROID_LIB_BUILD)
 
-# Generate symbols.zip (symbolication file) for Google Play, which
-# allows Google Play to show symbol names in stack traces.
+# Generate symbols.zip (native debug symbols) for Google Play, which
+# allows Google Play to symbolicate native crash stack traces.
+# Zip from inside lib/ so entries are <ABI>/lib*.so (Play rejects lib/<ABI>/...).
+# Only *.so: zipping "." also picked up Make dirstamps and failed Play validation.
 $(TARGET_OUTPUT_DIR)/symbols.zip: $(ANDROID_SYMBOLICATION_BUILD)
-	cd $(ANDROID_BUILD)/symbols && $(ZIP) $(abspath $@) */*.so
+	cd $(ANDROID_BUILD)/symbols/lib && find . -name '*.so' -print | $(ZIP) -r $(abspath $@) -@
 
 else # !FAT_BINARY
 
@@ -355,6 +448,14 @@ $(call SRC_TO_OBJ,$(SRC)/Android/FileProvider.cpp): $(NATIVE_HEADERS)
 ANDROID_LIB_BUILD = $(patsubst %,$(ANDROID_ABI_DIR)/lib%.so,$(ANDROID_LIB_NAMES))
 $(ANDROID_LIB_BUILD): $(ANDROID_ABI_DIR)/lib%.so: $(ABI_BIN_DIR)/lib%.so | $(ANDROID_ABI_DIR)/dirstamp
 	$(Q)cp $< $@
+
+# Native debug symbols for Google Play (single-ABI builds).  Staged under lib/<ABI>/.
+ANDROID_NATIVE_SYMBOL_LIBS = $(foreach N,$(ANDROID_LIB_NAMES),$(ANDROID_BUILD)/native-debug-symbols/lib/$(ANDROID_APK_LIB_ABI)/lib$(N).so)
+$(ANDROID_BUILD)/native-debug-symbols/lib/$(ANDROID_APK_LIB_ABI)/lib%.so: $(ABI_BIN_DIR)/lib%.so | $(ANDROID_BUILD)/native-debug-symbols/lib/$(ANDROID_APK_LIB_ABI)/dirstamp
+	$(Q)cp $(ABI_BIN_DIR)/lib$*-ns.so $@
+
+$(TARGET_OUTPUT_DIR)/symbols.zip: $(ANDROID_NATIVE_SYMBOL_LIBS)
+	cd $(ANDROID_BUILD)/native-debug-symbols/lib && find . -name '*.so' -print | $(ZIP) -r $(abspath $@) -@
 
 endif # !FAT_BINARY
 

@@ -4,6 +4,8 @@
 #include "MultipleDevices.hpp"
 #include "Atmosphere/Pressure.hpp"
 #include "Descriptor.hpp"
+#include "NMEA/Info.hpp"
+#include "Device/DataEditor.hpp"
 #include "Dispatcher.hpp"
 
 #include <algorithm> // for std::any_of()
@@ -11,6 +13,7 @@
 MultipleDevices::MultipleDevices(DeviceBlackboard &blackboard,
                                  NMEALogger *nmea_logger,
                                  DeviceFactory &factory) noexcept
+  : blackboard(blackboard)
 {
   for (unsigned i = 0; i < NUMDEV; ++i) {
     DeviceDispatcher *dispatcher = dispatchers[i] =
@@ -67,7 +70,7 @@ MultipleDevices::HasVega() const noexcept
 }
 
 void
-MultipleDevices::VegaWriteNMEA(const TCHAR *text,
+MultipleDevices::VegaWriteNMEA(const char *text,
                                OperationEnvironment &env) noexcept
 {
   for (DeviceDescriptor *i : devices)
@@ -99,6 +102,37 @@ MultipleDevices::PutBallast(double fraction, double overload,
 }
 
 void
+MultipleDevices::PutCrewMass(double crew_mass, OperationEnvironment &env) noexcept
+{
+  for (DeviceDescriptor *i : devices)
+    i->PutCrewMass(crew_mass, env);
+}
+
+void
+MultipleDevices::PutEmptyMass(double empty_mass, OperationEnvironment &env) noexcept
+{
+  for (DeviceDescriptor *i : devices)
+    i->PutEmptyMass(empty_mass, env);
+}
+
+void
+MultipleDevices::PutPolar(const GlidePolar &polar,
+                          OperationEnvironment &env) noexcept
+{
+  for (DeviceDescriptor *i : devices)
+    i->PutPolar(polar, env);
+}
+
+void
+MultipleDevices::PutTarget(const GeoPoint &location, const char *name,
+                           std::optional<double> elevation,
+                           OperationEnvironment &env) noexcept
+{
+  for (DeviceDescriptor *i : devices)
+    i->PutTarget(location, name, elevation, env);
+}
+
+void
 MultipleDevices::PutVolume(unsigned volume, OperationEnvironment &env) noexcept
 {
   for (DeviceDescriptor *i : devices)
@@ -114,7 +148,7 @@ MultipleDevices::PutPilotEvent(OperationEnvironment &env) noexcept
 
 void
 MultipleDevices::PutActiveFrequency(RadioFrequency frequency,
-                                    const TCHAR *name,
+                                    const char *name,
                                     OperationEnvironment &env) noexcept
 {
   for (DeviceDescriptor *i : devices)
@@ -123,11 +157,22 @@ MultipleDevices::PutActiveFrequency(RadioFrequency frequency,
 
 void
 MultipleDevices::PutStandbyFrequency(RadioFrequency frequency,
-                                     const TCHAR *name,
+                                     const char *name,
                                      OperationEnvironment &env) noexcept
 {
   for (DeviceDescriptor *i : devices)
     i->PutStandbyFrequency(frequency, name, env);
+}
+
+void
+MultipleDevices::ExchangeRadioFrequencies(OperationEnvironment &env) noexcept
+{
+  for (DeviceDescriptor *i : devices) {
+    NMEAInfo basic = i->GetData();
+    if (i->ExchangeRadioFrequencies(env, basic)) {
+      blackboard.LockSetDeviceDataScheduleMerge(i->GetIndex(), basic);
+    }
+  }
 }
 
 void
@@ -144,6 +189,20 @@ MultipleDevices::PutQNH(AtmosphericPressure pres,
 {
   for (DeviceDescriptor *i : devices)
     i->PutQNH(pres, env);
+}
+
+void
+MultipleDevices::PutElevation(int elevation, OperationEnvironment &env) noexcept
+{
+  for (DeviceDescriptor *i : devices)
+    i->PutElevation(elevation, env);
+}
+
+void
+MultipleDevices::RequestElevation(OperationEnvironment &env) noexcept
+{
+  for (DeviceDescriptor *i : devices)
+    i->RequestElevation(env);
 }
 
 void

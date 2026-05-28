@@ -25,10 +25,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#ifdef UNICODE
-#include "util/ConvertString.hpp"
-#endif
-
 #ifndef NDEBUG
 #include "util/UTF8.hpp"
 #endif
@@ -77,8 +73,8 @@ Canvas::InvertRectangle(PixelRect r) noexcept
   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 }
 
-static tstring_view
-ClipText(const Font &font, tstring_view text,
+static std::string_view
+ClipText(const Font &font, std::string_view text,
          int x, unsigned canvas_width) noexcept
 {
   if (text.empty() || x >= int(canvas_width))
@@ -539,14 +535,10 @@ Canvas::DrawFocusRectangle(PixelRect rc) noexcept
 }
 
 const PixelSize
-Canvas::CalcTextSize(tstring_view text) const noexcept
+Canvas::CalcTextSize(std::string_view text) const noexcept
 {
-#ifdef UNICODE
-  const WideToUTF8Converter text2(text);
-#else
   const std::string_view text2 = text;
   assert(ValidateUTF8(text));
-#endif
 
   PixelSize size = { 0, 0 };
 
@@ -572,14 +564,10 @@ PrepareColoredAlphaTexture(Color color) noexcept
 }
 
 void
-Canvas::DrawText(PixelPoint p, tstring_view text) noexcept
+Canvas::DrawText(PixelPoint p, std::string_view text) noexcept
 {
-#ifdef UNICODE
-  const WideToUTF8Converter text2(text);
-#else
   const std::string_view text2 = text;
   assert(ValidateUTF8(text));
-#endif
 
   assert(offset == OpenGL::translate);
 
@@ -606,14 +594,10 @@ Canvas::DrawText(PixelPoint p, tstring_view text) noexcept
 }
 
 void
-Canvas::DrawTransparentText(PixelPoint p, tstring_view text) noexcept
+Canvas::DrawTransparentText(PixelPoint p, std::string_view text) noexcept
 {
-#ifdef UNICODE
-  const WideToUTF8Converter text2(text);
-#else
   const std::string_view text2 = text;
   assert(ValidateUTF8(text));
-#endif
 
   assert(offset == OpenGL::translate);
 
@@ -638,14 +622,10 @@ Canvas::DrawTransparentText(PixelPoint p, tstring_view text) noexcept
 
 void
 Canvas::DrawClippedText(PixelPoint p, PixelSize size,
-                        tstring_view text) noexcept
+                        std::string_view text) noexcept
 {
-#ifdef UNICODE
-  const WideToUTF8Converter text2(text);
-#else
   const std::string_view text2 = text;
   assert(ValidateUTF8(text));
-#endif
 
   assert(offset == OpenGL::translate);
 

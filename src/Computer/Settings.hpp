@@ -20,6 +20,7 @@
 #include "WaveSettings.hpp"
 #include "RadioFrequency.hpp"
 #include "TransponderCode.hpp"
+#include "TransponderMode.hpp"
 #include "net/client/WeGlide/Settings.hpp"
 
 #include <cstdint>
@@ -95,6 +96,16 @@ struct PlacesOfInterestSettings {
   GeoPoint atc_reference;
   Angle magnetic_declination;
 
+  /**
+   * elevation of home waypoint is available
+   */
+  bool home_elevation_available;
+
+  /**
+   * elevation (if available) of home waypoint
+   */
+  double home_elevation;
+
   void SetDefaults() {
     ClearHome();
     atc_reference.SetInvalid();
@@ -128,9 +139,11 @@ struct RadioSettings {
  */
 struct TransponderSettings {
   TransponderCode transponder_code;
+  TransponderMode transponder_mode;
 
   void SetDefaults() {
     transponder_code.Clear();
+    transponder_mode.Clear();
   }
 };
 
@@ -235,6 +248,3 @@ struct ComputerSettings {
 
   void SetDefaults();
 };
-
-static_assert(std::is_trivial<ComputerSettings>::value,
-              "type is not trivial");

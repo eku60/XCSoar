@@ -29,7 +29,7 @@
 #include "util/PrintException.hxx"
 
 #ifdef ENABLE_SDL
-/* this is necessary on Mac OS X, to let libSDL bootstrap Quartz
+/* this is necessary on macOS, to let libSDL bootstrap Quartz
    before entering our main() */
 #include <SDL_main.h>
 #endif
@@ -42,32 +42,6 @@
 #endif
 
 #include <cassert>
-
-static const char *const Usage = "\n"
-  "  -datapath=      path to XCSoar data can be defined\n"
-#ifdef SIMULATOR_AVAILABLE
-  "  -simulator      bypass startup-screen, use simulator mode directly\n"
-  "  -fly            bypass startup-screen, use fly mode directly\n"
-#endif
-  "  -profile=fname  load profile from file fname\n"
-  "  -WIDTHxHEIGHT   use screen resolution WIDTH x HEIGHT\n"
-  "  -portrait       use a 480x640 screen resolution\n"
-  "  -square         use a 480x480 screen resolution\n"
-  "  -small          use a 320x240 screen resolution\n"
-#if !defined(ANDROID)
-  "  -dpi=DPI        force usage of DPI for pixel density\n"
-  "  -dpi=XDPIxYDPI  force usage of XDPI and YDPI for pixel density\n"
-#endif
-#ifdef HAVE_CMDLINE_FULLSCREEN
-  "  -fullscreen     full-screen mode\n"
-#endif
-#ifdef HAVE_CMDLINE_RESIZABLE
-  "  -resizable      resizable window\n"
-#endif
-#ifdef _WIN32
-  "  -console        open debug output console\n"
-#endif
-  ;
 
 static int
 Main()
@@ -126,20 +100,20 @@ try {
   ResourceLoader::Init(hInstance);
 #endif
 
-  InitialiseDataPath();
-
-  // Write startup note + version to logfile
-  LogFormat(_T("Starting XCSoar %s"), XCSoar_ProductToken);
-
   // Read options from the command line
   {
 #ifdef _WIN32
-    Args args(GetCommandLine(), Usage);
+    Args args(GetCommandLine(), CommandLine::OptionSummary());
 #else
-    Args args(argc, argv, Usage);
+    Args args(argc, argv, CommandLine::OptionSummary());
 #endif
     CommandLine::Parse(args);
   }
+
+  InitialiseDataPath();
+
+  // Write startup note + version to logfile
+  LogFormat("Starting %s", XCSoar_ProductToken);
 
   int ret = Main();
 

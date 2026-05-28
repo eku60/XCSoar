@@ -7,10 +7,9 @@
 
 #include <functional>
 #include <memory>
-#include <tchar.h>
-
 enum class ButtonState : int;
 struct ButtonLook;
+class ButtonPanel;
 class ContainerWindow;
 class ButtonRenderer;
 
@@ -37,13 +36,20 @@ private:
    */
   bool selected;
 
+  /**
+   * If non-null, #ButtonPanel::OnButtonGainedFocus keeps
+   * #SetSelected in sync with focus when the user tabs between
+   * #Button s.
+   */
+  ButtonPanel *cursor_key_group{nullptr};
+
 public:
   Button(ContainerWindow &parent, const PixelRect &rc,
          WindowStyle style, std::unique_ptr<ButtonRenderer> _renderer,
          Callback _callback) noexcept;
 
   Button(ContainerWindow &parent, const ButtonLook &look,
-         const TCHAR *caption, const PixelRect &rc,
+         const char *caption, const PixelRect &rc,
          WindowStyle style,
          Callback _callback) noexcept;
 
@@ -55,7 +61,7 @@ public:
               WindowStyle style, std::unique_ptr<ButtonRenderer> _renderer);
 
   void Create(ContainerWindow &parent, const ButtonLook &look,
-              const TCHAR *caption, const PixelRect &rc,
+              const char *caption, const PixelRect &rc,
               WindowStyle style);
 
   void Create(ContainerWindow &parent, const PixelRect &rc,
@@ -63,7 +69,7 @@ public:
               Callback _callback) noexcept;
 
   void Create(ContainerWindow &parent, const ButtonLook &look,
-              const TCHAR *caption, const PixelRect &rc,
+              const char *caption, const PixelRect &rc,
               WindowStyle style,
               Callback _callback) noexcept;
 
@@ -87,9 +93,11 @@ public:
    * #TextButtonRenderer and may only be used if created with a
    * #TextButtonRenderer instance.
    */
-  void SetCaption(const TCHAR *caption);
+  void SetCaption(const char *caption);
 
   void SetSelected(bool _selected);
+
+  void SetCursorKeyGroup(ButtonPanel *p) noexcept { cursor_key_group = p; }
 
   [[gnu::pure]]
   unsigned GetMinimumWidth() const;

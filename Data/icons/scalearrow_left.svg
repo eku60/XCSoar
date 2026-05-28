@@ -1,56 +1,10 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg
-   version="1.1"
-   viewBox="0 0 32 32"
-   id="svg2"
-   sodipodi:docname="scalearrow_left.svg"
-   width="32"
-   height="32"
-   inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <defs
-     id="defs6" />
-  <sodipodi:namedview
-     id="namedview4"
-     pagecolor="#ff00ff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:showpageshadow="2"
-     inkscape:pageopacity="0"
-     inkscape:pagecheckerboard="true"
-     inkscape:deskcolor="#d1d1d1"
-     showgrid="false"
-     inkscape:zoom="9.0769225"
-     inkscape:cx="-25.063561"
-     inkscape:cy="-0.77118649"
-     inkscape:window-width="2560"
-     inkscape:window-height="1417"
-     inkscape:window-x="-8"
-     inkscape:window-y="-8"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
-  <g
-     inkscape:groupmode="layer"
-     id="layer1"
-     inkscape:label="Image">
-    <g
-       id="g290">
-      <path
-         d="m 4.4672546,4.9215e-4 c -2.471593,0 -4.46147005,1.94581625 -4.46147005,4.36288675 V 27.636867 c 0,2.417071 1.98987705,4.362887 4.46146995,4.362887 H 31.994215 V 2.4605e-4 h -6.884571 z"
-         fill="#ffffff"
-         stroke-miterlimit="3"
-         stroke-width="0"
-         style="paint-order:stroke markers fill"
-         id="path5328" />
-      <path
-         d="M 5.5562835,3.3220412 V 28.677959 h 2.908633 V 17.454624 H 26.443716 V 14.545992 H 8.4649165 V 3.3226566 h -2.908633 z"
-         color="#000000"
-         fill-rule="evenodd"
-         style="stroke-width:0.812513;-inkscape-stroke:none"
-         id="path5330" />
-    </g>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+ <g transform="rotate(180 15.5 6.993)">
+  <g transform="matrix(.34374 0 0 .34374 8.9989 3)" fill-rule="evenodd">
+   <path d="m20.228 15.98c-0.0043-1.1101-0.42724-2.2188-1.2688-3.0664l-11.558-11.635c-0.7935-0.79767-1.841-1.2352-2.9177-1.2714v-0.0072601l-4.4798 2.601e-4 8.68e-6 31.96 4.4798-0.0012v-0.0058c1.0767-0.03619 2.1242-0.47373 2.9177-1.2714l11.558-11.635c0.84157-0.84756 1.2659-1.9563 1.2688-3.0664" fill="#fff" style="-inkscape-stroke:none"/>
+   <path d="m5.358 3.3367-2.0429 2.0573 10.543 10.606-10.543 10.606 2.0429 2.0573 12.58-12.663z" style="-inkscape-stroke:none"/>
   </g>
+ </g>
 </svg>
+

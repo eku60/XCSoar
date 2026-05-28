@@ -19,6 +19,7 @@
 #include "Device/Driver/Volkslogger.hpp"
 #include "Device/Driver/EWMicroRecorder.hpp"
 #include "Device/Driver/LX.hpp"
+#include "Device/Driver/LX_Eos.hpp"
 #include "Device/Driver/IMI.hpp"
 #include "Device/Driver/Zander.hpp"
 #include "Device/Driver/FlymasterF1.hpp"
@@ -35,11 +36,18 @@
 #include "Device/Driver/LevilAHRS_G.hpp"
 #include "Device/Driver/BlueFlyVario.hpp"
 #include "Device/Driver/OpenVario.hpp"
+#include "Device/Driver/Larus.hpp"
 #include "Device/Driver/Vaulter.hpp"
 #include "Device/Driver/ATR833/Register.hpp"
 #include "Device/Driver/XCTracer.hpp"
 #include "Device/Driver/KRT2.hpp"
+<<<<<<< HEAD
 #include "Device/Driver/AR62xx.hpp"
+=======
+#include "Device/Driver/LX160.hpp"
+#include "Device/Driver/Stratux.hpp"
+#include "Device/Driver/LoEFGREN.hpp"
+>>>>>>> upstream/master
 #include "util/Macros.hpp"
 #include "util/StringAPI.hxx"
 #include <cassert>
@@ -77,13 +85,22 @@ static const struct DeviceRegister *const driver_list[] = {
   &bluefly_driver,
   &cai_lnav_driver,
   &open_vario_driver,
+  &larus_driver,
   &vaulter_driver,
   &krt2_driver,
   &atr833_driver,
   &xctracer_driver,
   &thermalexpress_driver,
   &acd_driver,
+<<<<<<< HEAD
   &ar62xx_driver,
+=======
+  &condor3_driver,
+  &lx_eos_driver,
+  &stratux_driver,
+  &loe_fgren_driver,
+  &lx160_driver,
+>>>>>>> upstream/master
   nullptr
 };
 
@@ -96,7 +113,7 @@ GetDriverByIndex(unsigned i)
 }
 
 const struct DeviceRegister *
-FindDriverByName(const TCHAR *name)
+FindDriverByName(const char *name)
 {
   for (auto i = driver_list; *i != nullptr; ++i) {
     const DeviceRegister &driver = **i;
@@ -107,8 +124,8 @@ FindDriverByName(const TCHAR *name)
   return driver_list[0];
 }
 
-const TCHAR *
-FindDriverDisplayName(const TCHAR *name)
+const char *
+FindDriverDisplayName(const char *name)
 {
   assert(name != nullptr);
 

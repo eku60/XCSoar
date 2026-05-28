@@ -2,28 +2,33 @@
 // Copyright The XCSoar Project
 
 #include "Contests.hpp"
+#include "../Settings.hpp"
 #include "util/Macros.hpp"
 
-static const TCHAR *const contest_to_string[] = {
-  _T("OLC Sprint"),
-  _T("OLC FAI"),
-  _T("OLC Classic"),
-  _T("OLC League"),
-  _T("OLC Plus"),
-  _T("XContest"),
-  _T("DHV-XC"),
-  _T("SIS-AT"),
-  _T("FFVV NetCoupe"),
-  _T("DMSt"),
-  _T("WeGlide FREE"),
-  _T("WeGlide Distance"),
-  _T("WeGlide FAI"),
-  _T("WeGlide O&R"),
-  _T("Charron"),
-  _T("None"),
+static const char *const contest_to_string[] = {
+  "OLC Sprint",
+  "OLC FAI",
+  "OLC Classic",
+  "OLC League",
+  "OLC Plus",
+  "XContest",
+  "DHV-XC",
+  "SIS-AT",
+  "DMSt",
+  "WeGlide FREE",
+  "WeGlide Distance",
+  "WeGlide FAI",
+  "WeGlide O&R",
+  "Charron",
+  "FFVV NetCoupe",
+  "None",
 };
 
-const TCHAR*
+static_assert(
+    ARRAY_SIZE(contest_to_string) == unsigned(Contest::NONE) + 1,
+    "contest_to_string must follow Contest enum order");
+
+const char*
 ContestToString(Contest contest) noexcept
 {
   unsigned i = (unsigned)contest;

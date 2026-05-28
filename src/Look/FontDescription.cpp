@@ -16,7 +16,7 @@ FontDescription::FontDescription(unsigned height,
 }
 
 void
-FontDescription::Init(const TCHAR *face,
+FontDescription::Init(const char *face,
                       int height,
                       bool bold, bool italic,
                       bool monospace)
@@ -32,12 +32,12 @@ FontDescription::Init(const TCHAR *face,
   logfont.lfCharSet = ANSI_CHARSET;
   logfont.lfOutPrecision = OUT_DEFAULT_PRECIS;
   logfont.lfClipPrecision = CLIP_DEFAULT_PRECIS;
-  logfont.lfQuality = ANTIALIASED_QUALITY;
+  logfont.lfQuality = CLEARTYPE_QUALITY;
 
   logfont.lfPitchAndFamily = (monospace ? FIXED_PITCH : VARIABLE_PITCH)
     | FF_DONTCARE;
 
-  _tcscpy(logfont.lfFaceName, face);
+  strcpy(logfont.lfFaceName, face);
 }
 
 #endif

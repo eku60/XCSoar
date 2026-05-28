@@ -11,9 +11,10 @@ struct TaskStartMargins;
 
 struct StartConstraints {
   /**
-   * The time span during which the start gate is open.
+   * The time span during which a hard start gate is open.
+   * If defined, a valid start can only be made within this window.
    */
-  RoughTimeSpan open_time_span;
+  TimeSpan open_time_span;
 
   /** Maximum ground speed (m/s) allowed in start sector */
   double max_speed;

@@ -2,10 +2,13 @@
 // Copyright The XCSoar Project
 
 #include "PlaneDialogs.hpp"
+#include "WeGlideTypePicker.hpp"
 #include "Dialogs/WidgetDialog.hpp"
 #include "Widget/RowFormWidget.hpp"
 #include "Form/Button.hpp"
+#include "Form/DataField/Integer.hpp"
 #include "Form/DataField/Listener.hpp"
+#include "net/client/WeGlide/AircraftList.hpp"
 #include "Plane/Plane.hpp"
 #include "Language/Language.hpp"
 #include "Interface.hpp"
@@ -26,6 +29,7 @@ class PlaneEditWidget final
     DUMP_TIME,
     MAX_SPEED,
     WEGLIDE_ID,
+    WEGLIDE_NAME,
   };
 
   WndForm *dialog;
@@ -43,6 +47,7 @@ public:
 
   void UpdateCaption() noexcept;
   void UpdatePolarButton() noexcept;
+  void UpdateWeGlideName() noexcept;
   void PolarButtonClicked() noexcept;
 
   /* virtual methods from Widget */
@@ -54,6 +59,28 @@ private:
   void OnModified(DataField &df) noexcept override;
 };
 
+static bool
+EditWeGlideType([[maybe_unused]] const char *caption, DataField &df,
+                [[maybe_unused]] const char *help_text)
+{
+  if (df.GetType() != DataField::Type::INTEGER)
+    return false;
+
+  auto &integer = static_cast<DataFieldInteger &>(df);
+  const int current_value = integer.GetValue();
+  unsigned weglide_type = current_value > 0
+    ? static_cast<unsigned>(current_value)
+    : 0;
+
+  if (!SelectWeGlideAircraftType(weglide_type,
+                                 CommonInterface::GetComputerSettings()
+                                   .weglide))
+    return false;
+
+  integer.ModifyValue(static_cast<int>(weglide_type));
+  return true;
+}
+
 void
 PlaneEditWidget::UpdateCaption() noexcept
 {
@@ -61,17 +88,17 @@ PlaneEditWidget::UpdateCaption() noexcept
     return;
 
   StaticString<128> tmp;
-  tmp.Format(_T("%s: %s"), _("Plane Details"), GetValueString(REGISTRATION));
+  tmp.Format("%s: %s", _("Plane Details"), GetValueString(REGISTRATION));
   dialog->SetCaption(tmp);
 }
 
 void
 PlaneEditWidget::UpdatePolarButton() noexcept
 {
-  const TCHAR *caption = _("Polar");
+  const char *caption = _("Polar");
   StaticString<64> buffer;
   if (!plane.polar_name.empty()) {
-    buffer.Format(_T("%s: %s"), caption, plane.polar_name.c_str());
+    buffer.Format("%s: %s", caption, plane.polar_name.c_str());
     caption = buffer;
   }
 
@@ -80,10 +107,32 @@ PlaneEditWidget::UpdatePolarButton() noexcept
 }
 
 void
+PlaneEditWidget::UpdateWeGlideName() noexcept
+{
+  if (!CommonInterface::GetComputerSettings().weglide.enabled)
+    return;
+
+  if (plane.weglide_glider_type == 0) {
+    SetText(WEGLIDE_NAME, "-");
+    return;
+  }
+
+  StaticString<96> name;
+  if (WeGlide::LookupAircraftTypeName(plane.weglide_glider_type, name))
+    SetText(WEGLIDE_NAME, name.c_str());
+  else
+    SetText(WEGLIDE_NAME, _("Unknown"));
+}
+
+void
 PlaneEditWidget::OnModified(DataField &df) noexcept
 {
   if (IsDataField(REGISTRATION, df))
     UpdateCaption();
+  else if (IsDataField(WEGLIDE_ID, df)) {
+    SaveValueInteger(WEGLIDE_ID, plane.weglide_glider_type);
+    UpdateWeGlideName();
+  }
 }
 
 void
@@ -94,39 +143,42 @@ PlaneEditWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_unuse
   AddButton(_("Polar"), [this](){ PolarButtonClicked(); });
   AddText(_("Type"), nullptr, plane.type);
   AddInteger(_("Handicap"), nullptr,
-             _T("%u %%"), _T("%u"),
+             "%u %%", "%u",
              50, 150, 1,
              plane.handicap);
   AddFloat(_("Wing Area"), nullptr,
-           _T("%.1f m²"), _T("%.1f"),
+           "%.1f m²", "%.1f",
            0, 40, 0.1,
            false, plane.wing_area);
   AddFloat(_("Empty Mass"), _("Net mass of the rigged plane."),
-           _T("%.0f %s"), _T("%.0f"),
+           "%.0f %s", "%.0f",
            0, 1000, 5, false,
            UnitGroup::MASS, plane.empty_mass);
   AddFloat(_("Max. Ballast"), nullptr,
-           _T("%.0f l"), _T("%.0f"),
+           "%.0f l", "%.0f",
            0, 500, 5,
            false, plane.max_ballast);
   AddInteger(_("Dump Time"), nullptr,
-             _T("%u s"), _T("%u"),
+             "%u s", "%u",
              10, 300, 5,
              plane.dump_time);
   AddFloat(_("Max. Cruise Speed"), nullptr,
-           _T("%.0f %s"), _T("%.0f"), 0, 300, 5,
+           "%.0f %s", "%.0f", 0, 300, 5,
            false, UnitGroup::HORIZONTAL_SPEED, plane.max_speed);
 
-  /* TODO: this should be a select list from
-     https://api.weglide.org/v1/aircraft */
-  if (CommonInterface::GetComputerSettings().weglide.enabled)
-    AddInteger(_("WeGlide Type"), nullptr, _T("%d"), _T("%d"), 1, 999,
-               1, plane.weglide_glider_type);
-  else
+  if (CommonInterface::GetComputerSettings().weglide.enabled) {
+    auto *row = AddInteger(_("WeGlide Type"), nullptr, "%u", "%u", 0,
+                           9999, 1, plane.weglide_glider_type, this);
+    row->SetEditCallback(EditWeGlideType);
+    AddReadOnly(_("WeGlide Aircraft"), nullptr, "");
+  } else {
     AddDummy();
+    AddDummy();
+  }
 
   UpdateCaption();
   UpdatePolarButton();
+  UpdateWeGlideName();
 }
 
 bool
@@ -144,7 +196,6 @@ PlaneEditWidget::Save(bool &_changed) noexcept
   changed |= SaveValueInteger(DUMP_TIME, plane.dump_time);
   changed |= SaveValue(MAX_SPEED, UnitGroup::HORIZONTAL_SPEED,
                        plane.max_speed);
-
   if (CommonInterface::GetComputerSettings().weglide.enabled)
     changed |= SaveValueInteger(WEGLIDE_ID, plane.weglide_glider_type);
 
@@ -161,7 +212,7 @@ PlaneEditWidget::PolarButtonClicked() noexcept
 
   dlgPlanePolarShowModal(plane);
   UpdatePolarButton();
-  if (plane.polar_name != _T("Custom"))
+  if (plane.polar_name != "Custom")
     LoadValue(TYPE, plane.polar_name.c_str());
 
   /* reload attributes that may have been modified */

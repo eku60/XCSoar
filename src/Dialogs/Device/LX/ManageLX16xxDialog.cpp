@@ -48,13 +48,18 @@ ManageLX16xxWidget::Prepare([[maybe_unused]] ContainerWindow &parent,
     buffer.SetASCII(info.software_version.c_str());
     AddReadOnly(_("Firmware version"), NULL, buffer.c_str());
   }
+
+  if (!info.license.empty()) {
+    buffer.SetASCII(info.license.c_str());
+    AddReadOnly(_("License"), NULL, buffer.c_str());
+  }
 }
 
 void
 ManageLX16xxDialog(Device &device, const DeviceInfo &info)
 {
   StaticString<64> title;
-  title.Format(_T("LX %s"), info.product.c_str());
+  title.Format("LX %s", info.product.c_str());
 
   WidgetDialog dialog(WidgetDialog::Auto{}, UIGlobals::GetMainWindow(),
                       UIGlobals::GetDialogLook(),

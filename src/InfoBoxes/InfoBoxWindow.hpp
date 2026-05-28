@@ -46,6 +46,12 @@ class InfoBoxWindow : public LazyPaintWindow
    */
   bool force_draw_selector = false;
 
+  /**
+   * Track whether a long press is pending (timer hasn't fired yet).
+   * Used to distinguish between long press (show picker) and short press (show dialog).
+   */
+  bool long_press_pending = false;
+
   /** a timer which returns keyboard focus back to the map window after a while */
   UI::Timer focus_timer{[this]{ FocusParent(); }};
 
@@ -91,9 +97,9 @@ public:
    * Sets the InfoBox title to the given Value
    * @param Value New value of the InfoBox title
    */
-  void SetTitle(const TCHAR *title);
+  void SetTitle(const char *title);
 
-  const TCHAR* GetTitle() {
+  const char* GetTitle() {
     return data.title;
   };
 

@@ -23,8 +23,11 @@
 #include "util/DecimalParser.hxx"
 #include "util/IterableSplitString.hxx"
 #include "util/NumberParser.hxx"
+#include "util/StringCompare.hxx"
 
 #include <stdlib.h>
+
+#include <string>
 
 using std::string_view_literals::operator""sv;
 
@@ -103,7 +106,7 @@ ParseStyle(std::string_view src) noexcept
 static Angle
 ParseAngle(std::string_view src) noexcept
 {
-  if (auto value = ParseInteger<unsigned>(src))
+  if (auto value = ParseDecimal(src))
     return Angle::Degrees(*value);
 
   return Angle::Zero();
@@ -113,13 +116,20 @@ ParseAngle(std::string_view src) noexcept
 static double
 ParseRadius(std::string_view src) noexcept
 {
-  if (src.ends_with('m'))
-    src.remove_suffix(1);
+  Unit unit = Unit::METER;
+  if (RemoveSuffix(src, "ml"sv) || RemoveSuffix(src, "ML"sv))
+    unit = Unit::STATUTE_MILES;
+  else if (RemoveSuffix(src, "nm"sv) || RemoveSuffix(src, "NM"sv))
+    unit = Unit::NAUTICAL_MILES;
+  else
+    RemoveSuffix(src, "m"sv) || RemoveSuffix(src, "M"sv);
+  // If no unit suffix found, default to meters (unit already set to METER)
 
-  if (auto value = ParseInteger<unsigned>(src))
-    return *value;
+  const auto value = ParseDecimal(src);
+  if (!value)
+    return 0;
 
-  return 500;
+  return Units::ToSysUnit(*value, unit);
 }
 
 [[gnu::pure]]
@@ -170,12 +180,17 @@ ParseOZs(SeeYouTurnpointInformation &tp_info, std::string_view src) noexcept
   for (std::string_view i : IterableSplitString(src, ',')) {
     if (SkipPrefix(i, "Style="sv))
       tp_info.style = ParseStyle(i);
-    else if (SkipPrefix(i, "R1="sv))
-      tp_info.radius1 = ParseRadius(i);
-    else if (SkipPrefix(i, "A1="sv))
+    else if (SkipPrefix(i, "R1="sv)) {
+      const double radius = ParseRadius(i);
+      if (radius > 0)
+        tp_info.radius1 = radius;
+    } else if (SkipPrefix(i, "A1="sv))
       tp_info.angle1 = ParseAngle(i);
-    else if (SkipPrefix(i, "R2="sv))
-      tp_info.radius2 = ParseRadius(i);
+    else if (SkipPrefix(i, "R2="sv)) {
+      const double radius = ParseRadius(i);
+      if (radius > 0)
+        tp_info.radius2 = radius;
+    }
     else if (SkipPrefix(i, "A2="sv))
       tp_info.angle2 = ParseAngle(i);
     else if (SkipPrefix(i, "A12="sv))
@@ -323,8 +338,10 @@ CreateOZ(const SeeYouTurnpointInformation &turnpoint_infos,
     return KeyholeZone::CreateBGAFixedCourseZone(wp->location);
 
   else if (!is_intermediate && turnpoint_infos.is_line) // special case "is_line"
+    // R1 in CUP file is radius (half gate width), but LineSectorZone
+    // constructor expects full length, so multiply by 2
     return std::make_unique<LineSectorZone>(wp->location,
-                                            turnpoint_infos.radius1);
+                                            turnpoint_infos.radius1 * 2);
 
   // special case "Cylinder"
   else if (fabs(turnpoint_infos.angle1.Degrees() - 180) < 1 )
@@ -460,11 +477,15 @@ try {
   if (line == nullptr)
     return nullptr;
 
+  /* CupSplitColumns stores string_views into its input; further
+     BufferedReader::ReadLine calls can reuse that memory (#2496). */
+  const std::string task_line_storage(line);
+
   // Read waypoint list
   // e.g. "Club day 4 Racing task","085PRI","083BOJ","170D_K","065SKY","0844YY", "0844YY"
   //       TASK NAME              , TAKEOFF, START  , TP1    , TP2    , FINISH ,  LANDING
   std::array<std::string_view, CUP_MAX_TPS> wps;
-  CupSplitColumns(line, wps);
+  CupSplitColumns(std::string_view(task_line_storage), wps);
 
   std::size_t n_waypoints = 0;
   for (std::size_t i = 0; i < wps.size(); ++i)
@@ -475,7 +496,7 @@ try {
   if (n_waypoints < 5)
     return nullptr;
 
-  // Remove taskname, start point and landing point from count
+  // Remove taskname, takeoff and landing from count
   n_waypoints -= 3;
 
   SeeYouTaskInformation task_info;
@@ -553,10 +574,10 @@ try {
   return nullptr;
 }
 
-std::vector<tstring>
+std::vector<std::string>
 TaskFileSeeYou::GetList() const
 {
-  std::vector<tstring> result;
+  std::vector<std::string> result;
 
   // Open the CUP file
   FileReader file_reader{path};

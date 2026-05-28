@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright The XCSoar Project
-
 #include "MainWindow.hpp"
 #include "MapWindow/GlueMapWindow.hpp"
 #include "PopupMessage.hpp"
@@ -39,23 +38,84 @@
 
 #ifdef ANDROID
 #include "Android/ReceiveTask.hpp"
+#include "Android/Main.hpp"
+#include "Android/NativeView.hpp"
 #include "Engine/Task/Ordered/OrderedTask.hpp"
 #include "Dialogs/Task/TaskDialogs.hpp"
 #include "ui/event/Globals.hpp"
 #include "ui/event/Queue.hpp"
+#include "java/Global.hxx"
 #endif
 
 static constexpr unsigned separator_height = 2;
 
-#ifdef HAVE_SHOW_MENU_BUTTON
 [[gnu::pure]]
-static PixelRect
-GetShowMenuButtonRect(const PixelRect rc) noexcept
+PixelRect
+MainWindow::GetShowMenuButtonRect(const PixelRect rc) noexcept
 {
   const unsigned padding = Layout::GetTextPadding();
   const unsigned size = Layout::GetMaximumControlHeight();
   const int right = rc.right - padding;
   const int left = right - size;
+  int top, bottom;
+  const UISettings &settings = CommonInterface::GetUISettings();
+  /*
+    locate bottom right and above status icon(mode_icon)
+    when the zoom buttons are displayed(settings.show_zoom_button)
+    as Tophat.
+  */
+  if (settings.show_zoom_button) {
+    bottom = rc.bottom - padding -
+      GetLook().map.cruise_mode_icon.GetSize().height - padding;
+    top = bottom - size;
+  } else {
+    top = rc.top + padding;
+    bottom = top + size;
+  }
+
+  return PixelRect(left, top, right, bottom);
+}
+
+[[gnu::pure]]
+PixelRect
+MainWindow::GetShowZoomOutButtonRect(const PixelRect rc) noexcept
+{
+  const unsigned padding = Layout::GetTextPadding();
+  const unsigned size = Layout::GetMaximumControlHeight();
+  const int left = rc.left + padding;
+  const int right = left + size;
+  const int bottom = rc.bottom -
+    GetLook().map.overlay.map_scale_left_icon.GetSize().height;
+  const int top = bottom - size;
+
+  return PixelRect(left, top, right, bottom);
+}
+
+[[gnu::pure]]
+PixelRect
+MainWindow::GetShowZoomInButtonRect(const PixelRect rc) noexcept
+{
+  const unsigned padding = Layout::GetTextPadding();
+  const unsigned size = Layout::GetMaximumControlHeight();
+  const int left = rc.left + padding;
+  const int right = left + size;
+  const int bottom = rc.bottom -
+    GetLook().map.overlay.map_scale_left_icon.GetSize().height -
+    size;
+  const int top = bottom - size;
+
+  return PixelRect(left, top, right, bottom);
+}
+
+#ifdef ANDROID
+[[gnu::pure]]
+PixelRect
+MainWindow::GetShowRotateButtonRect(const PixelRect rc) noexcept
+{
+  const unsigned padding = Layout::GetTextPadding();
+  const unsigned size = Layout::GetMaximumControlHeight();
+  const int left = rc.left + padding;
+  const int right = left + size;
   const int top = rc.top + padding;
   const int bottom = top + size;
 
@@ -178,7 +238,7 @@ MainWindow::InitialiseConfigured()
 {
   const UISettings &ui_settings = CommonInterface::GetUISettings();
 
-  if (ui_settings.scale != 100)
+  if ((ui_settings.scale != 100) || (ui_settings.info_boxes.scale_title_font != 100) || (ui_settings.custom_dpi != 0))
     /* call Initialise() again to reload fonts with the new scale */
     Initialise();
 
@@ -201,11 +261,29 @@ MainWindow::InitialiseConfigured()
   ReinitialiseLayoutTA(rc, ib_layout);
   ReinitialiseLayout_flarm(rc, ib_layout);
 
-#ifdef HAVE_SHOW_MENU_BUTTON
   const UISettings &settings = CommonInterface::GetUISettings();
   if (settings.show_menu_button){
     show_menu_button = new ShowMenuButton();
     show_menu_button->Create(*this, GetShowMenuButtonRect(map_rect));
+  }
+  if (settings.show_zoom_button) {
+    show_zoom_out_button = new ShowZoomOutButton();
+    show_zoom_out_button->Create(*this, GetShowZoomOutButtonRect(map_rect));
+    show_zoom_in_button = new ShowZoomInButton();
+    show_zoom_in_button->Create(*this, GetShowZoomInButtonRect(map_rect));
+  }
+
+#ifdef ANDROID
+  /* create a rotate button (initially hidden) when orientation is
+     DEFAULT (not forced) and the system auto-rotate setting is
+     enabled; the button appears temporarily when the Java
+     OrientationEventListener detects a physical orientation change */
+  if (settings.display.orientation == DisplayOrientation::DEFAULT &&
+      native_view != nullptr &&
+      native_view->IsAutoRotateEnabled(Java::GetEnv())) {
+    show_rotate_button = new ShowRotateButton();
+    show_rotate_button->Create(*this, GetShowRotateButtonRect(map_rect));
+    show_rotate_button->Hide();
   }
 #endif
 
@@ -216,7 +294,7 @@ MainWindow::InitialiseConfigured()
   map->Create(*this, map_rect);
 
   popup = new PopupMessage(*this, look->dialog, ui_settings);
-  popup->Create(rc);
+  popup->Create(map_rect);
 }
 
 void
@@ -237,9 +315,15 @@ MainWindow::Deinitialise() noexcept
   map = nullptr;
   delete temp_map;
 
-#ifdef HAVE_SHOW_MENU_BUTTON
   delete show_menu_button;
   show_menu_button = nullptr;
+  delete show_zoom_out_button;
+  show_zoom_out_button = nullptr;
+
+#ifdef ANDROID
+  rotate_button_timer.Cancel();
+  delete show_rotate_button;
+  show_rotate_button = nullptr;
 #endif
 
   vario.Clear();
@@ -274,28 +358,62 @@ MainWindow::ReinitialiseLayoutTA(PixelRect rc,
 {
   unsigned sz = std::min(layout.control_size.height,
                          layout.control_size.width) * 2;
+  unsigned mw = std::min((GetMainRect().bottom - GetMainRect().top),
+                         (GetMainRect().right - GetMainRect().left));
+  unsigned dia = std::min(sz, mw / 2);
 
   switch (CommonInterface::GetUISettings().thermal_assistant_position) {
   case (UISettings::ThermalAssistantPosition::BOTTOM_LEFT_AVOID_IB):
     rc.bottom = GetMainRect().bottom;
     rc.left = GetMainRect().left;
-    rc.right = rc.left + sz;
+    rc.right = rc.left + dia;
     break;
   case (UISettings::ThermalAssistantPosition::BOTTOM_RIGHT_AVOID_IB):
     rc.bottom = GetMainRect().bottom;
     rc.right = GetMainRect().right;
-    rc.left = rc.right - sz;
+    rc.left = rc.right - dia;
     break;
   case (UISettings::ThermalAssistantPosition::BOTTOM_RIGHT):
     rc.right = GetMainRect().right;
-    rc.left = rc.right - sz;
+    rc.left = rc.right - dia;
     break;
+  case (UISettings::ThermalAssistantPosition::TOP_LEFT):
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
+    break;
+  case (UISettings::ThermalAssistantPosition::TOP_RIGHT):
+    rc.left = rc.right - dia;
+    rc.bottom = rc.top + dia;
+    break;
+  case (UISettings::ThermalAssistantPosition::CENTER_TOP):
+    rc.left = (rc.left + rc.right - dia) / 2 - 1;
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
+    break;
+  case (UISettings::ThermalAssistantPosition::TOP_LEFT_AVOID_IB):
+    rc.top = GetMainRect().top;
+    rc.left = GetMainRect().left;
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
+    break;
+  case (UISettings::ThermalAssistantPosition::TOP_RIGHT_AVOID_IB):
+    rc.top = GetMainRect().top;
+    rc.right = GetMainRect().right;
+    rc.left = rc.right - dia;
+    rc.bottom = rc.top + dia;
+    break;
+  case (UISettings::ThermalAssistantPosition::CENTER_TOP_AVOID_IB):
+    rc.top = GetMainRect().top;
+    rc.left = (GetMainRect().left + GetMainRect().right - dia) / 2 - 1;
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
+    break; 
   default: // BOTTOM_LEFT
     rc.left = GetMainRect().left;
-    rc.right = rc.left + sz;
+    rc.right = rc.left + dia;
     break;
   }
-  rc.top = rc.bottom - sz;
+  rc.top = rc.bottom - dia;
   thermal_assistant.Move(rc);
 }
 
@@ -323,13 +441,14 @@ MainWindow::ReinitialiseLayout() noexcept
   const InfoBoxLayout::Layout ib_layout =
     InfoBoxLayout::Calculate(rc, ui_settings.info_boxes.geometry);
 
-  look->ReinitialiseLayout(ib_layout.control_size.width);
+  look->ReinitialiseLayout(ib_layout.control_size.width, ui_settings.info_boxes.scale_title_font);
 
   InfoBoxManager::Create(*this, ib_layout, look->info_box);
   InfoBoxManager::ProcessTimer();
   map_rect = ib_layout.remaining;
 
-  popup->UpdateLayout(rc);
+  if (popup != nullptr)
+    popup->UpdateLayout(GetMainRect());
 
   ReinitialiseLayout_vario(ib_layout);
 
@@ -357,16 +476,24 @@ MainWindow::ReinitialiseLayout() noexcept
     if (HaveBottomWidget())
       bottom_widget->Move(bottom_rect);
 
-    map->Move(GetMapRectAbove(main_rect, bottom_rect));
+    PixelRect map_rect_final = GetMapRectAbove(main_rect, bottom_rect);
+    map->Move(map_rect_final);
     map->FullRedraw();
   }
 
   if (widget != nullptr)
     widget->Move(GetMainRect(rc));
 
-#ifdef HAVE_SHOW_MENU_BUTTON
   if (show_menu_button != nullptr)
     show_menu_button->Move(GetShowMenuButtonRect(GetMainRect()));
+  if (show_zoom_out_button != nullptr)
+    show_zoom_out_button->Move(GetShowZoomOutButtonRect(GetMainRect()));
+  if (show_zoom_in_button != nullptr)
+    show_zoom_in_button->Move(GetShowZoomInButtonRect(GetMainRect()));
+
+#ifdef ANDROID
+  if (show_rotate_button != nullptr)
+    show_rotate_button->Move(GetShowRotateButtonRect(GetMainRect()));
 #endif
 
   if (map != nullptr)
@@ -381,61 +508,106 @@ MainWindow::ReinitialiseLayout_flarm(PixelRect rc,
     CommonInterface::GetUISettings().traffic.gauge_location;
 
   // Automatic mode - follow info boxes
-  if (val == TrafficSettings::GaugeLocation::Auto) {
+  if (val == TrafficSettings::GaugeLocation::AUTO) {
     switch (InfoBoxManager::layout.geometry) {
     case InfoBoxSettings::Geometry::TOP_LEFT_8:
     case InfoBoxSettings::Geometry::TOP_LEFT_12:
       if (InfoBoxManager::layout.landscape)
-        val = TrafficSettings::GaugeLocation::BottomLeft;
+        val = TrafficSettings::GaugeLocation::BOTTOM_LEFT;
       else
-        val = TrafficSettings::GaugeLocation::TopRight;
+        val = TrafficSettings::GaugeLocation::TOP_RIGHT;
       break;
 
     default:
-      val = TrafficSettings::GaugeLocation::BottomRight;    // Assume bottom right unles...
+      val = TrafficSettings::GaugeLocation::BOTTOM_RIGHT;    // Assume bottom right unles...
       break;
     }
   }
 
+  unsigned sz = std::min(ib_layout.control_size.height,
+                         ib_layout.control_size.width) * 2;
+  unsigned mw = std::min((GetMainRect().bottom - GetMainRect().top),
+                         (GetMainRect().right - GetMainRect().left));
+  unsigned dia = std::min(sz, mw / 2);
+
   switch (val) {
-  case TrafficSettings::GaugeLocation::TopLeft:
-    rc.right = rc.left + ib_layout.control_size.width * 2;
-    ++rc.left;
-    rc.bottom = rc.top + ib_layout.control_size.height * 2;
-    ++rc.top;
+  case TrafficSettings::GaugeLocation::TOP_LEFT:
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
     break;
 
-  case TrafficSettings::GaugeLocation::TopRight:
-    rc.left = rc.right - ib_layout.control_size.width * 2 + 1;
-    rc.bottom = rc.top + ib_layout.control_size.height * 2;
-    ++rc.top;
+  case TrafficSettings::GaugeLocation::TOP_RIGHT:
+    rc.left = rc.right - dia;
+    rc.bottom = rc.top + dia;
     break;
 
-  case TrafficSettings::GaugeLocation::BottomLeft:
-    rc.right = rc.left + ib_layout.control_size.width * 2;
-    ++rc.left;
-    rc.top = rc.bottom - ib_layout.control_size.height * 2 + 1;
+  case TrafficSettings::GaugeLocation::BOTTOM_LEFT:
+    rc.right = rc.left + dia;
+    rc.top = rc.bottom - dia;
     break;
 
-  case TrafficSettings::GaugeLocation::CentreTop:
-    rc.left = (rc.left + rc.right) / 2 - ib_layout.control_size.width;
-    rc.right = rc.left + ib_layout.control_size.width * 2 - 1;
-    rc.bottom = rc.top + ib_layout.control_size.height * 2;
-    ++rc.top;
+  case TrafficSettings::GaugeLocation::CENTER_TOP:
+    rc.left = (rc.left + rc.right - dia) / 2 - 1;
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
     break;
 
-  case TrafficSettings::GaugeLocation::CentreBottom:
-    rc.left = (rc.left + rc.right) / 2 - ib_layout.control_size.width;
-    rc.right = rc.left + ib_layout.control_size.width * 2 - 1;
-    rc.top = rc.bottom - ib_layout.control_size.height * 2 + 1;
+  case TrafficSettings::GaugeLocation::CENTER_BOTTOM:
+    rc.left = (rc.left + rc.right - dia) / 2 - 1;
+    rc.right = rc.left + dia;
+    rc.top = rc.bottom - dia;
+    break;
+
+  case TrafficSettings::GaugeLocation::TOP_LEFT_AVOID_IB:
+    rc.top = GetMainRect().top;
+    rc.left = GetMainRect().left;
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
+    break;
+
+  case TrafficSettings::GaugeLocation::TOP_RIGHT_AVOID_IB:
+    rc.top = GetMainRect().top;
+    rc.right = GetMainRect().right;
+    rc.left = rc.right - dia;
+    rc.bottom = rc.top + dia;
+    break;
+
+  case TrafficSettings::GaugeLocation::BOTTOM_LEFT_AVOID_IB:
+    rc.bottom = GetMainRect().bottom;
+    rc.left = GetMainRect().left;
+    rc.right = rc.left + dia;
+    rc.top = rc.bottom - dia;
+    break;
+
+  case TrafficSettings::GaugeLocation::CENTER_TOP_AVOID_IB:
+    rc.top = GetMainRect().top;
+    rc.left = (GetMainRect().left + GetMainRect().right - dia) / 2 - 1;
+    rc.right = rc.left + dia;
+    rc.bottom = rc.top + dia;
+    break;
+
+  case TrafficSettings::GaugeLocation::CENTER_BOTTOM_AVOID_IB:
+    rc.bottom = GetMainRect().bottom;
+    rc.left = (GetMainRect().left + GetMainRect().right - dia) / 2 - 1;
+    rc.right = rc.left + dia;
+    rc.top = rc.bottom - dia;
+    break;
+
+  case TrafficSettings::GaugeLocation::BOTTOM_RIGHT_AVOID_IB:
+    rc.bottom = GetMainRect().bottom;
+    rc.right = GetMainRect().right;
+    rc.left = rc.right - dia;
+    rc.top = rc.bottom - dia;
     break;
 
   default:    // aka flBottomRight
-    rc.left = rc.right - ib_layout.control_size.width * 2 + 1;
-    rc.top = rc.bottom - ib_layout.control_size.height * 2 + 1;
+    rc.left = rc.right - dia;
+    rc.top = rc.bottom - dia;
     break;
   }
 
+  ++rc.top;
+  ++rc.left;
   traffic_gauge.Move(rc);
 }
 
@@ -626,7 +798,7 @@ MainWindow::OnMouseUp(PixelPoint p) noexcept
   if (dragging) {
     StopDragging();
 
-    const TCHAR *gesture = gestures.Finish();
+    const char *gesture = gestures.Finish();
     if (gesture && InputEvents::processGesture(gesture))
       return true;
   }
@@ -712,7 +884,7 @@ MainWindow::RunTimer() noexcept
   if (CommonInterface::GetUISettings().thermal_assistant_position == UISettings::ThermalAssistantPosition::OFF) {
     thermal_assistant.Clear();
   } else if (!CommonInterface::Calculated().circling ||
-             InputEvents::IsFlavour(_T("TA"))) {
+             InputEvents::IsFlavour("TA")) {
     thermal_assistant.Hide();
   } else if (!HasDialog()) {
     if (!thermal_assistant.IsDefined())
@@ -751,6 +923,25 @@ MainWindow::OnRestorePageNotify() noexcept
     PageActions::Restore();
 }
 
+#ifdef ANDROID
+void
+MainWindow::OnRotationSuggestion() noexcept
+{
+  if (show_rotate_button == nullptr)
+    return;
+
+  show_rotate_button->Show();
+  rotate_button_timer.Schedule(std::chrono::seconds{5});
+}
+
+void
+MainWindow::OnRotateButtonTimeout() noexcept
+{
+  if (show_rotate_button != nullptr)
+    show_rotate_button->Hide();
+}
+#endif
+
 void
 MainWindow::OnDestroy() noexcept
 {
@@ -780,6 +971,14 @@ MainWindow::OnClose() noexcept
 void
 MainWindow::OnPaint(Canvas &canvas) noexcept
 {
+  if (HaveTopWidget() && map != nullptr) {
+    /* draw a separator between top widget and map */
+    PixelRect rc = map->GetPosition();
+    rc.bottom = rc.top;
+    rc.top -= separator_height;
+    canvas.DrawFilledRectangle(rc, COLOR_BLACK);
+  }
+
   if (HaveBottomWidget() && map != nullptr) {
     /* draw a separator between main area and bottom area */
     PixelRect rc = map->GetPosition();
@@ -807,8 +1006,20 @@ MainWindow::SetFullScreen(bool _full_screen) noexcept
   if (widget != nullptr)
     widget->Move(GetMainRect());
 
+  /* Overlapped gauges (FLARM, thermal assistant) use GetMainRect() for
+     "avoid InfoBoxes" corners; re-layout when fullscreen changes. */
+  const PixelRect rc = GetClientRect();
+  const InfoBoxLayout::Layout ib_layout =
+    InfoBoxLayout::Calculate(rc,
+                             CommonInterface::GetUISettings().info_boxes.geometry);
+  ReinitialiseLayout_flarm(rc, ib_layout);
+  ReinitialiseLayoutTA(rc, ib_layout);
+
   if (map != nullptr)
     map->FastMove(GetMainRect());
+
+  if (popup != nullptr)
+    popup->UpdateLayout(GetMainRect());
 
   // the repaint will be triggered by the DrawThread
 
@@ -995,17 +1206,27 @@ MainWindow::SetBottomWidget(Widget *_widget) noexcept
   if (HaveTopWidget())
     top_widget->Move(top_rect);
 
+  if (bottom_widget != nullptr) {
+    /*
+     * Prepare the bottom widget with the full available main area
+     * first, so it can create child controls and report its final
+     * minimum size before GetBottomWidgetRect() computes the actual
+     * bottom rectangle.
+     */
+    bottom_widget->Initialise(*this, main_rect);
+    bottom_widget->Prepare(*this, main_rect);
+  }
+
   const PixelRect bottom_rect = GetBottomWidgetRect(main_rect,
                                                     bottom_widget);
 
   if (bottom_widget != nullptr) {
-    bottom_widget->Initialise(*this, bottom_rect);
-    bottom_widget->Prepare(*this, bottom_rect);
-
     if (widget == nullptr)
       /* the bottom widget is only visible below the map, but not
          below a custom main widget; see HaveBottomWidget() */
       bottom_widget->Show(bottom_rect);
+    else
+      bottom_widget->Move(bottom_rect);
   }
 
   map->Move(GetMapRectAbove(main_rect, bottom_rect));
@@ -1051,7 +1272,7 @@ MainWindow::SetWidget(Widget *_widget) noexcept
 }
 
 Widget *
-MainWindow::GetFlavourWidget(const TCHAR *flavour) noexcept
+MainWindow::GetFlavourWidget(const char *flavour) noexcept
 {
   return InputEvents::IsFlavour(flavour)
     ? widget
@@ -1102,7 +1323,7 @@ MainWindow::UpdateTrafficGaugeVisibility() noexcept
     !CommonInterface::GetUIState().screen_blanked &&
     /* hide the traffic gauge while the traffic widget is visible, to
        avoid showing the same information twice */
-    !InputEvents::IsFlavour(_T("Traffic"));
+    !InputEvents::IsFlavour("Traffic");
 
   if (traffic_visible && suppress_traffic_gauge) {
     if (flarm.status.available &&
@@ -1116,8 +1337,10 @@ MainWindow::UpdateTrafficGaugeVisibility() noexcept
     if (HasDialog())
       return;
 
-    if (!flarm.traffic.InCloseRange())
+    if (!flarm.traffic.InCloseRange()) {
+      traffic_gauge.Hide();
       return;
+    }
 
     if (!traffic_gauge.IsDefined())
       traffic_gauge.Set(new GaugeFLARM(CommonInterface::GetLiveBlackboard(),

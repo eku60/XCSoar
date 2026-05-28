@@ -2,6 +2,8 @@
 // Copyright The XCSoar Project
 
 #include "Device/Driver.hpp"
+#include "Geo/GeoPoint.hpp"
+#include "Engine/GlideSolvers/GlidePolar.hpp"
 #include "RadioFrequency.hpp"
 #include "TransponderCode.hpp"
 #include "system/Path.hpp"
@@ -45,8 +47,48 @@ AbstractDevice::PutBallast([[maybe_unused]] double fraction, [[maybe_unused]] do
 }
 
 bool
+AbstractDevice::PutCrewMass([[maybe_unused]] double crew_mass, [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
+AbstractDevice::PutEmptyMass([[maybe_unused]] double empty_mass, [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
+AbstractDevice::PutPolar([[maybe_unused]] const GlidePolar &polar,
+                         [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
+AbstractDevice::PutTarget([[maybe_unused]] const GeoPoint &location,
+                          [[maybe_unused]] const char *name,
+                          [[maybe_unused]] std::optional<double> elevation,
+                          [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
 AbstractDevice::PutQNH([[maybe_unused]] const AtmosphericPressure &pres,
                        [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
+AbstractDevice::PutElevation([[maybe_unused]] int elevation, [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
+AbstractDevice::RequestElevation([[maybe_unused]] OperationEnvironment &env)
 {
   return true;
 }
@@ -66,7 +108,7 @@ AbstractDevice::PutPilotEvent([[maybe_unused]] OperationEnvironment &env)
 
 bool
 AbstractDevice::PutActiveFrequency([[maybe_unused]] RadioFrequency frequency,
-                                   [[maybe_unused]] const TCHAR *name,
+                                   [[maybe_unused]] const char *name,
                                    [[maybe_unused]] OperationEnvironment &env)
 {
   return true;
@@ -74,8 +116,15 @@ AbstractDevice::PutActiveFrequency([[maybe_unused]] RadioFrequency frequency,
 
 bool
 AbstractDevice::PutStandbyFrequency([[maybe_unused]] RadioFrequency frequency,
-                                    [[maybe_unused]] const TCHAR *name,
+                                    [[maybe_unused]] const char *name,
                                     [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
+AbstractDevice::ExchangeRadioFrequencies([[maybe_unused]] OperationEnvironment &env,
+                                         [[maybe_unused]] NMEAInfo &info)
 {
   return true;
 }

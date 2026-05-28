@@ -6,17 +6,16 @@
 #include "ui/window/SingleWindow.hpp"
 #include "ui/event/PeriodicTimer.hpp"
 #include "ui/event/Notify.hpp"
+#include "ui/event/Timer.hpp"
 #include "BatteryTimer.hpp"
 #include "Widget/ManagedWidget.hpp"
 #include "UIUtil/GestureManager.hpp"
+#include "ProductName.hpp"
 
 #include <cstdint>
 #include <cassert>
 
-#ifdef KOBO
-#define HAVE_SHOW_MENU_BUTTON
-#include "Menu/ShowMenuButton.hpp"
-#endif
+#include "Menu/ShowButton.hpp"
 
 struct ComputerSettings;
 struct MapSettings;
@@ -37,14 +36,31 @@ namespace InfoBoxLayout { struct Layout; }
  * The XCSoar main window.
  */
 class MainWindow : public UI::SingleWindow {
-  static constexpr const TCHAR *title = _T("XCSoar");
+  static constexpr const char *title = PRODUCT_NAME;
 
   Look *look = nullptr;
 
   MenuBar *menu_bar = nullptr;
 
-#ifdef HAVE_SHOW_MENU_BUTTON
   ShowMenuButton *show_menu_button = nullptr;
+  ShowZoomOutButton *show_zoom_out_button = nullptr;
+  ShowZoomInButton *show_zoom_in_button = nullptr;
+
+#ifdef ANDROID
+  ShowRotateButton *show_rotate_button = nullptr;
+
+  /**
+   * Called from the Java OrientationEventListener thread when the
+   * physical device orientation changes.
+   */
+  UI::Notify rotation_suggestion_notify{
+    [this]{ OnRotationSuggestion(); }};
+
+  /**
+   * One-shot timer to auto-hide the rotate button after a timeout.
+   */
+  UI::Timer rotate_button_timer{
+    [this]{ OnRotateButtonTimeout(); }};
 #endif
 
   GlueMapWindow *map = nullptr;
@@ -275,6 +291,16 @@ public:
     calculated_notify.SendNotification();
   }
 
+#ifdef ANDROID
+  /**
+   * Called from any thread to show the rotate suggestion button.
+   * Thread-safe: uses UI::Notify to defer to the UI thread.
+   */
+  void SendRotationSuggestion() noexcept {
+    rotation_suggestion_notify.SendNotification();
+  }
+#endif
+
   void SetTerrain(RasterTerrain *terrain) noexcept;
   void SetTopography(TopographyStore *topography) noexcept;
 
@@ -357,7 +383,7 @@ public:
    * @see InputEvents::IsFlavour(), InputEvents::SetFlavour()
    */
   [[gnu::pure]]
-  Widget *GetFlavourWidget(const TCHAR *flavour) noexcept;
+  Widget *GetFlavourWidget(const char *flavour) noexcept;
 
   void ShowMenu(const Menu &menu, const Menu *overlay=nullptr,
                 bool full=true) noexcept;
@@ -389,6 +415,11 @@ private:
 
   void OnTerrainLoaded() noexcept;
 
+#ifdef ANDROID
+  void OnRotationSuggestion() noexcept;
+  void OnRotateButtonTimeout() noexcept;
+#endif
+
 protected:
   /* virtual methods from class Window */
   void OnDestroy() noexcept override;
@@ -401,6 +432,13 @@ protected:
   bool OnMouseDouble(PixelPoint p) noexcept override;
   bool OnKeyDown(unsigned key_code) noexcept override;
   void OnPaint(Canvas &canvas) noexcept override;
+  PixelRect GetShowMenuButtonRect(const PixelRect rc) noexcept;
+  PixelRect GetShowZoomOutButtonRect(const PixelRect rc) noexcept;
+  PixelRect GetShowZoomInButtonRect(const PixelRect rc) noexcept;
+
+#ifdef ANDROID
+  static PixelRect GetShowRotateButtonRect(const PixelRect rc) noexcept;
+#endif
 
   /* virtual methods from class TopWindow */
   bool OnClose() noexcept override;

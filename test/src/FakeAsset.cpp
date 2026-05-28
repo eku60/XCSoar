@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "Asset.hpp"
+#include "CommandLine.hpp"
 
 #if (defined(USE_CONSOLE) && !defined(KOBO)) || defined(USE_WAYLAND)
 
@@ -13,12 +14,13 @@ HasPointer() noexcept
 
 #endif
 
-#ifdef USE_LIBINPUT
+#if defined(USE_LIBINPUT) || defined(USE_WAYLAND)
 
 bool
 HasTouchScreen() noexcept
 {
-  return IsAndroid() || IsKobo() || IsIOS();
+  return CommandLine::ApplyTouchInputOverride(
+    IsAndroid() || IsKobo() || IsIOS());
 }
 
 bool
