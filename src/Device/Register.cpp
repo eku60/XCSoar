@@ -41,13 +41,10 @@
 #include "Device/Driver/ATR833/Register.hpp"
 #include "Device/Driver/XCTracer.hpp"
 #include "Device/Driver/KRT2.hpp"
-<<<<<<< HEAD
 #include "Device/Driver/AR62xx.hpp"
-=======
 #include "Device/Driver/LX160.hpp"
 #include "Device/Driver/Stratux.hpp"
 #include "Device/Driver/LoEFGREN.hpp"
->>>>>>> upstream/master
 #include "util/Macros.hpp"
 #include "util/StringAPI.hxx"
 #include <cassert>
@@ -92,15 +89,12 @@ static const struct DeviceRegister *const driver_list[] = {
   &xctracer_driver,
   &thermalexpress_driver,
   &acd_driver,
-<<<<<<< HEAD
   &ar62xx_driver,
-=======
   &condor3_driver,
   &lx_eos_driver,
   &stratux_driver,
   &loe_fgren_driver,
   &lx160_driver,
->>>>>>> upstream/master
   nullptr
 };
 
