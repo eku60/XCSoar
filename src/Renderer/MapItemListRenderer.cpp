@@ -30,6 +30,7 @@
 #include "Renderer/TrafficRenderer.hpp"
 #include "FLARM/Details.hpp"
 #include "FLARM/FlarmNetRecord.hpp"
+#include "FLARM/Traffic.hpp"
 #include "Weather/Features.hpp"
 #include "FLARM/List.hpp"
 #include "time/RoughTime.hpp"
@@ -53,23 +54,23 @@ Draw(Canvas &canvas, const PixelRect rc,
      const LocationMapItem &item,
      const TwoTextRowsRenderer &row_renderer)
 {
-  TCHAR info_buffer[256];
+  char info_buffer[256];
   if (item.vector.IsValid())
-    StringFormatUnsafe(info_buffer, _T("%s: %s, %s: %s"),
+    StringFormatUnsafe(info_buffer, "%s: %s, %s: %s",
                        _("Distance"),
                        FormatUserDistanceSmart(item.vector.distance).c_str(),
                        _("Direction"),
                        FormatBearing(item.vector.bearing).c_str());
   else
-    StringFormatUnsafe(info_buffer, _T("%s: %s, %s: %s"),
-                       _("Distance"), _T("???"), _("Direction"), _T("???"));
+    StringFormatUnsafe(info_buffer, "%s: %s, %s: %s",
+                       _("Distance"), "---", _("Direction"), "---");
 
   row_renderer.DrawFirstRow(canvas, rc, info_buffer);
 
-  StringFormatUnsafe(info_buffer, _T("%s: %s"), _("Elevation"),
+  StringFormatUnsafe(info_buffer, "%s: %s", _("Elevation"),
                      item.HasElevation()
                      ? FormatUserAltitude(item.elevation).c_str()
-                     : _T("???"));
+                     : "---");
   row_renderer.DrawSecondRow(canvas, rc, info_buffer);
 }
 
@@ -120,7 +121,7 @@ Draw(Canvas &canvas, PixelRect rc,
 
   // Format title row
 
-  TCHAR altitude_buffer[32];
+  char altitude_buffer[32];
   StaticString<256> buffer;
   buffer.clear();
 
@@ -130,10 +131,10 @@ Draw(Canvas &canvas, PixelRect rc,
 
     FormatRelativeUserAltitude(relative_arrival_altitude, altitude_buffer);
 
-    buffer.AppendFormat(_T("%s %s, "), altitude_buffer, _("AGL"));
+    buffer.AppendFormat("%s %s, ", altitude_buffer, _("AGL"));
   }
 
-  buffer.AppendFormat(_T("%s %s"),
+  buffer.AppendFormat("%s %s",
                       FormatUserAltitude(item.reach.direct).c_str(),
                       _("MSL"));
 
@@ -144,7 +145,7 @@ Draw(Canvas &canvas, PixelRect rc,
   // Format comment row
 
   if (reach_relevant) {
-    buffer.Format(_T("%s: "), _("around terrain"));
+    buffer.Format("%s: ", _("around terrain"));
 
     if (item.HasElevation()) {
       int relative_arrival_altitude =
@@ -153,16 +154,16 @@ Draw(Canvas &canvas, PixelRect rc,
       FormatRelativeUserAltitude(relative_arrival_altitude,
                                  altitude_buffer);
 
-     buffer.AppendFormat(_T("%s %s, "), altitude_buffer, _("AGL"));
+     buffer.AppendFormat("%s %s, ", altitude_buffer, _("AGL"));
     }
 
-    buffer.AppendFormat(_T("%s %s, "),
+    buffer.AppendFormat("%s %s, ",
                         FormatUserAltitude(item.reach.terrain).c_str(),
                         _("MSL"));
   } else if (item.HasElevation() &&
              item.reach.direct >= item.elevation + item.safety_height &&
              item.reach.terrain_valid == ReachResult::Validity::UNREACHABLE) {
-    buffer.UnsafeFormat(_T("%s "), _("Unreachable due to terrain."));
+    buffer.UnsafeFormat("%s ", _("Unreachable due to terrain."));
   } else {
     buffer.clear();
   }
@@ -254,7 +255,7 @@ Draw(Canvas &canvas, PixelRect rc,
   if (timespan.count() < 0)
     timespan += hours{24};
 
-  buffer.Format(_T("%s: %s - left %s ago (%s)"),
+  buffer.Format("%s: %s - left %s ago (%s)",
                 _("Avg. lift"),
                 FormatUserVerticalSpeed(thermal.lift_rate).c_str(),
                 FormatTimespanSmart(timespan).c_str(),
@@ -283,7 +284,7 @@ Draw(Canvas &canvas, PixelRect rc,
 
   rc.left += line_height + text_padding;
 
-  TCHAR buffer[256];
+  char buffer[256];
 
   // Draw details line
   OrderedTaskPointRadiusLabel(*item.oz, buffer);
@@ -321,26 +322,25 @@ Draw(Canvas &canvas, PixelRect rc,
   rc.left += line_height + text_padding;
 
   // Now render the text information
-  const FlarmNetRecord *record = FlarmDetails::LookupRecord(item.id);
+  const ResolvedInfo info = FlarmDetails::ResolveInfo(item.id);
 
   StaticString<256> title_string;
-  if (record && !StringIsEmpty(record->pilot))
-    title_string = record->pilot.c_str();
+  if (!info.pilot.empty())
+    title_string = info.pilot.c_str();
   else
     title_string = _("FLARM Traffic");
 
   // Append name to the title, if it exists
-  const TCHAR *callsign = FlarmDetails::LookupCallsign(item.id);
-  if (callsign != nullptr && !StringIsEmpty(callsign)) {
-    title_string.append(_T(", "));
-    title_string.append(callsign);
+  if (!info.callsign.empty()) {
+    title_string.append(", ");
+    title_string.append(info.callsign.c_str());
   }
 
   row_renderer.DrawFirstRow(canvas, rc, title_string);
 
   StaticString<256> info_string;
-  if (record && !StringIsEmpty(record->plane_type))
-    info_string = record->plane_type;
+  if (!info.plane_type.empty())
+    info_string = info.plane_type.c_str();
   else if (traffic != nullptr)
     info_string = FlarmTraffic::GetTypeString(traffic->type);
   else
@@ -348,12 +348,16 @@ Draw(Canvas &canvas, PixelRect rc,
 
   // Generate the line of info about the target, if it's available
   if (traffic != nullptr) {
+    if (traffic->source != FlarmTraffic::SourceType::FLARM)
+      info_string.AppendFormat(" [%s]",
+                               FlarmTraffic::GetSourceString(traffic->source));
+
     if (traffic->altitude_available)
-      info_string.AppendFormat(_T(", %s: %s"), _("Altitude"),
+      info_string.AppendFormat(", %s: %s", _("Altitude"),
                                FormatUserAltitude(traffic->altitude).c_str());
 
     if (traffic->climb_rate_avg30s_available) {
-      info_string.AppendFormat(_T(", %s: %s"), _("Vario"),
+      info_string.AppendFormat(", %s: %s", _("Vario"),
                                FormatUserVerticalSpeed(traffic->climb_rate_avg30s).c_str());
     }
   }

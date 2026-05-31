@@ -9,10 +9,6 @@
 
 #include <list>
 
-#ifdef _UNICODE
-#include <tchar.h>
-#endif
-
 class NOAAStore
 {
 public:
@@ -29,19 +25,14 @@ public:
     TAF taf;
 
     /**
-     * Returns the four letter code as a TCHAR string.  This may
+     * Returns the four letter code as a char string.  This may
      * return a pointer to a static buffer, and consecutive calls
      * (even with different objects) may Invalidate the previous
      * return value.  May be called only from the main thread.
      */
-#ifdef _UNICODE
-    [[gnu::pure]]
-    const TCHAR *GetCodeT() const;
-#else
     const char *GetCodeT() const {
       return code;
     }
-#endif
   };
 
   typedef std::list<Item> StationContainer;
@@ -77,23 +68,16 @@ public:
   }
 
   /**
-   * Check if the four letter code is valid
-   * @param code Four letter code of the station/airport (upper case)
+   * Check if the four letter code is valid (ASCII letters or digits).
    */
   static bool IsValidCode(const char *code);
-#ifdef _UNICODE
-  static bool IsValidCode(const TCHAR *code);
-#endif
 
   /**
    * Add a station to the set of stations for which
-   * weather information should be downloaded
-   * @param code Four letter code of the station/airport (upper case)
+   * weather information should be downloaded.
+   * @param code Four letter ICAO-style code; stored upper-case
    */
   iterator AddStation(const char *code);
-#ifdef _UNICODE
-  iterator AddStation(const TCHAR *code);
-#endif
 
   /**
    * Returns the amount of stations in the array

@@ -6,30 +6,13 @@
 #include "Device/Declaration.hpp"
 #include "Operation/Operation.hpp"
 
-#include <tchar.h>
 #include <stdio.h>
 
-#ifdef _UNICODE
-#include <stringapiset.h>
-#endif
-
 static void
-convert_string(char *dest, size_t size, const TCHAR *src)
+convert_string(char *dest, size_t size, const char *src)
 {
-#ifdef _UNICODE
-  size_t length = _tcslen(src);
-  if (length >= size)
-    length = size - 1;
-
-  int length2 = ::WideCharToMultiByte(CP_ACP, 0, src, length, dest, size,
-                                      nullptr, nullptr);
-  if (length2 < 0)
-    length2 = 0;
-  dest[length2] = '\0';
-#else
   strncpy(dest, src, size - 1);
   dest[size - 1] = '\0';
-#endif
 }
 
 static void

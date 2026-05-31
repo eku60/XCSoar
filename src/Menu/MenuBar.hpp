@@ -5,8 +5,6 @@
 
 #include "Form/Button.hpp"
 
-#include <tchar.h>
-
 /*
     Menubar button height as a fraction of the screen height
 */
@@ -34,12 +32,13 @@ protected:
   };
 
   Button buttons[MAX_BUTTONS];
+  const ButtonLook &look;
 
 public:
   MenuBar(ContainerWindow &parent, const ButtonLook &look);
 
 public:
-  void ShowButton(unsigned i, bool enabled, const TCHAR *text,
+  void ShowButton(unsigned i, bool enabled, const char *text,
                   unsigned event);
   void HideButton(unsigned i);
 

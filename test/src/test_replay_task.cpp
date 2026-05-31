@@ -77,7 +77,7 @@ protected:
 static bool
 test_replay()
 {
-  Directory::Create(Path(_T("output/results")));
+  Directory::Create(Path("output/results"));
   std::ofstream f("output/results/res-sample.txt");
 
   GlidePolar glide_polar(4.0);
@@ -93,14 +93,15 @@ test_replay()
   TaskEventsPrint default_events(verbose);
   task_manager.SetTaskEvents(default_events);
 
-  glide_polar.SetBallast(1.0);
+  glide_polar.SetBallastFraction(1.0);
 
   task_manager.SetGlidePolar(glide_polar);
 
   auto t = task_load(task_behaviour);
   if (t) {
     task_manager.Commit(*t);
-    task_manager.Resume();
+    if (!task_manager.Resume())
+      return false;
   } else {
     return false;
   }
@@ -184,8 +185,8 @@ int main(int argc, char** argv)
 try {
   output_skip = 60;
 
-  replay_file = Path(_T("test/data/apf-bug554.igc"));
-  task_file = Path(_T("test/data/apf-bug554.tsk"));
+  replay_file = Path("test/data/apf-bug554.igc");
+  task_file = Path("test/data/apf-bug554.tsk");
 
   if (!ParseArgs(argc,argv)) {
     return 0;

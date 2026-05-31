@@ -7,6 +7,7 @@
 #include "Dialogs/Airspace/Airspace.hpp"
 #include "Dialogs/Task/TaskDialogs.hpp"
 #include "Dialogs/Waypoint/WaypointDialogs.hpp"
+#include "Form/Form.hpp"
 #include "Dialogs/Traffic/TrafficDialogs.hpp"
 #include "Dialogs/Weather/WeatherDialog.hpp"
 #include "Language/Language.hpp"
@@ -19,20 +20,35 @@
 #include "Weather/Features.hpp"
 #include "Task/ProtectedTaskManager.hpp"
 #include "Airspace/ProtectedAirspaceWarningManager.hpp"
+#include "Look/DialogLook.hpp"
 #include "Interface.hpp"
 #include "UIGlobals.hpp"
 #include "Components.hpp"
 #include "BackendComponents.hpp"
+#include "DataComponents.hpp"
+#include "Engine/Waypoint/Waypoints.hpp"
+#include "Geo/GeoVector.hpp"
+#include "Terrain/RasterTerrain.hpp"
+#include "Protection.hpp"
+#include "LogFile.hpp"
+#include <Message.hpp>
+
+#include <limits>
+#include <exception>
 
 #ifdef HAVE_NOAA
 #include "Dialogs/Weather/NOAADetails.hpp"
 #endif
 
 static bool
+ShowMapItemDialog(const MapItem &item,
+                  Waypoints *waypoints,
+                  ProtectedAirspaceWarningManager *airspace_warnings);
+
+static bool
 HasDetails(const MapItem &item)
 {
   switch (item.type) {
-  case MapItem::Type::LOCATION:
   case MapItem::Type::ARRIVAL_ALTITUDE:
   case MapItem::Type::SELF:
   case MapItem::Type::THERMAL:
@@ -41,6 +57,7 @@ HasDetails(const MapItem &item)
 #endif
     return false;
 
+  case MapItem::Type::LOCATION:
   case MapItem::Type::AIRSPACE:
   case MapItem::Type::WAYPOINT:
   case MapItem::Type::TASK_OZ:
@@ -66,10 +83,18 @@ class MapItemListWidget final
   MapItemListRenderer renderer;
 
   Button *settings_button, *details_button, *cancel_button, *goto_button;
-  Button *ack_button;
+  Button *ack_button, *enable_button;
+
+  WndForm *dialog = nullptr;
+  Waypoints *waypoints = nullptr;
+  ProtectedAirspaceWarningManager *airspace_warnings = nullptr;
+
+  void OnDetailsClicked() noexcept;
 
 public:
-  void CreateButtons(WidgetDialog &dialog);
+  void CreateButtons(WidgetDialog &dialog,
+                     Waypoints *_waypoints,
+                     ProtectedAirspaceWarningManager *_airspace_warnings);
 
 public:
   MapItemListWidget(const MapItemList &_list,
@@ -83,20 +108,43 @@ public:
      renderer(_look, _traffic_look, _final_glide_look,
               _settings, CommonInterface::GetComputerSettings().utc_offset) {}
 
+  const MapItem *GetItem(unsigned index) const noexcept {
+    return index < list.size() ? list[index] : nullptr;
+  }
+
+  static bool QueryAckDayNoThrow(
+      ProtectedAirspaceWarningManager &warnings,
+      const AbstractAirspace &airspace,
+      bool &ack_day) noexcept {
+    try {
+      ack_day = warnings.GetAckDay(airspace);
+      return true;
+    } catch (const std::exception &e) {
+      LogFmt("Failed to query airspace ACK day: {}", e.what());
+    } catch (...) {
+      LogError(std::current_exception(), "Failed to query airspace ACK day");
+    }
+
+    ack_day = false;
+    return false;
+  }
+
   unsigned GetCursorIndex() const {
     return GetList().GetCursorIndex();
   }
 
 protected:
   void UpdateButtons() {
-    const unsigned current = GetCursorIndex();
-    details_button->SetEnabled(HasDetails(*list[current]));
-    goto_button->SetEnabled(CanGotoItem(current));
-    ack_button->SetEnabled(CanAckItem(current));
+    const MapItem *item = GetItem(GetCursorIndex());
+    details_button->SetEnabled(item != nullptr && HasDetails(*item));
+    goto_button->SetEnabled(item != nullptr && CanGotoItem(*item));
+    ack_button->SetEnabled(item != nullptr && CanAckItem(*item));
+    enable_button->SetEnabled(item != nullptr && CanEnableItem(*item));
   }
 
   void OnGotoClicked();
   void OnAckClicked();
+  void OnEnableClicked();
 
 public:
   /* virtual methods from class Widget */
@@ -111,37 +159,82 @@ public:
   }
 
   bool CanActivateItem(unsigned index) const noexcept override {
-    return HasDetails(*list[index]);
+    const MapItem *item = GetItem(index);
+    return item != nullptr && HasDetails(*item);
   }
 
   bool CanGotoItem(unsigned index) const noexcept {
-    return CanGotoItem(*list[index]);
+    const MapItem *item = GetItem(index);
+    return item != nullptr && CanGotoItem(*item);
   }
 
   static bool CanGotoItem(const MapItem &item) noexcept {
-    return backend_components->protected_task_manager &&
-      item.type == MapItem::Type::WAYPOINT;
+    return backend_components != nullptr &&
+           backend_components->protected_task_manager &&
+           (item.type == MapItem::Type::WAYPOINT ||
+            item.type == MapItem::Type::LOCATION);
   }
 
   bool CanAckItem(unsigned index) const noexcept {
-    return CanAckItem(*list[index]);
+    const MapItem *item = GetItem(index);
+    return item != nullptr && CanAckItem(*item);
   }
 
   static bool CanAckItem(const MapItem &item) noexcept {
-    const AirspaceMapItem &as_item = (const AirspaceMapItem &)item;
+    if (backend_components == nullptr)
+      return false;
 
-    return item.type == MapItem::Type::AIRSPACE &&
-      backend_components->GetAirspaceWarnings() != nullptr &&
-      !backend_components->GetAirspaceWarnings()->GetAckDay(*as_item.airspace);
+    if (item.type != MapItem::Type::AIRSPACE)
+      return false;
+
+    auto *warnings = backend_components->GetAirspaceWarnings();
+    if (warnings == nullptr)
+      return false;
+
+    const auto &as_item = static_cast<const AirspaceMapItem &>(item);
+    bool ack_day = false;
+    return QueryAckDayNoThrow(*warnings, *as_item.airspace, ack_day) &&
+      !ack_day;
+  }
+
+  bool CanEnableItem(unsigned index) const noexcept {
+    const MapItem *item = GetItem(index);
+    return item != nullptr && CanEnableItem(*item);
+  }
+
+  static bool CanEnableItem(const MapItem &item) noexcept {
+    if (backend_components == nullptr)
+      return false;
+
+    if (item.type != MapItem::Type::AIRSPACE)
+      return false;
+
+    auto *warnings = backend_components->GetAirspaceWarnings();
+    if (warnings == nullptr)
+      return false;
+
+    const auto &as_item = static_cast<const AirspaceMapItem &>(item);
+
+    bool ack_day = false;
+    return QueryAckDayNoThrow(*warnings, *as_item.airspace, ack_day) &&
+      ack_day;
   }
 
   void OnActivateItem(unsigned index) noexcept override;
 };
 
 void
-MapItemListWidget::CreateButtons(WidgetDialog &dialog)
+MapItemListWidget::CreateButtons(WidgetDialog &dialog,
+                                 Waypoints *_waypoints,
+                                 ProtectedAirspaceWarningManager *_airspace_warnings)
 {
-  details_button = dialog.AddButton(_("Details"), mrOK);
+  this->dialog = &dialog;
+  waypoints = _waypoints;
+  airspace_warnings = _airspace_warnings;
+
+  details_button = dialog.AddButton(_("Details"), [this](){
+    OnDetailsClicked();
+  });
 
   goto_button = dialog.AddButton(_("Goto"), [this](){
     OnGotoClicked();
@@ -149,6 +242,10 @@ MapItemListWidget::CreateButtons(WidgetDialog &dialog)
 
   ack_button = dialog.AddButton(_("Ack Day"), [this](){
     OnAckClicked();
+  });
+
+  enable_button = dialog.AddButton(_("Enable"), [this](){
+    OnEnableClicked();
   });
 
   settings_button = dialog.AddButton(_("Settings"), [](){
@@ -168,12 +265,31 @@ MapItemListWidget::Prepare(ContainerWindow &parent,
   GetList().SetLength(list.size());
   UpdateButtons();
 
+  // First, try to find a waypoint to preselect
+  unsigned selected_index = list.size();
   for (unsigned i = 0; i < list.size(); ++i) {
     const MapItem &item = *list[i];
-    if (HasDetails(item) || CanGotoItem(item)) {
-      GetList().SetCursorIndex(i);
+    if (item.type == MapItem::Type::WAYPOINT) {
+      selected_index = i;
       break;
     }
+  }
+
+  // If no waypoint found, fall back to first item with details or can goto
+  if (selected_index >= list.size()) {
+    for (unsigned i = 0; i < list.size(); ++i) {
+      const MapItem &item = *list[i];
+      if (HasDetails(item) || CanGotoItem(item)) {
+        selected_index = i;
+        break;
+      }
+    }
+  }
+
+  // Set cursor if we found something to select
+  if (selected_index < list.size()) {
+    GetList().SetCursorIndex(selected_index);
+    UpdateButtons();
   }
 }
 
@@ -181,14 +297,32 @@ void
 MapItemListWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
                                unsigned idx) noexcept
 {
-  const MapItem &item = *list[idx];
-  renderer.Draw(canvas, rc, item,
+  const MapItem *item = GetItem(idx);
+  if (item == nullptr) {
+    canvas.SetTextColor(dialog_look.list.text_color);
+    return;
+  }
+
+  bool ack_day = false;
+  if (item->type == MapItem::Type::AIRSPACE &&
+      backend_components != nullptr) {
+    if (auto *warnings = backend_components->GetAirspaceWarnings();
+        warnings != nullptr) {
+      const auto &as_item = static_cast<const AirspaceMapItem &>(*item);
+      QueryAckDayNoThrow(*warnings, *as_item.airspace, ack_day);
+    }
+  }
+
+  if (ack_day)
+    canvas.SetTextColor(COLOR_GRAY);
+
+  renderer.Draw(canvas, rc, *item,
                 &CommonInterface::Basic().flarm.traffic);
 
   if ((settings.item_list.add_arrival_altitude &&
-       item.type == MapItem::Type::ARRIVAL_ALTITUDE) ||
+       item->type == MapItem::Type::ARRIVAL_ALTITUDE) ||
       (!settings.item_list.add_arrival_altitude &&
-       item.type == MapItem::Type::LOCATION)) {
+       item->type == MapItem::Type::LOCATION)) {
     canvas.SelectBlackPen();
     canvas.DrawLine({rc.left, rc.bottom - 1}, {rc.right, rc.bottom - 1});
   }
@@ -197,7 +331,22 @@ MapItemListWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
 void
 MapItemListWidget::OnActivateItem([[maybe_unused]] unsigned index) noexcept
 {
-  details_button->Click();
+  OnDetailsClicked();
+}
+
+void
+MapItemListWidget::OnDetailsClicked() noexcept
+{
+  const MapItem *item = GetItem(GetCursorIndex());
+  if (item == nullptr || !HasDetails(*item) || dialog == nullptr)
+    return;
+
+  if (ShowMapItemDialog(*item, waypoints, airspace_warnings))
+    dialog->SetModalResult(mrOK);
+  else {
+    UpdateButtons();
+    GetList().Invalidate();
+  }
 }
 
 inline void
@@ -206,12 +355,55 @@ MapItemListWidget::OnGotoClicked()
   if (!backend_components->protected_task_manager)
     return;
 
+  if (data_components == nullptr || data_components->waypoints == nullptr)
+    return;
+
   unsigned index = GetCursorIndex();
   auto const &item = *list[index];
 
-  assert(item.type == MapItem::Type::WAYPOINT);
+  assert(item.type == MapItem::Type::WAYPOINT ||
+         item.type == MapItem::Type::LOCATION);
 
-  auto waypoint = ((const WaypointMapItem &)item).waypoint;
+  WaypointPtr waypoint;
+
+  if (item.type == MapItem::Type::LOCATION) {
+    const auto &loc_item = static_cast<const LocationMapItem &>(item);
+
+    // Use the stored location directly
+    const GeoPoint &location = loc_item.location;
+
+    // Get terrain elevation (prefer stored elevation, fall back to terrain lookup)
+    double elevation = std::numeric_limits<double>::quiet_NaN();
+    if (loc_item.HasElevation()) {
+      elevation = loc_item.elevation;
+    } else if (data_components->terrain != nullptr) {
+      const auto h = data_components->terrain->GetTerrainHeight(location);
+      if (!h.IsSpecial()) {
+        elevation = h.GetValue();
+      }
+    }
+
+    // Create temporary goto waypoint (elevation may be NaN if unavailable)
+    auto &way_points = *data_components->waypoints;
+    const char *goto_name = "(goto)";
+    {
+      ScopeSuspendAllThreads suspend;
+      way_points.AddTempPoint(location, elevation, goto_name);
+      waypoint = way_points.LookupName(goto_name);
+    }
+    if (!waypoint)
+      return;
+  } else {
+    waypoint = static_cast<const WaypointMapItem &>(item).waypoint;
+
+    // Remove old temporary goto waypoint when selecting a regular waypoint
+    auto &way_points = *data_components->waypoints;
+    {
+      ScopeSuspendAllThreads suspend;
+      way_points.EraseTempGoto();
+    }
+  }
+
   backend_components->protected_task_manager->DoGoto(std::move(waypoint));
   cancel_button->Click();
 }
@@ -219,78 +411,168 @@ MapItemListWidget::OnGotoClicked()
 inline void
 MapItemListWidget::OnAckClicked()
 {
-  const AirspaceMapItem &as_item = *(const AirspaceMapItem *)
-    list[GetCursorIndex()];
-  backend_components->GetAirspaceWarnings()->AcknowledgeDay(as_item.airspace);
+  const MapItem *item = GetItem(GetCursorIndex());
+  if (item == nullptr || item->type != MapItem::Type::AIRSPACE) {
+    LogFmt("Failed to acknowledge airspace warning for day: invalid map item selection");
+    return;
+  }
+
+  const auto &as_item = static_cast<const AirspaceMapItem &>(*item);
+
+  if (backend_components == nullptr) {
+    LogFmt("Failed to acknowledge airspace warning for day: missing backend components");
+    Message::AddMessage(_("Failed to acknowledge airspace warning for day"));
+    return;
+  }
+
+  auto *warnings = backend_components->GetAirspaceWarnings();
+  if (warnings == nullptr) {
+    LogFmt("Failed to acknowledge airspace warning for day: missing warning manager");
+    Message::AddMessage(_("Failed to acknowledge airspace warning for day"));
+    return;
+  }
+
+  try {
+    warnings->AcknowledgeDay(as_item.airspace);
+  } catch (const std::exception &e) {
+    LogFmt("Failed to acknowledge airspace warning for day: {}", e.what());
+    Message::AddMessage(_("Failed to acknowledge airspace warning for day"));
+    return;
+  } catch (...) {
+    LogError(std::current_exception(),
+             "Failed to acknowledge airspace warning for day");
+    Message::AddMessage(_("Failed to acknowledge airspace warning for day"));
+    return;
+  }
+
   UpdateButtons();
+  GetList().Invalidate();
 }
 
-static int
-ShowMapItemListDialog(const MapItemList &list,
-                      const DialogLook &dialog_look, const MapLook &look,
-                      const TrafficLook &traffic_look,
-                      const FinalGlideBarLook &final_glide_look,
-                      const MapSettings &settings)
+inline void
+MapItemListWidget::OnEnableClicked()
 {
-  TWidgetDialog<MapItemListWidget>
-    dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
-           dialog_look, _("Map elements at this location"));
-  dialog.SetWidget(list, dialog_look, look,
-                   traffic_look, final_glide_look,
-                   settings);
-  dialog.GetWidget().CreateButtons(dialog);
-  dialog.EnableCursorSelection();
+  const MapItem *item = GetItem(GetCursorIndex());
+  if (item == nullptr || item->type != MapItem::Type::AIRSPACE) {
+    LogFmt("Failed to re-enable airspace warning for day: invalid map item selection");
+    return;
+  }
 
-  return dialog.ShowModal() == mrOK
-    ? (int)dialog.GetWidget().GetCursorIndex()
-    : -1;
+  const auto &as_item = static_cast<const AirspaceMapItem &>(*item);
+
+  if (backend_components == nullptr) {
+    LogFmt("Failed to re-enable airspace warning for day: missing backend components");
+    Message::AddMessage(_("Failed to re-enable airspace warning"));
+    return;
+  }
+
+  auto *warnings = backend_components->GetAirspaceWarnings();
+  if (warnings == nullptr) {
+    LogFmt("Failed to re-enable airspace warning for day: missing warning manager");
+    Message::AddMessage(_("Failed to re-enable airspace warning"));
+    return;
+  }
+
+  try {
+    warnings->AcknowledgeDay(as_item.airspace, false);
+  } catch (const std::exception &e) {
+    LogFmt("Failed to re-enable airspace warning for day: {}", e.what());
+    Message::AddMessage(_("Failed to re-enable airspace warning"));
+    return;
+  } catch (...) {
+    LogError(std::current_exception(),
+             "Failed to re-enable airspace warning for day");
+    Message::AddMessage(_("Failed to re-enable airspace warning"));
+    return;
+  }
+  UpdateButtons();
+  GetList().Invalidate();
 }
 
-static void
+static bool
 ShowMapItemDialog(const MapItem &item,
                   Waypoints *waypoints,
                   ProtectedAirspaceWarningManager *airspace_warnings)
 {
   switch (item.type) {
-  case MapItem::Type::LOCATION:
   case MapItem::Type::ARRIVAL_ALTITUDE:
   case MapItem::Type::SELF:
   case MapItem::Type::THERMAL:
 #ifdef HAVE_SKYLINES_TRACKING
   case MapItem::Type::SKYLINES_TRAFFIC:
 #endif
-    break;
+    return false;
 
   case MapItem::Type::AIRSPACE:
-    dlgAirspaceDetails(((const AirspaceMapItem &)item).airspace,
-                       airspace_warnings);
-    break;
+    return dlgAirspaceDetailsForBrowseParent(
+      ((const AirspaceMapItem &)item).airspace,
+      airspace_warnings);
+  case MapItem::Type::LOCATION: {
+    if (waypoints == nullptr)
+      return false;
+
+    const auto &loc_item = static_cast<const LocationMapItem &>(item);
+
+    // Use the stored location directly
+    const GeoPoint &location = loc_item.location;
+
+    // Get terrain elevation (prefer stored elevation, fall back to terrain lookup)
+    double elevation = std::numeric_limits<double>::quiet_NaN();
+    if (loc_item.HasElevation()) {
+      elevation = loc_item.elevation;
+    } else if (data_components != nullptr &&
+               data_components->terrain != nullptr) {
+      const auto h = data_components->terrain->GetTerrainHeight(location);
+      if (!h.IsSpecial()) {
+        elevation = h.GetValue();
+      }
+    }
+
+    // Create temporary goto waypoint for display (elevation may be NaN if unavailable)
+    const char *goto_name = "(goto)";
+    {
+      ScopeSuspendAllThreads suspend;
+      waypoints->AddTempPoint(location, elevation, goto_name);
+    }
+
+    // Lookup the waypoint we just created and show details
+    auto wp = waypoints->LookupName(goto_name);
+    if (!wp)
+      return false;
+
+    return dlgWaypointDetailsShowModalForBrowseParent(
+      waypoints, std::move(wp), true, true);
+  }
+
   case MapItem::Type::WAYPOINT:
-    dlgWaypointDetailsShowModal(waypoints,
-                                ((const WaypointMapItem &)item).waypoint,
-                                true, true);
-    break;
+    return dlgWaypointDetailsShowModalForBrowseParent(
+      waypoints,
+      WaypointPtr(((const WaypointMapItem &)item).waypoint),
+      true, true);
+
   case MapItem::Type::TASK_OZ:
     dlgTargetShowModal(((const TaskOZMapItem &)item).index);
-    break;
+    return false;
+
   case MapItem::Type::TRAFFIC:
-    dlgFlarmTrafficDetailsShowModal(((const TrafficMapItem &)item).id);
-    break;
+    return dlgFlarmTrafficDetailsShowModal(((const TrafficMapItem &)item).id);
 
 #ifdef HAVE_NOAA
   case MapItem::Type::WEATHER:
     dlgNOAADetailsShowModal(((const WeatherStationMapItem &)item).station);
-    break;
+    return false;
 #endif
 
   case MapItem::Type::OVERLAY:
-    ShowWeatherDialog(_T("overlay"));
-    break;
+    ShowWeatherDialog("edl");
+    return false;
 
   case MapItem::Type::RASP:
-    ShowWeatherDialog(_T("rasp"));
-    break;
+    ShowWeatherDialog("rasp");
+    return false;
   }
+
+  return false;
 }
 
 void
@@ -303,23 +585,18 @@ ShowMapItemListDialog(const MapItemList &list,
                       Waypoints *waypoints,
                       ProtectedAirspaceWarningManager *airspace_warnings)
 {
-  switch (list.size()) {
-  case 0:
+  if (list.empty())
     /* no map items in the list */
     return;
 
-  case 1:
-    /* only one map item, show it */
-    ShowMapItemDialog(*list[0], waypoints, airspace_warnings);
-    break;
+  TWidgetDialog<MapItemListWidget>
+    dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
+           dialog_look, _("Map elements at this location"));
+  dialog.SetWidget(list, dialog_look, look,
+                   traffic_look, final_glide_look,
+                   settings);
+  dialog.GetWidget().CreateButtons(dialog, waypoints, airspace_warnings);
+  dialog.EnableCursorSelection();
 
-  default:
-    /* more than one map item: show a list */
-
-    int i = ShowMapItemListDialog(list, dialog_look, look,
-                                  traffic_look, final_glide_look, settings);
-    assert(i >= -1 && i < (int)list.size());
-    if (i >= 0)
-      ShowMapItemDialog(*list[i], waypoints, airspace_warnings);
-  }
+  dialog.ShowModal();
 }

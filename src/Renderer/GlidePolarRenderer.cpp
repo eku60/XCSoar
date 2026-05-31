@@ -11,30 +11,39 @@
 #include "NMEA/ClimbHistory.hpp"
 #include "Formatter/UserUnits.hpp"
 #include "util/StaticString.hxx"
+#include "util/UTF8.hpp"
 #include "GlidePolarInfoRenderer.hpp"
 
-#include <stdio.h>
+#include <fmt/format.h>
 
 void
-GlidePolarCaption(TCHAR *sTmp, const GlidePolar &glide_polar)
+GlidePolarCaption(char *sTmp, size_t buffer_size,
+                  const GlidePolar &glide_polar)
 {
+  if (sTmp == nullptr || buffer_size == 0)
+    return;
+
   if (!glide_polar.IsValid()) {
-    *sTmp = _T('\0');
+    *sTmp = '\0';
     return;
   }
 
-  _stprintf(sTmp, Layout::landscape ?
-                  _T("%s:\r\n  %d\r\n  at %d %s\r\n\r\n%s:\r\n  %3.2f %s\r\n  at %d %s") :
-                  _T("%s:\r\n  %d at %d %s\r\n%s:\r\n  %3.2f %s at %d %s"),
-            _("L/D"),
-            (int)glide_polar.GetBestLD(),
-            (int)Units::ToUserSpeed(glide_polar.GetVBestLD()),
-            Units::GetSpeedName(),
-            _("Min. sink"),
-            (double)Units::ToUserVSpeed(glide_polar.GetSMin()),
-            Units::GetVerticalSpeedName(),
-            (int)Units::ToUserSpeed(glide_polar.GetVMin()),
-            Units::GetSpeedName());
+  const char *const format = Layout::landscape
+    ? "{}:\r\n  {}\r\n  at {} {}\r\n\r\n{}:\r\n  {:.2f} {}\r\n  at {} {}"
+    : "{}:\r\n  {} at {} {}\r\n{}:\r\n  {:.2f} {} at {} {}";
+
+  auto result = fmt::format_to_n(sTmp, buffer_size - 1, fmt::runtime(format),
+                                 _("L/D"),
+                                 (int)glide_polar.GetBestLD(),
+                                 (int)Units::ToUserSpeed(glide_polar.GetVBestLD()),
+                                 Units::GetSpeedName(),
+                                 _("Min. sink"),
+                                 (double)Units::ToUserVSpeed(glide_polar.GetSMin()),
+                                 Units::GetVerticalSpeedName(),
+                                 (int)Units::ToUserSpeed(glide_polar.GetVMin()),
+                                 Units::GetSpeedName());
+  *result.out = '\0';
+  CropIncompleteUTF8(sTmp);
 }
 
 void
@@ -44,8 +53,8 @@ RenderGlidePolar(Canvas &canvas, const PixelRect rc,
                  const GlidePolar &glide_polar)
 {
   ChartRenderer chart(chart_look, canvas, rc);
-  chart.SetXLabel(_T("V"), Units::GetSpeedName());
-  chart.SetYLabel(_T("w"), Units::GetVerticalSpeedName());
+  chart.SetXLabel("V", Units::GetSpeedName());
+  chart.SetYLabel("w", Units::GetVerticalSpeedName());
   chart.Begin();
 
   if (!glide_polar.IsValid()) {
@@ -127,10 +136,10 @@ RenderGlidePolar(Canvas &canvas, const PixelRect rc,
   // draw labels and other overlays
 
   double vv = 0.9*vmax+0.1*vmin;
-  chart.DrawLabel({vv, -glide_polar.SinkRate(vv)}, _T("Polar"));
+  chart.DrawLabel({vv, -glide_polar.SinkRate(vv)}, "Polar");
   vv = 0.8*vmax+0.2*vmin;
-  chart.DrawLabel({vv, MACCREADY + slope * vv}, _T("Best glide"));
-  chart.DrawLabel({v_dolphin_last_l, w_dolphin_last_l},_T("Dolphin"));
+  chart.DrawLabel({vv, MACCREADY + slope * vv}, "Best glide");
+  chart.DrawLabel({v_dolphin_last_l, w_dolphin_last_l},"Dolphin");
 
   RenderGlidePolarInfo(canvas, rc, chart_look, glide_polar);
 

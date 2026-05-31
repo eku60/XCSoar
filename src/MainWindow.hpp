@@ -6,17 +6,16 @@
 #include "ui/window/SingleWindow.hpp"
 #include "ui/event/PeriodicTimer.hpp"
 #include "ui/event/Notify.hpp"
+#include "ui/event/Timer.hpp"
 #include "BatteryTimer.hpp"
 #include "Widget/ManagedWidget.hpp"
 #include "UIUtil/GestureManager.hpp"
+#include "ProductName.hpp"
 
 #include <cstdint>
 #include <cassert>
 
-#ifdef KOBO
-#define HAVE_SHOW_MENU_BUTTON
-#include "Menu/ShowMenuButton.hpp"
-#endif
+#include "Menu/ShowButton.hpp"
 
 struct ComputerSettings;
 struct MapSettings;
@@ -37,14 +36,31 @@ namespace InfoBoxLayout { struct Layout; }
  * The XCSoar main window.
  */
 class MainWindow : public UI::SingleWindow {
-  static constexpr const TCHAR *title = _T("XCSoar");
+  static constexpr const char *title = PRODUCT_NAME;
 
   Look *look = nullptr;
 
   MenuBar *menu_bar = nullptr;
 
-#ifdef HAVE_SHOW_MENU_BUTTON
   ShowMenuButton *show_menu_button = nullptr;
+  ShowZoomButton *show_zoom_out_button = nullptr;
+  ShowZoomButton *show_zoom_in_button = nullptr;
+
+#ifdef ANDROID
+  ShowRotateButton *show_rotate_button = nullptr;
+
+  /**
+   * Called from the Java OrientationEventListener thread when the
+   * physical device orientation changes.
+   */
+  UI::Notify rotation_suggestion_notify{
+    [this]{ OnRotationSuggestion(); }};
+
+  /**
+   * One-shot timer to auto-hide the rotate button after a timeout.
+   */
+  UI::Timer rotate_button_timer{
+    [this]{ OnRotateButtonTimeout(); }};
 #endif
 
   GlueMapWindow *map = nullptr;
@@ -100,6 +116,9 @@ private:
    */
   UI::Notify restore_page_notify{[this]{ OnRestorePageNotify(); }};
 
+  UI::Notify refresh_info_boxes_notify{[this]{ OnRefreshInfoBoxesNotify(); }};
+  UI::Notify page_actions_update_notify{[this]{ OnPageActionsUpdateNotify(); }};
+
   UI::PeriodicTimer timer{[this]{ RunTimer(); }};
 
   BatteryTimer battery_timer;
@@ -116,6 +135,8 @@ private:
 #endif
 
   bool restore_page_pending = false;
+  bool refresh_info_boxes_pending = false;
+  bool page_actions_update_pending = false;
 
   /**
    * Has "late" initialization been done already?  Those are things
@@ -194,6 +215,22 @@ private:
   PixelRect GetMainRect() const noexcept {
     return FullScreen ? GetClientRect() : map_rect;
   }
+
+  /**
+   * The visible #GlueMapWindow area.  After layout, this is
+   * #GlueMapWindow::GetPosition(); otherwise it is computed from
+   * #GetMainRect() and top/bottom widgets.
+   */
+  [[gnu::pure]]
+  PixelRect GetMapAreaRect() const noexcept;
+
+  /**
+   * Move top/bottom widgets and the map into the area returned by
+   * #GetMapAreaRect().
+   */
+  void LayoutMapArea() noexcept;
+
+  void UpdateMapOverlayButtonLayout() noexcept;
 
   /**
    * Adjust the flarm radar position
@@ -275,6 +312,16 @@ public:
     calculated_notify.SendNotification();
   }
 
+#ifdef ANDROID
+  /**
+   * Called from any thread to show the rotate suggestion button.
+   * Thread-safe: uses UI::Notify to defer to the UI thread.
+   */
+  void SendRotationSuggestion() noexcept {
+    rotation_suggestion_notify.SendNotification();
+  }
+#endif
+
   void SetTerrain(RasterTerrain *terrain) noexcept;
   void SetTopography(TopographyStore *topography) noexcept;
 
@@ -330,6 +377,17 @@ public:
   void DeferredRestorePage() noexcept;
 
   /**
+   * Defer InfoBox refresh to the next event-loop iteration (avoids
+   * reentrant layout while InfoBox content is updating).
+   */
+  void ScheduleRefreshInfoBoxes() noexcept;
+
+  /**
+   * Defer PageActions::Update() to the next event-loop iteration.
+   */
+  void SchedulePageActionsUpdate() noexcept;
+
+  /**
    * Show this #Widget above the map.  This replaces (deletes) the
    * previous top widget, if any.  To disable this feature, call this
    * method with widget==nullptr.
@@ -357,7 +415,7 @@ public:
    * @see InputEvents::IsFlavour(), InputEvents::SetFlavour()
    */
   [[gnu::pure]]
-  Widget *GetFlavourWidget(const TCHAR *flavour) noexcept;
+  Widget *GetFlavourWidget(const char *flavour) noexcept;
 
   void ShowMenu(const Menu &menu, const Menu *overlay=nullptr,
                 bool full=true) noexcept;
@@ -386,8 +444,15 @@ private:
   void OnGpsNotify() noexcept;
   void OnCalculatedNotify() noexcept;
   void OnRestorePageNotify() noexcept;
+  void OnRefreshInfoBoxesNotify() noexcept;
+  void OnPageActionsUpdateNotify() noexcept;
 
   void OnTerrainLoaded() noexcept;
+
+#ifdef ANDROID
+  void OnRotationSuggestion() noexcept;
+  void OnRotateButtonTimeout() noexcept;
+#endif
 
 protected:
   /* virtual methods from class Window */
@@ -401,6 +466,13 @@ protected:
   bool OnMouseDouble(PixelPoint p) noexcept override;
   bool OnKeyDown(unsigned key_code) noexcept override;
   void OnPaint(Canvas &canvas) noexcept override;
+  PixelRect GetShowMenuButtonRect(const PixelRect rc) noexcept;
+  PixelRect GetShowZoomButtonRect(const PixelRect rc,
+                                  ShowZoomButton::Sign sign) noexcept;
+
+#ifdef ANDROID
+  static PixelRect GetShowRotateButtonRect(const PixelRect rc) noexcept;
+#endif
 
   /* virtual methods from class TopWindow */
   bool OnClose() noexcept override;

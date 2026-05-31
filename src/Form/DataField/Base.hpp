@@ -7,8 +7,6 @@
 #include <cstdint>
 #include <functional>
 
-#include <tchar.h>
-
 static constexpr unsigned OUTBUFFERSIZE = 128;
 
 class DataFieldListener;
@@ -31,6 +29,7 @@ public:
     ANGLE,
     ENUM,
     FILE,
+    MULTI_FILE,
     ROUGH_TIME,
     TIME,
     PREFIX,
@@ -84,10 +83,10 @@ public:
   virtual void Dec() noexcept;
 
   [[gnu::pure]]
-  virtual const TCHAR *GetAsString() const noexcept;
+  virtual const char *GetAsString() const noexcept;
 
   [[gnu::pure]]
-  virtual const TCHAR *GetAsDisplayString() const noexcept;
+  virtual const char *GetAsDisplayString() const noexcept;
 
   virtual void EnableItemHelp([[maybe_unused]] bool value) noexcept {};
 
@@ -99,10 +98,10 @@ public:
    * "default" reference
    */
   [[gnu::pure]]
-  virtual ComboList CreateComboList(const TCHAR *reference) const noexcept;
+  virtual ComboList CreateComboList(const char *reference) const noexcept;
 
   virtual void SetFromCombo([[maybe_unused]] int iDataFieldIndex,
-                            [[maybe_unused]] const TCHAR *sValue) noexcept
+                            [[maybe_unused]] const char *sValue) noexcept
   {
     /* this method must be implemented by all classes which also
        implement CreateComboList() */

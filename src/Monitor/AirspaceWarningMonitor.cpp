@@ -17,6 +17,10 @@
 #include "Formatter/TimeFormatter.hpp"
 #include "Components.hpp"
 #include "BackendComponents.hpp"
+#include "LogFile.hpp"
+#include "Message.hpp"
+
+#include <exception>
 
 class AirspaceWarningWidget final
   : public QuestionWidget {
@@ -30,13 +34,13 @@ class AirspaceWarningWidget final
   StaticString<256> buffer;
 
   [[gnu::pure]]
-  const TCHAR *MakeMessage(const AbstractAirspace &airspace,
+  const char *MakeMessage(const AbstractAirspace &airspace,
                            AirspaceWarning::State state,
                            const AirspaceInterceptSolution &solution) noexcept {
     if (state == AirspaceWarning::WARNING_INSIDE)
-      buffer.Format(_T("%s: %s"), _("Inside airspace"), airspace.GetName());
+      buffer.Format("%s: %s", _("Inside airspace"), airspace.GetName());
     else
-      buffer.Format(_T("%s: %s (%s)"), _("Near airspace"), airspace.GetName(),
+      buffer.Format("%s: %s (%s)", _("Near airspace"), airspace.GetName(),
                     FormatTimespanSmart(solution.elapsed_time,
                                         2).c_str());
 
@@ -53,16 +57,32 @@ public:
      monitor(_monitor), manager(_manager),
      airspace(std::move(_airspace)), state(_state) {
     AddButton(_("ACK"), [this](){
-      if (state == AirspaceWarning::WARNING_INSIDE)
-        manager.AcknowledgeInside(airspace);
-      else
-        manager.AcknowledgeWarning(airspace);
+      try {
+        if (state == AirspaceWarning::WARNING_INSIDE)
+          manager.AcknowledgeInside(airspace);
+        else
+          manager.AcknowledgeWarning(airspace);
+      } catch (...) {
+        LogError(std::current_exception(),
+                 "Failed to acknowledge airspace warning");
+        Message::AddMessage(_("Failed to acknowledge airspace warning"));
+        return;
+      }
+
       monitor.Schedule();
       PageActions::RestoreBottom();
     });
 
     AddButton(_("ACK Day"), [this](){
-      manager.AcknowledgeDay(airspace);
+      try {
+        manager.AcknowledgeDay(airspace);
+      } catch (...) {
+        LogError(std::current_exception(),
+                 "Failed to acknowledge airspace warning for day");
+        Message::AddMessage(_("Failed to acknowledge airspace warning for day"));
+        return;
+      }
+
       monitor.Schedule();
       PageActions::RestoreBottom();
     });
@@ -132,7 +152,7 @@ AirspaceWarningMonitor::Check() noexcept
 
     // un-blank the display, play a sound
     ResetUserIdle();
-    PlayResource(_T("IDR_WAV_BEEPBWEEP"));
+    PlayResource("IDR_WAV_BEEPBWEEP");
 
     // show airspace warnings dialog
     if (CommonInterface::GetUISettings().enable_airspace_warning_dialog)
@@ -166,5 +186,5 @@ AirspaceWarningMonitor::Check() noexcept
 
   // un-blank the display, play a sound
   ResetUserIdle();
-  PlayResource(_T("IDR_WAV_BEEPBWEEP"));
+  PlayResource("IDR_WAV_BEEPBWEEP");
 }

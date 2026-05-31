@@ -3,13 +3,14 @@
 
 #pragma once
 
-#include "WindowWidget.hpp"
-#include "Form/Edit.hpp"
 #include "Form/DataField/Base.hpp"
-#include "time/BrokenDate.hpp"
-#include "time/FloatDuration.hxx"
+#include "Form/Edit.hpp"
 #include "Repository/FileType.hpp"
 #include "Units/Group.hpp"
+#include "WindowWidget.hpp"
+#include "time/BrokenDate.hpp"
+#include "time/FloatDuration.hxx"
+#include "time/RoughTimeDecl.hpp"
 
 #include <boost/container/static_vector.hpp>
 
@@ -24,7 +25,6 @@
 struct DialogLook;
 struct StaticEnumChoice;
 class Angle;
-class RoughTime;
 class RoughTimeDelta;
 class Path;
 class Button;
@@ -277,8 +277,8 @@ protected:
 
   Window &Add(Row::Type type, std::unique_ptr<Window> window) noexcept;
 
-  std::unique_ptr<WndProperty> CreateEdit(const TCHAR *label,
-                                          const TCHAR *help=nullptr,
+  std::unique_ptr<WndProperty> CreateEdit(const char *label,
+                                          const char *help=nullptr,
                                           bool read_only=false) noexcept;
 
 public:
@@ -312,91 +312,95 @@ public:
     Add(Row::Type::REMAINING, std::move(window));
   }
 
-  WndProperty *Add(const TCHAR *label, const TCHAR *help=nullptr,
+  WndProperty *Add(const char *label, const char *help=nullptr,
                    bool read_only=false) noexcept;
 
   /**
    * Add a read-only control.  You can use SetText() to update its
    * text.
    */
-  void AddReadOnly(const TCHAR *label, const TCHAR *help=nullptr,
-                   const TCHAR *text=nullptr) noexcept;
+  void AddReadOnly(const char *label, const char *help=nullptr,
+                   const char *text=nullptr) noexcept;
 
   /**
    * Add a read-only control displaying a floating-point value.  Use
    * LoadValue() to update the displayed value.
    */
-  void AddReadOnly(const TCHAR *label, const TCHAR *help,
-                   const TCHAR *display_format,
+  void AddReadOnly(const char *label, const char *help,
+                   const char *display_format,
                    double value) noexcept;
 
   /**
    * Add a read-only control displaying a floating-point value.  Use
    * LoadValue() to update the displayed value.
    */
-  void AddReadOnly(const TCHAR *label, const TCHAR *help,
-                   const TCHAR *display_format,
+  void AddReadOnly(const char *label, const char *help,
+                   const char *display_format,
                    UnitGroup unit_group, double value) noexcept;
 
   /**
    * Add a read-only control displaying a boolean value.  Use
    * LoadValue() to update the displayed value.
    */
-  void AddReadOnly(const TCHAR *label, const TCHAR *help,
+  void AddReadOnly(const char *label, const char *help,
                    bool value) noexcept;
 
-  WndProperty *Add(const TCHAR *label, const TCHAR *help,
+  WndProperty *Add(const char *label, const char *help,
                    DataField *df) noexcept;
 
-  WndProperty *AddBoolean(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddBoolean(const char *label, const char *help,
                           bool value=false,
                           DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddInteger(const TCHAR *label, const TCHAR *help,
-                          const TCHAR *display_format,
-                          const TCHAR *edit_format,
+  WndProperty *AddInteger(const char *label, const char *help,
+                          const char *display_format,
+                          const char *edit_format,
                           int min_value, int max_value, int step, int value,
                           DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddFloat(const TCHAR *label, const TCHAR *help,
-                        const TCHAR *display_format,
-                        const TCHAR *edit_format,
+  WndProperty *AddFloat(const char *label, const char *help,
+                        const char *display_format,
+                        const char *edit_format,
                         double min_value, double max_value,
                         double step, bool fine,
                         double value,
                         DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddFloat(const TCHAR *label, const TCHAR *help,
-                        const TCHAR *display_format,
-                        const TCHAR *edit_format,
+  WndProperty *AddFloat(const char *label, const char *help,
+                        const char *display_format,
+                        const char *edit_format,
                         double min_value, double max_value,
                         double step, bool fine,
                         UnitGroup unit_group, double value,
                         DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddAngle(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddAngle(const char *label, const char *help,
                         Angle value, unsigned step, bool fine,
                         DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddEnum(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddEnum(const char *label, const char *help,
                        const StaticEnumChoice *list, unsigned value=0,
                        DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddEnum(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddEnum(const char *label, const char *help,
                        DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddText(const TCHAR *label, const TCHAR *help,
-                       const TCHAR *content,
+  /**
+   * Add a string #DataField (editable).  To show read-only text that you
+   * update with #SetText, use #AddReadOnly instead.
+   */
+  WndProperty *AddText(const char *label, const char *help,
+                       const char *content,
                        DataFieldListener *listener=nullptr) noexcept;
 
   /**
    * Add a password edit control.  The password is obfuscated while
    * not editing.
    */
-  WndProperty *AddPassword(const TCHAR *label, const TCHAR *help,
-                           const TCHAR *content) noexcept;
+  WndProperty *AddPassword(const char *label, const char *help,
+                           const char *content) noexcept;
 
-  WndProperty *AddDuration(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddDuration(const char *label, const char *help,
                            std::chrono::seconds min_value,
                            std::chrono::seconds max_value,
                            std::chrono::seconds step,
@@ -405,7 +409,7 @@ public:
                            DataFieldListener *listener=nullptr) noexcept;
 
   template<class Rep, class Period>
-  WndProperty *AddDuration(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddDuration(const char *label, const char *help,
                            std::chrono::seconds min_value,
                            std::chrono::seconds max_value,
                            std::chrono::seconds step,
@@ -417,35 +421,37 @@ public:
                        max_tokens, listener);
   }
 
-  WndProperty *AddDate(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddDate(const char *label, const char *help,
                        BrokenDate date,
                        DataFieldListener *listener=nullptr) noexcept;
 
-  WndProperty *AddRoughTime(const TCHAR *label, const TCHAR *help,
+  WndProperty *AddRoughTime(const char *label, const char *help,
                             RoughTime value, RoughTimeDelta time_zone,
                             DataFieldListener *listener=nullptr) noexcept;
 
   void AddSpacer() noexcept;
 
-  WndProperty *AddFile(const TCHAR *label, const TCHAR *help,
-                       std::string_view profile_key, const TCHAR *filters,
+  WndProperty *AddFile(const char *label, const char *help,
+                       std::string_view profile_key, const char *filters,
                        FileType file_type,
                        bool nullable = true) noexcept;
 
-  WndProperty *AddFile(const TCHAR *label, const TCHAR *help,
-                       std::string_view profile_key, const TCHAR *filters,
+  WndProperty *AddFile(const char *label, const char *help,
+                       std::string_view profile_key, const char *filters,
                        bool nullable = true) noexcept {
     return AddFile(label, help, profile_key, filters, FileType::UNKNOWN,
                    nullable);
   }
-
+  WndProperty *AddMultipleFiles(const char *label, const char *help,
+                                std::string_view profile_key,
+                                const char *filters, FileType file_type);
   /**
    * Add a read-only multi-line control.  You can use
    * SetMultiLineText() to update its text.
    */
-  void AddMultiLine(const TCHAR *text=nullptr) noexcept;
+  void AddMultiLine(const char *text=nullptr) noexcept;
 
-  Button *AddButton(const TCHAR *label, std::function<void()> callback) noexcept;
+  Button *AddButton(const char *label, std::function<void()> callback) noexcept;
 
   [[gnu::pure]]
   Widget &GetRowWidget(unsigned i) noexcept {
@@ -508,9 +514,12 @@ public:
   }
 
   /**
-   * Update the text of a multi line control.
+   * Update the text of a read-only label row (no #DataField on the control).
+   * Use with rows from #AddReadOnly (plain string), or #Add (label, help, true)
+   * without a data field.  Do not use for #AddText (string editor), #AddInteger,
+   * #AddEnum, etc.; use #LoadValue / #LoadValueEnum instead.
    */
-  void SetText(unsigned i, const TCHAR *text) noexcept {
+  void SetText(unsigned i, const char *text) noexcept {
     assert(text != nullptr);
 
     WndProperty &control = GetControl(i);
@@ -519,13 +528,13 @@ public:
   }
 
   void ClearText(unsigned i) noexcept {
-    SetText(i, _T(""));
+    SetText(i, "");
   }
 
   /**
    * Update the text of a multi line control.
    */
-  void SetMultiLineText(unsigned i, const TCHAR *text) noexcept;
+  void SetMultiLineText(unsigned i, const char *text) noexcept;
 
   [[gnu::pure]]
   DataField &GetDataField(unsigned i) noexcept {
@@ -563,7 +572,7 @@ public:
   }
 
   void LoadValue(unsigned i, bool value) noexcept;
-  void LoadValueEnum(unsigned i, const TCHAR *text) noexcept;
+  void LoadValueEnum(unsigned i, const char *text) noexcept;
   void LoadValueEnum(unsigned i, unsigned value) noexcept;
 
   template<typename T>
@@ -572,7 +581,7 @@ public:
     LoadValueEnum(i, unsigned(value));
   }
 
-  void LoadValue(unsigned i, const TCHAR *value) noexcept;
+  void LoadValue(unsigned i, const char *value) noexcept;
 
   void LoadValue(unsigned i, double value) noexcept;
   void LoadValue(unsigned i, Angle value) noexcept;
@@ -591,7 +600,7 @@ public:
    * Return the raw text of the #WndProperty, bypassing the
    * #DataField.
    */
-  const TCHAR *GetText(unsigned i) const noexcept {
+  const char *GetText(unsigned i) const noexcept {
     return GetControl(i).GetText();
   }
 
@@ -601,7 +610,7 @@ public:
    * to indicate that there's no valid value currently.
    */
   void ClearValue(unsigned i) noexcept {
-    GetControl(i).SetText(_T(""));
+    GetControl(i).SetText("");
   }
 
   [[gnu::pure]]
@@ -632,7 +641,7 @@ public:
   Path GetValueFile(unsigned i) const noexcept;
 
   [[gnu::pure]]
-  const TCHAR *GetValueString(unsigned i) const noexcept {
+  const char *GetValueString(unsigned i) const noexcept {
     return GetDataField(i).GetAsString();
   }
 
@@ -670,19 +679,23 @@ public:
   }
 
   bool SaveValue(unsigned i, RoughTime &value_r) const noexcept;
-  bool SaveValue(unsigned i, TCHAR *string, size_t max_size) const noexcept;
+  bool SaveValue(unsigned i, char *string, size_t max_size) const noexcept;
+  bool SaveValue(unsigned i, std::string &string) const noexcept;
 
   template<size_t max>
-  bool SaveValue(unsigned i, BasicStringBuffer<TCHAR, max> &value) const noexcept {
+  bool SaveValue(unsigned i, BasicStringBuffer<char, max> &value) const noexcept {
     return SaveValue(i, value.data(), value.capacity());
   }
 
   bool SaveValue(unsigned i, std::string_view profile_key,
-                 TCHAR *string, size_t max_size) const noexcept;
+                 char *string, size_t max_size) const noexcept;
+
+  bool SaveValue(unsigned i, std::string_view profile_key,
+                 std::string &string) const noexcept;
 
   template<size_t max>
   bool SaveValue(unsigned i, std::string_view profile_key,
-                 BasicStringBuffer<TCHAR, max> &value) const noexcept {
+                 BasicStringBuffer<char, max> &value) const noexcept {
     return SaveValue(i, profile_key, value.data(), value.capacity());
   }
 
@@ -703,6 +716,8 @@ public:
   bool SaveValue(unsigned i, std::string_view profile_key, BrokenDate &value) const noexcept;
   bool SaveValue(unsigned i, std::string_view profile_key,
                  std::chrono::seconds &value) const noexcept;
+  bool SaveValueMultiFileReader(unsigned i,
+                                std::string_view registry_key) noexcept;
 
   template<class Rep, class Period>
   bool SaveValue(unsigned i, std::string_view profile_key,
@@ -760,6 +775,9 @@ protected:
 
   void NextControlRect(PixelRect &rc, unsigned height) noexcept {
     assert(IsDefined());
+
+    if (height == 0)
+      height = 1;
 
     rc.top = rc.bottom;
     rc.bottom = rc.top + height;

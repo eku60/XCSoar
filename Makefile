@@ -62,6 +62,9 @@
 #
 #   USE_CCACHE  "y" to build with ccache
 #
+#   TARGET_DIR  "<path>" to build into output/<path> instead of output/<target>
+#
+#   TARGET_OUTPUT_DIR "<path>" to build into arbitrary directory
 
 .DEFAULT_GOAL := all
 
@@ -98,6 +101,10 @@ include $(topdir)/build/glx.mk
 include $(topdir)/build/opengl.mk
 endif
 
+# this line should be in build/resource.mk but that file depends on
+# link.mk and compile-depends must be set before including compile.mk
+compile-depends += $(TARGET_OUTPUT_DIR)/include/MakeResource.hpp
+
 include $(topdir)/build/compile.mk
 include $(topdir)/build/host.mk
 include $(topdir)/build/flags.mk
@@ -108,7 +115,11 @@ include $(topdir)/build/link.mk
 include $(topdir)/build/resource.mk
 include $(topdir)/build/libdata.mk
 include $(topdir)/build/java.mk
+ifeq ($(ANDROID_BUNDLE_BUILD),y)
+include $(topdir)/build/android_bundle.mk
+else
 include $(topdir)/build/android.mk
+endif
 include $(topdir)/build/llvm.mk
 include $(topdir)/build/tools.mk
 include $(topdir)/build/version.mk
@@ -158,6 +169,7 @@ include $(topdir)/build/libio.mk
 include $(topdir)/build/shapelib.mk
 include $(topdir)/build/libwaypoint.mk
 include $(topdir)/build/libairspace.mk
+include $(topdir)/build/libnotam.mk
 include $(topdir)/build/libtask.mk
 include $(topdir)/build/libxml.mk
 include $(topdir)/build/libcupfile.mk
@@ -173,6 +185,7 @@ include $(topdir)/build/libevent.mk
 include $(topdir)/build/freetype.mk
 include $(topdir)/build/libpng.mk
 include $(topdir)/build/libjpeg.mk
+include $(topdir)/build/libsqlite.mk
 include $(topdir)/build/libtiff.mk
 include $(topdir)/build/coregraphics.mk
 include $(topdir)/build/appkit.mk
@@ -187,6 +200,7 @@ include $(topdir)/build/libtopo.mk
 include $(topdir)/build/libterrain.mk
 include $(topdir)/build/lua.mk
 include $(topdir)/build/harness.mk
+include $(topdir)/build/flarm.mk
 endif # FAT_BINARY=n
 
 ifeq ($(FUZZER),y)
@@ -204,7 +218,7 @@ endif
 ifeq ($(TARGET_IS_LINUX),y)
 include $(topdir)/build/cloud.mk
 include $(topdir)/build/kobo.mk
-ifeq ($(USE_POLL_EVENT),y)
+ifeq ($(USE_POLL_EVENT)$(TARGET_IS_KOBO),yn)
 include $(topdir)/build/ov.mk
 endif
 endif

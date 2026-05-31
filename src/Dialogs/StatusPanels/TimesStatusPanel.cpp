@@ -7,6 +7,8 @@
 #include "Formatter/LocalTimeFormatter.hpp"
 #include "Math/SunEphemeris.hpp"
 #include "Language/Language.hpp"
+#include "time/BrokenDateTime.hpp"
+#include "time/RoughTime.hpp"
 
 enum Controls {
   LocalTime,
@@ -37,7 +39,7 @@ TimesStatusPanel::Refresh() noexcept
     const unsigned sunsethours = (int)sun.time_of_sunset;
     const unsigned sunsetmins = (int)((sun.time_of_sunset - double(sunsethours)) * 60);
 
-    temp.Format(_T("%02u:%02u - %02u:%02u"), sunrisehours, sunrisemins, sunsethours, sunsetmins);
+    temp.Format("%02u:%02u - %02u:%02u", sunrisehours, sunrisemins, sunsethours, sunsetmins);
     SetText(Daylight, temp);
   } else {
     ClearText(Daylight);
@@ -53,7 +55,7 @@ TimesStatusPanel::Refresh() noexcept
   }
 
   if (basic.date_time_utc.IsDatePlausible()) {
-    temp.Format(_T("%04d-%02d-%02d"), basic.date_time_utc.year,
+    temp.Format("%04d-%02d-%02d", basic.date_time_utc.year,
                 basic.date_time_utc.month, basic.date_time_utc.day);
     SetText(UTCDate, temp);
   } else {
@@ -77,7 +79,34 @@ TimesStatusPanel::Refresh() noexcept
   }
 
   if (flight.flight_time.count() > 0) {
-    SetText(FlightTime, FormatSignedTimeHHMM(flight.flight_time));
+    if (flight.takeoff_time.IsDefined() && flight.landing_time.IsDefined()) {
+      bool set = false;
+
+      if (basic.time_available && basic.date_time_utc.IsDatePlausible()) {
+        const BrokenDateTime takeoff_dt =
+          basic.GetDateTimeAt(flight.takeoff_time).FloorToMinute();
+        const BrokenDateTime landing_dt =
+          basic.GetDateTimeAt(flight.landing_time).FloorToMinute();
+
+        if (takeoff_dt.IsPlausible() && landing_dt.IsPlausible()) {
+          const auto duration = landing_dt - takeoff_dt;
+          SetText(FlightTime, FormatSignedTimeHHMM(
+            std::chrono::duration_cast<std::chrono::seconds>(duration)));
+          set = true;
+        }
+      }
+
+      if (!set) {
+        const RoughTime rough_takeoff =
+          RoughTime::FromSinceMidnight(flight.takeoff_time);
+        const RoughTime rough_landing =
+          RoughTime::FromSinceMidnight(flight.landing_time);
+        SetText(FlightTime, FormatSignedTimeHHMM(
+          FloatDuration{rough_landing - rough_takeoff}));
+      }
+    } else {
+      SetText(FlightTime, FormatSignedTimeHHMM(flight.flight_time));
+    }
   } else {
     ClearText(FlightTime);
   }

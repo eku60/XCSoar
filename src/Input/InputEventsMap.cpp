@@ -17,6 +17,10 @@
 #include "Math/Constants.hpp"
 #include "Screen/Layout.hpp"
 
+#ifdef ENABLE_OPENGL
+#include "ui/canvas/opengl/Globals.hpp"
+#endif
+
 #include <algorithm> // for std::clamp()
 
 // eventAutoZoom - Turn on|off|toggle AutoZoom
@@ -32,7 +36,7 @@
 //	n.n	- Zoom to a set scale
 //	show - Show current zoom scale
 void
-InputEvents::eventZoom(const TCHAR* misc)
+InputEvents::eventZoom(const char* misc)
 {
   // JMW pass through to handler in MapWindow
   // here:
@@ -42,47 +46,47 @@ InputEvents::eventZoom(const TCHAR* misc)
 
   MapSettings &settings_map = CommonInterface::SetMapSettings();
 
-  if (StringIsEqual(misc, _T("auto toggle")))
+  if (StringIsEqual(misc, "auto toggle"))
     sub_AutoZoom(-1);
-  else if (StringIsEqual(misc, _T("auto on")))
+  else if (StringIsEqual(misc, "auto on"))
     sub_AutoZoom(1);
-  else if (StringIsEqual(misc, _T("auto off")))
+  else if (StringIsEqual(misc, "auto off"))
     sub_AutoZoom(0);
-  else if (StringIsEqual(misc, _T("auto show"))) {
+  else if (StringIsEqual(misc, "auto show")) {
     if (settings_map.auto_zoom_enabled)
       Message::AddMessage(_("Auto. zoom on"));
     else
       Message::AddMessage(_("Auto. zoom off"));
-  } else if (StringIsEqual(misc, _T("slowout")))
+  } else if (StringIsEqual(misc, "slowout"))
     sub_ScaleZoom(-1);
-  else if (StringIsEqual(misc, _T("slowin")))
+  else if (StringIsEqual(misc, "slowin"))
     sub_ScaleZoom(1);
-  else if (StringIsEqual(misc, _T("out")))
+  else if (StringIsEqual(misc, "out"))
     sub_ScaleZoom(-1);
-  else if (StringIsEqual(misc, _T("in")))
+  else if (StringIsEqual(misc, "in"))
     sub_ScaleZoom(1);
-  else if (StringIsEqual(misc, _T("-")))
+  else if (StringIsEqual(misc, "-"))
     sub_ScaleZoom(-1);
-  else if (StringIsEqual(misc, _T("+")))
+  else if (StringIsEqual(misc, "+"))
     sub_ScaleZoom(1);
-  else if (StringIsEqual(misc, _T("--")))
+  else if (StringIsEqual(misc, "--"))
     sub_ScaleZoom(-2);
-  else if (StringIsEqual(misc, _T("++")))
+  else if (StringIsEqual(misc, "++"))
     sub_ScaleZoom(2);
-  else if (StringIsEqual(misc, _T("circlezoom toggle"))) {
+  else if (StringIsEqual(misc, "circlezoom toggle")) {
     settings_map.circle_zoom_enabled = !settings_map.circle_zoom_enabled;
-  } else if (StringIsEqual(misc, _T("circlezoom on"))) {
+  } else if (StringIsEqual(misc, "circlezoom on")) {
     settings_map.circle_zoom_enabled = true;
-  } else if (StringIsEqual(misc, _T("circlezoom off"))) {
+  } else if (StringIsEqual(misc, "circlezoom off")) {
     settings_map.circle_zoom_enabled = false;
-  } else if (StringIsEqual(misc, _T("circlezoom show"))) {
+  } else if (StringIsEqual(misc, "circlezoom show")) {
     if (settings_map.circle_zoom_enabled)
       Message::AddMessage(_("Circling zoom on"));
     else
       Message::AddMessage(_("Circling zoom off"));
   } else {
-    TCHAR *endptr;
-    double zoom = _tcstod(misc, &endptr);
+    char *endptr;
+    double zoom = strtod(misc, &endptr);
     if (endptr == misc)
       return;
 
@@ -107,27 +111,27 @@ InputEvents::eventZoom(const TCHAR* misc)
  *  @todo feature: ??? Go to waypoint (eg: next, named)
  */
 void
-InputEvents::eventPan(const TCHAR *misc)
+InputEvents::eventPan(const char *misc)
 {
-  if (StringIsEqual(misc, _T("toggle")))
+  if (StringIsEqual(misc, "toggle"))
     TogglePan();
 
-  else if (StringIsEqual(misc, _T("on")))
+  else if (StringIsEqual(misc, "on"))
     EnterPan();
 
-  else if (StringIsEqual(misc, _T("off")))
+  else if (StringIsEqual(misc, "off"))
     LeavePan();
 
-  else if (StringIsEqual(misc, _T("up")))
+  else if (StringIsEqual(misc, "up"))
     sub_PanCursor(0, 1);
 
-  else if (StringIsEqual(misc, _T("down")))
+  else if (StringIsEqual(misc, "down"))
     sub_PanCursor(0, -1);
 
-  else if (StringIsEqual(misc, _T("left")))
+  else if (StringIsEqual(misc, "left"))
     sub_PanCursor(1, 0);
 
-  else if (StringIsEqual(misc, _T("right")))
+  else if (StringIsEqual(misc, "right"))
     sub_PanCursor(-1, 0);
 
   XCSoarInterface::SendMapSettings(true);
@@ -192,7 +196,14 @@ InputEvents::sub_SetZoom(double value)
   auto vmin = CommonInterface::GetComputerSettings().polar.glide_polar_task.GetVMin();
   auto scale_2min_distance = vmin * 12;
   const double scale_100m = 10;
-  const double scale_1600km = 1600*100;
+  double scale_1600km = 1600*100;
+
+#ifdef ENABLE_OPENGL
+  if (OpenGL::max_map_scale > 0)
+    scale_1600km = std::min(scale_1600km,
+                            double(OpenGL::max_map_scale));
+#endif
+
   auto minreasonable = displayMode == DisplayMode::CIRCLING
     ? scale_100m
     : std::max(scale_100m, scale_2min_distance);

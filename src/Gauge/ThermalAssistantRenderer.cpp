@@ -80,7 +80,7 @@ ThermalAssistantRenderer::NormalizeLift(double lift, double max_lift) noexcept
 
 static void
 DrawCircleLabel(Canvas &canvas, PixelPoint p,
-                tstring_view text) noexcept
+                std::string_view text) noexcept
 {
   const auto size = canvas.CalcTextSize(text);
   p.x -= size.width / 2;
@@ -92,7 +92,7 @@ DrawCircleLabel(Canvas &canvas, PixelPoint p,
 static void
 DrawCircleLabelVSpeed(Canvas &canvas, PixelPoint p, double value) noexcept
 {
-  TCHAR buffer[10];
+  char buffer[10];
   FormatUserVerticalSpeed(value, buffer);
   DrawCircleLabel(canvas, p, buffer);
 }
@@ -134,7 +134,7 @@ ThermalAssistantRenderer::PaintRadarBackground(Canvas &canvas, double max_lift) 
   if (small)
     return;
 
-  canvas.SetTextColor(COLOR_BLACK);
+  canvas.SetTextColor(look.text_color);
   canvas.Select(look.circle_label_font);
   canvas.SetBackgroundColor(look.background_color);
   canvas.SetBackgroundOpaque();
@@ -156,7 +156,7 @@ ThermalAssistantRenderer::PaintPoints(Canvas &canvas,
 #ifdef ENABLE_OPENGL
   const ScopeAlphaBlend alpha_blend;
 #elif defined(USE_GDI)
-  canvas.SetMixMask();
+  canvas.SetMixCopy();
 #endif /* GDI */
 
   canvas.Select(look.polygon_brush);
@@ -177,13 +177,15 @@ ThermalAssistantRenderer::PaintNotCircling(Canvas &canvas) const
   if (small)
     return;
 
-  const TCHAR* str = _("Not Circling");
+  const char* str = _("Not Circling");
   canvas.Select(look.overlay_font);
+  PixelSize ts = canvas.CalcTextSize(str);
   canvas.SetTextColor(look.text_color);
-
-  DrawCircleLabel(canvas,
-                  radar_renderer.GetCenter().At(0u, radar_renderer.GetRadius() / 2),
-                  str);
+  canvas.DrawText(
+      radar_renderer.GetCenter() -
+          PixelSize{ts.width / 2, radar_renderer.GetRadius() -
+                                      radar_renderer.GetRadius() / 4},
+      str);
 }
 
 void

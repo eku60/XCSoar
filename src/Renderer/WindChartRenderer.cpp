@@ -43,8 +43,8 @@ RenderWindChart(Canvas &canvas, const PixelRect rc,
   LeastSquares windstats_mag;
 
   ChartRenderer chart(chart_look, canvas, rc);
-  chart.SetXLabel(_T("w"), Units::GetSpeedName());
-  chart.SetYLabel(_T("h"), Units::GetAltitudeName());
+  chart.SetXLabel("w", Units::GetSpeedName());
+  chart.SetYLabel("h", Units::GetAltitudeName());
   chart.Begin();
 
   if (fs.altitude_base.IsEmpty() || fs.altitude_ceiling.IsEmpty()) {
@@ -79,7 +79,7 @@ RenderWindChart(Canvas &canvas, const PixelRect rc,
   chart.ScaleYFromData(windstats_mag);
 
   chart.DrawXGrid(Units::ToSysSpeed(5), 5, ChartRenderer::UnitFormat::NUMERIC);
-  chart.DrawYGrid(Units::ToSysAltitude(1000), 1000, ChartRenderer::UnitFormat::NUMERIC);
+  chart.DrawYGrid(Units::ToSysAltitude(250), 250, ChartRenderer::UnitFormat::NUMERIC);
   chart.DrawLineGraph(windstats_mag, ChartLook::STYLE_BLACK);
 
 #define WINDVECTORMAG Layout::Scale(25)

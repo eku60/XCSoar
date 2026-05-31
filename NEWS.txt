@@ -1,7 +1,574 @@
-Version 7.42 - not yet released
+Version 7.45 - not yet released
+* android
+  - BLE serial ports now support Nordic UART Service (NUS) for e.g. Naviter
+    dongles, in addition to HM-10; the protocol is auto-detected at connection
+    time #2260
+  - The saved device port type string for that mode remains ble_hm10 so
+    existing profiles load without migration
+* devices
+  - Android: multi-port USB serial adapters (e.g. dual FTDI) use 0-based port
+    suffixes (#0, #1) in both the port list and device list #2481
+  - FLARM $PGRMZ (when FLARM is detected) feeds igc_pressure_altitude for the
+    ISA logger datum; cleared when strong pressure replaces weak pressure or
+    ignores the sentence
+* ui
+  - macOS: thick solid lines now render at their correct pixel width #2545
+  - status dialog, Times: flight time matches takeoff and landing after
+    minute rounding (including across midnight); landing time clears on a
+    new takeoff in the same session #957
+  - status dialog, Rules: after a valid start, show PEV offset at start (time
+    from PEV window start to the crossing) when known, as a duration (e.g.
+    "45 sec", "2 min") not HH:MM so sub-minute offsets are not shown as 00:00
+  - infoboxen: Start reach uses remaining distance / ground speed when the
+    MacCready leg solution is not OK, so it matches Start open again in the
+    common MC-too-low / wind cases; Start open shows a signed gate countdown at
+    now instead of a blank value #2502; Start reach main value is time to the
+    start line (leg ETA), not gate countdown at arrival; Start open value colour
+    and comment reflect gate state at now (Waiting/Open/Closed, blue/green/red);
+    Start reach value colour and comment reflect gate state at leg ETA
+    (Too early/Can start/Too late, blue/green/red)
+  - infoboxen: new Altitude IGC InfoBox (logger pressure or ISA pressure only)
+  - plane polar dialog: fix polar coefficient grid layout and auto-sized width
+  - waypoint search: name filter matches anywhere in the long name and the
+    shortname (typically the ICAO code in SeeYou .cup files), not only at
+    the start, so e.g. "FIELD" finds "AIRFIELD" and "INGEN" finds
+    "DITTINGEN" #2483
+  - waypoint search: each waypoint appears at most once in the result list,
+    even when the typed substring matches both its long name and its
+    shortname #1316
+  - waypoint search: Type filter no longer lists the .xcm map archive as a
+    selectable filter when its embedded waypoints are not loaded (e.g. when
+    a separate WPFileList already supplied the database), so the dropdown
+    no longer offers a filter that always yields zero matches #1376
+  - waypoint search: "Recently Used" Type filter entry shows the
+    recently-visited waypoints again; it had been silently aliased to the
+    unrelated "Map file" filter since the multi-file rework (#1994) due to
+    a positional dropdown/enum mismatch
+  - large FLARM radar: optional callsign and relative altitude (in hundreds,
+    as on the small gauge) beside targets when side data is in altitude mode;
+    passive targets use default colours when no altitude brush is set
+  - waypoint search: Type filter now lists every CUP waypoint type
+    (Mountain Top/Pass, Bridge, Tunnel, Tower, Power Plant, Obstacle,
+    Thermal Hotspot, Marker, VOR, NDB, Dam, Castle, Intersection,
+    Reporting Point, PG Take Off / Landing Zone) #2485
+  - infoboxen: new "Active Waypoint" InfoBox (next task waypoint, or Goto
+    waypoint when no task is loaded; shows name, arrival height above safety,
+    and distance; tap to pick a different task leg or set a new Goto)
+* desktop
+  - command-line: -h/--help and -version/--version print to stdout and exit;
+    unknown options print a short usage line on stderr
+* ui
+  - Waypoint details embedded image: new input mode ``wptimg`` and
+    ``WaypointImage`` events (magnify, shrink, reset, arrows) so keys
+    can be set in the ``.xci`` file without the map's ``default`` key
+    fallback
+  - Waypoint details embedded image and PC-Met satellite viewer: zoom and
+    pan with focal-point centering when magnifying; supports +/- buttons,
+    F2/F3, and arrow keys (#1127, #1246)
+* input
+  - F2 = zoom in, F3 = zoom out in pan, on the FLARM radar, and in waypoint
+    image ``wptimg`` (not on the main non-pan map, where F2/F3 stay Checklist
+    and FLARM as before). Traffic: ``next`` and ``previous`` events; FLARM: UP/DOWN
+    and F1/F4 = next/prev target, F2/F3 = zoom. The radar no longer hard-codes
+    d-pad to zoom; bindings come from the ``.xci`` file
+  - ``GotoLookup`` accepts an optional argument to pre-select the Type
+    filter on entry (``recent``/``last_used``, ``airport``, ``landable``,
+    ``turnpoint``, ``start``, ``finish``), so a gesture or key binding can
+    open the waypoint list focused on a category #336
+  - default Left-Up (LU) map gesture opens the Waypoint Selection dialog
+    pre-filtered to recently-used waypoints; listed in the Gesture Help
+    dialog with its own icon #336
+* map
+  - larger on-map typography: default waypoint text, map-scale readout, and
+    topography labels
+  - map waypoint icons (bitmap and vector landables): new ``Waypoint icon
+    size`` on Configuration → Map display → Waypoints (50–200%, default 100%)
+  - obstacles hidden at wider map scales than other non-landables (5000 vs 10000)
+  - draw up to 1024 waypoints at once (was 256) #2327
+  - terrain: fix fluctuating hill-shading strength #2262
+  - snail trail: Catmull-Rom smoothing between fixes; vario colouring samples
+    high-rate netto from the merge thread between GPS points #2447
+* ui
+  - infoboxen: refresh titles after changing the interface language #2314
+  - infoboxen: add "Home" InfoBox (waypoint name, arrival height at home,
+    distance; tap to change home waypoint) #2320
+  - alternates: Alternate 1/2 InfoBoxes can follow the computed list (AUTO) or
+    a pilot-chosen field (MANUAL); tap the InfoBox to open the alternates list,
+    switch mode, and assign the selected row to that slot (runtime only; AUTO
+    clears the pin).  Titles show Altn 1/2 with AUTO or MAN.
+  - list dialogs: Up/Down move the list (when the list is focused) so
+    filter rows in the same dialog (e.g. waypoint file) still get those keys;
+    Left/Right move the action bar with cursor key selection; current
+    action uses list-focus colours in the light theme and the bright
+    focus colour in dark, like other dialog focus.  Select Airspace: Details
+    and Close are on the main dialog action bar (bottom/edge) so the same
+    keys can reach them after the list, like other list dialogs
+  - map item list and airspace list: respect list focus/selection text colours
+    (was unreadable focused row on e-ink: paint reset colour to black on a
+    black focused background) #2495
+  - alternates: list holds up to 10 options (was 6); if the task only has one
+    automatic alternate, Alternate 2 no longer shows the same as Alternate 1.
+    Displayed glide is re-solved with the current aircraft state; value colour
+    encodes not reachable, final glide, need climb, and MANUAL on/below glide.
+    Manual updated en/de/fr/pt_BR #2347
+  - status: show G-load availability in device list and variometer source in
+    system status
+  - terrain: add new terrain shading orientation "fixed (Top Left)"
+  - airspace list & map item list: grey text for airspaces with a day
+    acknowledgement; map item list adds an "Enable" button to clear it (like the
+    airspace warnings list) #2404
+  - airspace warnings: keep the cursor key action in sync with which actions
+    are enabled, and the armed action with keyboard focus (no double
+    highlight when e.g. Close is focused and another is cursor-selected);
+    replace Radio with Details; Up/Down move the list, Left/Right the action
+    row, Up from the action row returns to the list
+  - Form/DataField/Enum: remove the limit of 128 internal entries (It was
+    dropping the newest InfoBoxes, as we have 130 of them now)
+  - encode bundled UI OGG sound assets at Vorbis quality 5 (was 1)
+  - tabbed dialogs: show list-style focus on the tab strip when the device has
+    cursor keys and the strip has keyboard focus (or always on devices without
+    cursor keys, where the indicator is informational only)
+  - checklist rich text: Enter on a checkbox advances focus like Down #2405
+  - checklist/help markdown: vhf:…#standby / vhf:…#active links set COM standby or
+    active (optional station name in [text](url); label shows name and MHz);
+    confirmation after tap; documented in doc/checklist.rst; example on the
+    default getting-started checklist
+  - checklist, credits, Quick Guide, configuration: horizontal swipe to flip
+    pager pages (same behaviour as arrow keys); wiring lives in
+    ArrowPagerWidget::Prepare; red trail while drawing the swipe; fix crash when
+    swiping (pager change deferred until after mouse-up) #2122 #2414
+  - Quick Guide "What's New": release notes are Markdown generated at build time
+    from NEWS.txt (headings + merged list lines) instead of truncating the
+    gzipped file at runtime
+  - Quick Guide, getting started: "Safety factors" and "Terrain display" lines
+    use live settings vs factory defaults (not hardcoded unchecked) #2324
+  - Quick Guide, help & configuration checklists: list checkboxes use dialog
+    look and min touch row height; keyboard focus frame on the checkbox; override
+    touch autodetection with -touchscreen or -notouchscreen (non-Android) #2325
+  - waypoint search: stays open until Esc or a successful GoTo / task / home / pan
+    action (pan ends the search so the map is not hidden under the list); same for
+    WaypointDetails select and WaypointDetailsPersistent (was: only after closing
+    details) #749
+  - waypoint list & alternates: waypoint details open above the list; Close without
+    a committed action returns to the list, not the map #620
+  - Added QNH InfoBox displaying current QNH pressure setting in hectopascals #2521
+  - Linux: Config → Setup → Network for WiFi (NetworkManager or ConnMan
+    via D-Bus)
+* android
+  - use physical display metrics for startup DPI (getRealMetrics) #1784
+  - UI sounds via preloaded SoundPool (MediaPlayer fallback for early play or
+    external .wav); AudioAttributes before prepare; transient audio focus with
+    flush between SoundPool plays; volume scaled from media/notification streams;
+    log warnings/errors only on failure #2411
+  - native debug symbols for Google Play (symbols.zip), lib/<ABI>/ layout for
+    single-ABI and multi-ABI (AAB) builds; Makefile fix so parallel builds
+    reliably produce the symbol ZIP in CI
+  - configure built-in GPS & sensors in the last device slot by default (same on
+    iOS)
+* calculations
+  - BrokenDateTime: unified UTC conversion (rename FromUnixTimeUTC to
+    FromUnixTime); Windows TimeGm uses _mkgmtime
+  - restore FFVV NetCoupe contest optimisation #2330
+  - angle bearing/delta normalization uses O(1) wrap (avoids stalls when angles
+    are extremely large; suspected Android freeze #1292)
+* weather
+  - METAR/TAF station list: accept lowercase ICAO codes when adding a station;
+    codes are normalized to upper-case for download and profile storage
+  - add EDL weather support with per-page map overlays (None/RASP/EDL),
+    bottom-panel weather controls with auto-advance, day precaching,
+    and simplified RASP configuration (field/time on pages instead of the
+    weather dialog)
+  - pc_met www images: add RADAR Deutschland Nord/Mitte/Süd, Alpen, SAT RAD
+    BLITZ, and Blitzkarte Europa; local radar list uses Borkum instead of
+    the removed Emden site
+* NOTAM integration #2018
+  - add support for downloading, caching and displaying NOTAM airspaces
+  - add manual refresh and auto-refresh with location/time based updates
+  - add NOTAM settings and filters (IFR, effective time, max radius, hidden Q-codes)
+  - add NOTAM details integration in airspace dialogs
+* data files
+  - windows: open files with O_BINARY so embedded ZIP (e.g. CUPX POINTS.CUP)
+    is read correctly
+  - openair: map AY ASRA to aerial sporting/recreational airspace type #1827
+* devices
+  - fix native crash on device reconnect (stale delayed reopen timer) #2382
+  - Polar sync device setting is offered only for drivers that register polar
+    support (currently LXNAV); PutPolar is skipped on other drivers even if an old
+    profile had Polar sync enabled #2457
+* iOS
+  - fix audio vario playback through the device speaker
+  - disable Core Location distance filter for built-in GPS so fixes are not
+    suppressed while stationary #2380
+* kobo
+  - memory canvas: fix painting when list rows or edit fields are partially
+    off-screen while scrolling (no black squares; safer clipping of subcanvas
+    and list blits) #2293
+
+Version 7.44 - 2026-03-22
+* WaypointDetails
+  - Add pan capability to the waypoint details image #1127
+  - Show waypoint type and runway width
+* calculations
+  - update sprint/league time window to 2 hours (as per OLC and DMSt rules)
+  - update OLC League calculation to latest ruleset
+  - improved circling wind algorithm: uses cosine curve fitting with True
+    Airspeed compensation for more accurate wind estimates, angular rate
+    quality assessment for better circle validation, and GPS latency
+    compensation
+  - fix WeGlide scoring formulas #1981
+  - implement full DMSt scoring rules: triangle (+40% bonus), out-and-return
+    (+30% bonus), composite solver, correct scoring formula, and minimum
+    point thresholds per official Wettbewerbsordnung #1980
+  - fix speed-to-fly (Vopt) InfoBox showing 0 before GPS fix
+  - ballast is now stored in litres for accurate device synchronization
+  - fix ballast dump rate calculation when dump time is configured
+  - fix circling wind with sub-second GPS fixes
+* tracking
+  - xcsoar-cloud-service: rebuild service, new domain cloud.xcsoar.org
+* data files
+  - fix problem (introduced in v7.42) of first waypoint in user.cup waypoint
+    file being ignored or being overwritten by any Waypoint Editor dialog
+    function.
+  - add CUPX read support for waypoint detail data and embedded files
+  - read PG landing waypoint type correctly in cup files #1539
+  - fix line zone gate width from CUP file R1 parameter #2029
+  - CUP files: correctly parse radius values with units (m, nm, ml) and
+    decimal values for observation zones #2031
+  - openair: support for openair 2.0 format
+  - openair: parse transponder codes for airspaces
+  - openair: parse station names for airspaces
+  - add support for downloadable checklists from repository
+  - update CUP writer to Naviter 2022 specification with all 14 columns,
+    preventing data loss for details and embedded files on save
+  - fix text field truncation in waypoint editor (32-character limit
+    removed) #1541
+  - fix waypoint editor silently discarding altitude and type changes
+  - checklists: use .xcc extension, fix crash with empty profile path #2094
+  - checklists: add Markdown support (bold, links, checkboxes)
+  - fix home waypoint lost on restart due to async terrain loading #2169
+  - fix profile migration ordering of old waypoint/airspace keys
+  - add ability to configure user-defined repositories
+* ui
+  - enable goto and waypoint details for location map items (clicking on empty map locations)
+  - streamlined, and optimized icons
+  - apply dark mode settings to thermal assistant
+  - apply dark mode to large flarm radar
+  - add options to avoid infoboxes to flarm radar widget
+  - changed location of setting for flarm radar position
+  - Flarm gauge: when traffic is farther than 4 km away, it disappears
+  - add new gesture ULDR to access quick menu
+  - add quick menu page buttons in case of touch screen
+  - add quit button to quick menu
+  - infoboxen: new setting, allow scaling of title/comment font #1577
+  - Radar / Thermalassistant Gauges: Placement to avoid InfoBoxen and Overlap
+  - Thermal assistant: New positions on top of map to avoid hiding airspace warnings
+  - Add new InfoBox 'Home altitude difference' (Home AltD)
+  - Add new InfoBox 'Alternate 1 altitude difference' (Altn 1 AltD)
+  - Add new InfoBox 'Alternate 2 altitude difference' (Altn 2 AltD)
+  - Show transponder mode (if available) in transponder code InfoBox
+  - add helpers on infoboxes for Argentinean contests 95% distance rule
+  - Popup messages now appear at the top of the map
+  - add status messages for user actions and state changes (alternates, task abort, task armed, final glide mode, terrain/topography visibility, airspace visibility)
+  - improve task resume: report failure reasons and allow resuming goto when no ordered task exists
+  - FlarmTrafficWindow: align colors of FlarmTraffic with map for consistency #1643
+  - BigTrafficWidget: Save/Restore FLARM radar zoom on page change
+  - BigTrafficWidget: zoom range to 5km when opening big radar via the FlarmGauge
+  - terrain: added 2 new terrain ramps for use in very flat countries
+  - terrain: fix terrain shading at highest zoom level and improve DPI scaling #440
+  - add head wind component to V GND Infobox #1439
+  - add V task leg Infobox #1767
+  - PEV start wait/window times now have second accuraccy #1099
+  - PEV start procedure now allows computing a start outside of the window
+  - show station names in airspace details dialog
+  - show squawk code in airspace details dialog
+  - ability to send squawk code from airspace details dialog to transponder
+  - prioritize airfields over outlanding sites for reachable alternates
+  - add support for a dedicated north-up map page layout
+  - the thermal assistant InfoBox is now clickable
+  - nearest airspace InfoBoxes (horizontal and vertical) are now clickable
+    to open airspace details dialog #406
+  - Add support for multiple airspace files in UI
+  - Add support for multiple waypoint files in UI
+  - Add support for multiple  airfields or details waypoint in UI
+  - File list dialogs use multi-select widget for selection
+  - QuickMenu: revamped look
+  - QuickMenu: sane cursor control
+  - add Quick Guide with safety disclaimer, onboarding, and gesture
+    reference with version-aware What's New page
+  - add dark mode support for dialogs, buttons, checkboxes, charts,
+    popup messages, and branded gradient backgrounds
+  - add Markdown rendering for dialogs with bold, headings, links,
+    checkboxes, and embedded resource images
+  - add internal link system (xcsoar:// URLs) for navigating to config
+    panels and dialogs from text
+  - credits dialog now uses scrollable rich text with clickable links
+  - terrain display config panel: show topography in preview, render at
+    full resolution, add spacer between settings and preview
+  - add scroll bar arrow buttons and keyboard/mouse wheel scrolling
+  - add kinetic drag scrolling to vertical scroll panels
+  - flight status Share button now works on all platforms using geo: URI #1896
+  - request RGBA8888 color depth and enable dithering for smoother
+    gradients on OpenGL
+  - improve touch screen tap-vs-drag detection
+  - implement interaction rules and selection management for InfoBoxes
+  - draw separator between top widget and map
+  - keep popups centered on visible map
+  - improve margin handling for different screen orientations
+  - fix OpenGL panels not clearing background
+  - fix layout overlap and improve navigation in analysis dialog
+  - fix map tap not dismissing menu when there is no GPS fix #2142
+  - fix selected InfoBox title color in dark mode
+  - show help text directly at the bottom of picker dialogs instead of
+    behind a Help button #2143
+  - fix map scale indicator shifting up when any menu is active
+  - add inline help descriptions for settings that were missing them
+  - InfoBoxes with a single action now open their dialog directly on
+    tap instead of showing a redundant menu #1442
+  - fix Escape key not closing the waypoint details dialog
+  - fix UTF-8 text wrapping crash with non-ASCII characters #2184 #2185
+  - display "---" instead of "???" for invalid map item values
+  - fix profile not saved after team code, plane, or NOAA changes #2171
+  - gettext/po: translate updated entries in 32 language catalogs
+
+* Android
+  - add Google Play compliant permission disclosure pages for location,
+    background location, and notification permissions in onboarding
+  - fix crash on startup when loading icons on ldpi screens
+  - update 'white list' of USB devices with one more VID/PID pair for SoftRF Academy
+  - make xcsoar accessible from lock screen
+  - battery: use scale for charge percent calculation
+  - battery: prevent shutdown on devices without battery
+  - add Android 15 edge-to-edge opt-out and theme support
+  - enable fullscreen mode with display cutout (notch) support #1409
+  - fix Android HiDPI native size handling
+  - add edge-swipe detection to prevent system gestures from interfering
+    with app interactions #2023
+  - add SDK 35 compatibility: 16KB page alignment, modern fullscreen API,
+    edge-to-edge display #2145 #2146 #2147
+  - add rotation suggestion button for landscape/portrait switching
+  - fix black screen on device rotation
+  - fix projection matrix for software-rotated displays
+  - volume buttons now control system volume instead of map zoom
+  - fix foreground service not terminating on app exit
+* Windows
+  - Popupmessages are now shown with full text again
+* macOS
+  - add .app bundle, .dmg and .pkg support with bundled ANGLE
+  - make App Store ready with signing
+  - add third-party notice for ANGLE
+* iOS
+  - Improve audio support: prevent ducking and enable sound playback even when the phone is muted
+  - implement access to iPhone barometric altitude sensor
+  - add background location management to prevent crashes
+  - disable dragging of windows on iPhones
+* Linux
+  - fix Wayland window resizing and immediate redraw #1865
+  - handle Wayland configure events and improve resize responsiveness
+  - fix Wayland resource cleanup and implement missing features
+  - fix inverted mouse wheel scrolling on Wayland and libinput
+  - fix Wayland shutdown hang when window is not visible
+  - set cursor to pointer when entering Wayland surface
+  - fix only first audio chime playing on ALSA (PulseAudio) #2113
+  - fix segfault when resizing window with software rendering
+* devices
+  - Add driver for Condor 3 #1612
+  - Add driver for LöFGREN variometer #2080
+  - Add driver for LX Navigation Eos / Era variometers #389
+  - Add driver for Stratux
+  - Stratux: extract callsign from PFLAA record traffic-id field #2013
+  - Stratux: add AHRS support using LevilAHRS components
+  - Flarm: parse flarm error messages (PFLAE) and display them
+  - Flarm: add support for PowerFlarm configuration
+  - Flarm: add messaging database (PFLAM) to store and display pilot, aircraft
+    type, registration, callsign, and frequency information #1725
+  - Flarm: improve traffic details display with data source information and
+    pre-filled callsign dialog
+  - PowerFlarm: make range / vrange configurable for adbs and pcas
+  - PowerFlarm: support additional higher baud rates
+  - LXNAV: implement dataport protocol 1.05 for V7 and S-series varios
+  - LXNAV: bidirectional polar synchronization between XCSoar and vario,
+    configurable as Send, Receive or Off per device
+  - LXNAV: send navigation target (active waypoint) to vario display
+  - LXNAV: send task declarations (observation zones and task points) to vario
+  - LXNAV: receive radio frequencies and transponder code/mode from vario
+  - LXNAV: receive glider registration, type and competition ID from vario
+    and auto-match or create plane profile
+  - LXNAV: receive flap position, IGC pressure altitude and vario priority
+  - LXNAV: send QNH, elevation, volume, MC, ballast and bugs to vario
+  - LXNAV: clamp MC, ballast and bugs values to S80 firmware limits
+  - LXNAV: fix task declaration to FLARM via vario pass-through
+  - LXNAV: fix EnableLoggerNMEA for S-series varios (stay in NMEA mode)
+  - LXNAV: parse acceleration/g-load from PLXVF sentence
+  - LXNAV: Overload formula, use reference mass instead of dry mass
+  - LXNAV: send AAT/MAT minimum task time (TaskTime) in declarations
+  - LXNAV: fix flight list on devices without RTC (e.g. S-series) #1837
+  - LXNAV: fix error dialog showing "Vega" instead of "LXNAV Vario"
+  - support serial baud rates above 230400 on Linux (e.g. 256000, 500000)
+  - fix NMEA sub-second time precision for >1 Hz GPS devices #2207
+  - fix MWV wind sentence: reject invalid status and relative wind #2209
+  - fix stall ratio not propagating after device merging #2210
+  - fix temperature and humidity sensor data expiry (convert to Validity)
+  - show IMU and airspeed flags on device list dialog
+  - OpenVario: Overload formula, use reference mass instead of dry mass
+  - Vaulter: use fraction instead of overload for ballast
+  - Devices: Switch to manual MC when set via external Device
+  - AirControlDisplay: Read-out transponder mode
+  - Larus: Protocol 0.1.4 add OAT,GLoad,Circling/Cruise
+  - SerialPorts: add 230400 baud support
+  - Add port 4000 to tcp-client
+  - OpenVario: extend protocol to support gyroscope and acceleration
+    sensors from onboard IMU #2119
+* Polar:
+  - LS8-15m: default polar, set to values according to flight manual
+  - Imported 32 polars from Ideaflieg, Lk8000 and condorutil
+  - Arcus: update polar with 2025 idaflieg measurements #2168
+* Weglide:
+  - add button under config menu to tigger IGC upload
+  - fix scoring formulas
+  - add daily competition tasks panel
+  - add recent task scores view
+  - fix dangling URL pointer in task list download
+* Task:
+  - Reachable abort task landable waypoints are now sorted by arrival altitude
+    instead of arrival time.
+  - fix button state and cursor validation in alternates list dialog
+  - fix radius and angle parsing for CUP files
+* development
+  - iOS: implement keyboard detection and HasCursorKeys()
+  - iOS: add iOS TestFlight automation for CI/CD
+  - iOS: add IOS_PATCH_VERSION support
+  - iOS: load device install configuration from .env file
+  - Linux: add xkbcommon library support for Wayland
+  - Lua scripting: add is_active property to replay bindings
+  - documentation: add Git tips and tricks guide
+  - documentation: add test and debug utilities documentation
+  - documentation: add graphics backends table
+  - documentation: add explicit Sphinx configuration for ReadTheDocs
+  - build system: enable building target in alternative directory
+  - build system: fix AAPT2 XML parsing error for dirstamp files
+  - build system: keep NaN/Inf checks with clang fast-math
+  - build system: fix install names for rpath (ANGLE)
+  - build system: move HAVE_HTTP to targets.mk as platform capability flag
+* input/configuration
+  - add WeGlide configured checkbox to input configuration
+  - shorten Config menu item descriptions for better portrait mode display
+* bug fixes
+  - fix memory leak when reloading FLARM traffic databases
+
+Version 7.43 - 2024-08-12
+* calculations
+  - CRITICAL: reachable map labels show correct altitude with head wind #1424
+  - CRITICAL: fix reachability calculation with older compilers (OpenVario,..)
+* airspace
+  - add classes according the OpenAir extended format AY tag
+  - coloring is done according to the AC tag, or if present and allowed, according to the AY tag
+* data files
+  - new topology available from mapgen (including airport runways and rivers)
+  - fix loss of "home" waypoint designation in certain situations for a
+    non-airport home waypoint
+  - reworked sgs-233 polar
+* documentation
+  - clarify task speed calculation section
+  - lua reference updated
+* ui
+  - Airspace filter list can filter by type
+  - TC 30s Infobox shows now climb rate since start of thermal
+  - TL Gain Infobox shows now the overall climb rate of last thermal
+  - add new Infobox V Task Est (Speed task estimated)
+  - Status-Task panel: "Estimated task time", "Remaining time", and "Speed
+    estimated" now blank if MC>0 & can't finish task
+  - Status-Task panel: "Remaining time", "Remaining distance", "Speed
+    estimated", and "Speed remaining" now blank after task is finished
+  - add missing airspace to Select Airspace filter
+  - NumberEntry dialog value can now be accepted by enter
+  - Vario center gross label
+  - Vario use AutoFonts for lables and values
+  - Replace eventOrientation by two new events: eventOrientationCruise and eventOrientationCircling
+  - New artificial horizon
+  - Flarm gauge fix radar size
+  - infobox management page rename buttons for copying sets
+  - consistent naming of ok/close buttons and placement
+  - add PanTo button to waypoints dialog if opened from task related infoboxen
+  - always show black plane icon in thermal assistant
+* Lua scripting
+  - allow HTTPs client connections by setting project-wide Curl options
+  - fix next_eta and final_eta variables
+* Devices
+  - add Larus driver
+* Android
+  - CRITICAL: use user accessible android/media/org.xcsoar as data directory
+  - EGL graphics driver initialzation improvment for old android versions
+  - add SoftRF Eco, Ink and Card into 'white list' of USB devices
+  - fix rotation on wake from background
+* Kobo
+  - fix Wifi configuration
+  - fix oversized icons
+* Windows
+  - use cleartype font rendering
+  - highres application icon
+  - black text color in airspace list like all other systems
+
+Version 7.43-rc1 - not yet released
+* Windows
+  - use cleartype font rendering
+  - rework application icon
+* calculations
+  - fix reachability calculation with older compilers (OpenVario,..)
+* ui
+  - Airspace filter list can filter by type
+* data files
+  - reworked sgs-233 polar
+  - new topology available from mapgen (incl rivers)
+* documentation
+  - clarify task speed calculation section
+* Android
+  - add SoftRF Eco, Ink and Card into 'white list' of USB devices
+
+Version 7.43-rc0 - 2024-06-02
+* map
+  - reachable map labels show correct altitude with head wind #1424
+* ui
+  - TC 30s Infobox shows now climb rate since start of thermal
+  - TL Gain Infobox shows now the overall climb rate of last thermal
+  - add new Infobox V Task Est (Speed task estimated)
+  - Status-Task panel: "Estimated task time", "Remaining time", and "Speed
+    estimated" now blank if MC>0 & can't finish task
+  - Status-Task panel: "Remaining time", "Remaining distance", "Speed
+    estimated", and "Speed remaining" now blank after task is finished
+  - add missing airspace to Select Airspace filter
+  - NumberEntry dialog value can now be accepted by enter
+  - Vario center gross label
+  - Vario use AutoFonts for lables and values
+  - Replace eventOrientation by two new events: eventOrientationCruise and eventOrientationCircling
+  - New artificial horizon
+  - Flarm gauge fix radar size
+  - infobox management page rename buttons for copying sets
+  - consistent naming of ok/close buttons and placement
+  - add PanTo button to waypoints dialog if opened from task related infoboxen
+* data files
+  - fix loss of "home" waypoint designation in certain situations for a
+    non-airport home waypoint
+* devices
+  - add Larus driver
+  - added driver for LX Navigation Eos57 variometer
+* windows
+ - black text color in airspace list like all other systems
+* Kobo
+  - fix Wifi configuration
+  - fix oversized icons
+* airspace
+  - add classes according the OpenAir extended format AY tag
+  - coloring is done according to the AC tag, or if present and allowed, according to the AY tag
+* Lua scripting
+  - allow HTTPs client connections by setting project-wide Curl options
+* Android
+  - EGL graphics driver initialzation improvment for old android versions
+
+Version 7.42 - 2024/03/01
 * ui
   - new terrain ramp High Contrast
   - fix unreadable icons in task manager and status dialog
+  - render icons at 300 dpi
 * data files
   - fix bogus "Latin-1 to UTF-8 conversion failed" error
   - parse elevations in feet correctly in cup files
@@ -351,7 +918,6 @@ Version 7.21 - 2021/12/11
   - Control backlight brightness of the Kobo Glo HD
 * Android
   - re-enable background location and comply with Google Play Store policy
-
 Version 7.20 - 2021/10/22
 * map
   - fix crash in the topography loader

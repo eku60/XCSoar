@@ -10,11 +10,9 @@
 #include "Formatter/UserUnits.hpp"
 #include "Language/Language.hpp"
 
-#include <tchar.h>
-
 static void
 UpdateInfoBoxFrequency(InfoBoxData &data, const RadioFrequency freq,
-                       const TCHAR *freq_name) noexcept
+                       const char *freq_name) noexcept
 {
   if(freq.IsDefined()) {
     freq.Format(data.value.data(), data.value.capacity());
@@ -31,13 +29,38 @@ UpdateInfoBoxFrequency(InfoBoxData &data, const RadioFrequency freq,
 }
 
 static void
-UpdateInfoBoxTransponderCode(InfoBoxData &data, TransponderCode code) noexcept
+UpdateInfoBoxTransponderCode(InfoBoxData &data, 
+                             TransponderCode code,
+                             TransponderMode mode) noexcept
 {
   if(code.IsDefined()) {
     code.Format(data.value.data(), data.value.capacity());
+
+    if (data.value.equals("7500") ||
+        data.value.equals("7600") ||
+        data.value.equals("7700")) {
+      data.SetValueColor(1);
+    } else {
+      data.SetValueColor(0);
+    }
   }
   else {
     data.SetValueInvalid();
+  }
+
+  if(mode.IsDefined()) {
+    data.SetComment(mode.GetModeString());
+
+    if (mode.mode == TransponderMode::IDENT) {
+      data.SetCommentColor(5);
+    } else if (mode.mode == TransponderMode::ALT) {
+      data.SetCommentColor(3);
+    } else {
+      data.SetCommentColor(0);
+    }
+  }
+  else {
+    data.SetCommentInvalid();
   }
 }
 
@@ -48,10 +71,6 @@ static constexpr InfoBoxPanel active_frequency_panels[] = {
 
 static constexpr InfoBoxPanel standby_frequency_panels[] = {
   { N_("Edit"), LoadStandbyRadioFrequencyEditPanel },
-  { nullptr, nullptr }
-};
-
-static constexpr InfoBoxPanel transponder_code_panels[] = {
   { nullptr, nullptr }
 };
 
@@ -90,11 +109,7 @@ InfoBoxContentTransponderCode::Update(InfoBoxData &data) noexcept
 {
   const auto &settings_transponder =
     CommonInterface::GetComputerSettings().transponder;
-  UpdateInfoBoxTransponderCode(data, settings_transponder.transponder_code);
-}
-
-const InfoBoxPanel *
-InfoBoxContentTransponderCode::GetDialogContent() noexcept
-{
-  return transponder_code_panels;
+  UpdateInfoBoxTransponderCode(data, 
+                               settings_transponder.transponder_code,
+                               settings_transponder.transponder_mode);
 }

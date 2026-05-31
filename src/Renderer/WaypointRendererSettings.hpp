@@ -55,8 +55,14 @@ struct WaypointRendererSettings {
 
   int landable_rendering_scale;
 
+  /**
+   * Map waypoint symbol size in percent of intrinsic icon / vector scale
+   * (50–200; Configuration → Map display → Waypoints).
+   */
+  int map_waypoint_icon_scale;
+
   void SetDefaults() noexcept {
-    display_text_type = DisplayTextType::FIRST_FIVE;
+    display_text_type = DisplayTextType::SHORT_NAME;
     arrival_height_display = ArrivalHeightDisplay::GLIDE;
     label_selection = LabelSelection::ALL;
     landable_render_mode = LabelShape::ROUNDED_BLACK;
@@ -65,6 +71,7 @@ struct WaypointRendererSettings {
     vector_landable_rendering = true;
     scale_runway_length = false;
     landable_rendering_scale = 100;
+    map_waypoint_icon_scale = 100;
   }
 
   void LoadFromProfile() noexcept;

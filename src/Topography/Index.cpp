@@ -7,60 +7,54 @@
 #include "Resources.hpp"
 
 #include <stdlib.h>
-#include <tchar.h>
-
 typedef struct {
   const char *name;
-  ResourceId resource_id, big_resource_id;
+  ResourceId resource_id, big_resource_id, ultra_resource_id;
 } LOOKUP_ICON;
 
 static constexpr LOOKUP_ICON icon_list[] = {
-  { "landable", IDB_LANDABLE, IDB_LANDABLE_HD },
-  { "reachable", IDB_REACHABLE, IDB_REACHABLE_HD },
-  { "turnpoint", IDB_TURNPOINT, IDB_TURNPOINT_HD },
-  { "small", IDB_SMALL, IDB_SMALL_HD },
-  { "cruise", IDB_CRUISE, IDB_CRUISE_HD },
-  { "town", IDB_TOWN, IDB_TOWN_HD },
-  { "mark", IDB_MARK, IDB_MARK_HD },
-  { "terrainwarning", IDB_TERRAINWARNING, IDB_TERRAINWARNING_HD },
-  { "airport_reachable", IDB_AIRPORT_REACHABLE, IDB_AIRPORT_REACHABLE_HD },
-  { "airport_unreachable",
-    IDB_AIRPORT_UNREACHABLE, IDB_AIRPORT_UNREACHABLE_HD },
-  { "outfield_reachable", IDB_OUTFIELD_REACHABLE, IDB_OUTFIELD_REACHABLE_HD },
-  { "outfield_reachable",
-    IDB_OUTFIELD_UNREACHABLE, IDB_OUTFIELD_UNREACHABLE_HD },
-  { "target", IDB_TARGET, IDB_TARGET_HD },
-  { "teammate_pos", IDB_TEAMMATE_POS, IDB_TEAMMATE_POS_HD },
-  { "airport_unreachable2",
-    IDB_AIRPORT_UNREACHABLE2, IDB_AIRPORT_UNREACHABLE2_HD },
-  { "outfield_unreachable2",
-    IDB_OUTFIELD_UNREACHABLE2, IDB_OUTFIELD_UNREACHABLE2_HD },
-  { "airspacei", IDB_AIRSPACEI, IDB_AIRSPACEI_HD },
-  { "mountain_top", IDB_MOUNTAIN_TOP, IDB_MOUNTAIN_TOP_HD },
-  { "bridge", IDB_BRIDGE, IDB_BRIDGE_HD },
-  { "tunnel", IDB_TUNNEL, IDB_TUNNEL_HD },
-  { "tower", IDB_TOWER, IDB_TOWER_HD },
-  { "power_plant", IDB_POWER_PLANT, IDB_POWER_PLANT_HD },
-  { "airport_marginal", IDB_AIRPORT_MARGINAL, IDB_AIRPORT_MARGINAL_HD },
-  { "outfield_marginal", IDB_OUTFIELD_MARGINAL, IDB_OUTFIELD_MARGINAL_HD },
-  { "airport_marginal2", IDB_AIRPORT_MARGINAL2, IDB_AIRPORT_MARGINAL2_HD },
-  { "outfield_marginal2", IDB_OUTFIELD_MARGINAL2, IDB_OUTFIELD_MARGINAL2_HD },
-  { "marginal", IDB_MARGINAL, IDB_MARGINAL_HD },
-  { "traffic_safe", IDB_TRAFFIC_SAFE, IDB_TRAFFIC_SAFE_HD },
-  { "traffic_warning", IDB_TRAFFIC_WARNING, IDB_TRAFFIC_WARNING_HD },
-  { "traffic_alarm", IDB_TRAFFIC_ALARM, IDB_TRAFFIC_ALARM_HD },
-  { "taskturnpoint", IDB_TASKTURNPOINT, IDB_TASKTURNPOINT_HD },
-  { "obstacle", IDB_OBSTACLE, IDB_OBSTACLE_HD },
-  { "mountain_pass", IDB_MOUNTAIN_PASS, IDB_MOUNTAIN_PASS_HD },
-  { "weather_station", IDB_WEATHER_STATION, IDB_WEATHER_STATION_HD },
-  { "thermal_hotspot", IDB_THERMAL_HOTSPOT, IDB_THERMAL_HOTSPOT_HD },
-  { "vor", IDB_VOR, IDB_VOR_HD },
-  { "ndb", IDB_NDB, IDB_NDB_HD },
-  { "castle", IDB_CASTLE, IDB_CASTLE_HD },
-  { "intersection", IDB_INTERSECTION, IDB_INTERSECTION_HD },
-  { "reporting_point", IDB_REPORTING_POINT, IDB_REPORTING_POINT_HD },
-  { "pgtakeoff", IDB_PGTAKEOFF, IDB_PGTAKEOFF_HD },
-  { "pglanding", IDB_PGLANDING, IDB_PGLANDING_HD },
+  { "landable", IDB_LANDABLE_ALL },
+  { "reachable", IDB_REACHABLE_ALL },
+  { "turnpoint", IDB_TURNPOINT_ALL },
+  { "small", IDB_SMALL_ALL },
+  { "cruise", IDB_CRUISE_ALL },
+  { "town", IDB_TOWN_ALL },
+  { "mark", IDB_MARK_ALL },
+  { "terrainwarning", IDB_TERRAINWARNING_ALL },
+  { "airport_reachable", IDB_AIRPORT_REACHABLE_ALL },
+  { "airport_unreachable", IDB_AIRPORT_UNREACHABLE_ALL },
+  { "outfield_reachable", IDB_OUTFIELD_REACHABLE_ALL },
+  { "outfield_reachable", IDB_OUTFIELD_UNREACHABLE_ALL },
+  { "target", IDB_TARGET_ALL },
+  { "teammate_pos", IDB_TEAMMATE_POS_ALL },
+  { "airport_unreachable2", IDB_AIRPORT_UNREACHABLE2_ALL },
+  { "outfield_unreachable2", IDB_OUTFIELD_UNREACHABLE2_ALL },
+  { "airspacei", IDB_AIRSPACEI_ALL },
+  { "mountain_top", IDB_MOUNTAIN_TOP_ALL },
+  { "bridge", IDB_BRIDGE_ALL },
+  { "tunnel", IDB_TUNNEL_ALL },
+  { "tower", IDB_TOWER_ALL },
+  { "power_plant", IDB_POWER_PLANT_ALL },
+  { "airport_marginal", IDB_AIRPORT_MARGINAL_ALL },
+  { "outfield_marginal", IDB_OUTFIELD_MARGINAL_ALL },
+  { "airport_marginal2", IDB_AIRPORT_MARGINAL2_ALL },
+  { "outfield_marginal2", IDB_OUTFIELD_MARGINAL2_ALL },
+  { "marginal", IDB_MARGINAL_ALL },
+  { "traffic_safe", IDB_TRAFFIC_SAFE_ALL },
+  { "traffic_warning", IDB_TRAFFIC_WARNING_ALL },
+  { "traffic_alarm", IDB_TRAFFIC_ALARM_ALL },
+  { "taskturnpoint", IDB_TASKTURNPOINT_ALL },
+  { "obstacle", IDB_OBSTACLE_ALL },
+  { "mountain_pass", IDB_MOUNTAIN_PASS_ALL },
+  { "weather_station", IDB_WEATHER_STATION_ALL },
+  { "thermal_hotspot", IDB_THERMAL_HOTSPOT_ALL },
+  { "vor", IDB_VOR_ALL },
+  { "ndb", IDB_NDB_ALL },
+  { "castle", IDB_CASTLE_ALL },
+  { "intersection", IDB_INTERSECTION_ALL },
+  { "reporting_point", IDB_REPORTING_POINT_ALL },
+  { "pgtakeoff", IDB_PGTAKEOFF_ALL },
+  { "pglanding", IDB_PGLANDING_ALL },
   { nullptr, ResourceId::Null(), ResourceId::Null() }
 };
 
@@ -86,7 +80,7 @@ ParseTopographyIndexLine(const char *line) noexcept
     // Parse shape range
     char *endptr;
     entry.shape_range = strtod(p + 1, &endptr) * 1000;
-    if (*endptr != _T(','))
+    if (*endptr != ',')
       return std::nullopt;
 
     p = endptr + 1;
@@ -107,6 +101,7 @@ ParseTopographyIndexLine(const char *line) noexcept
         if (icon_name == ip->name) {
           entry.icon = ip->resource_id;
           entry.big_icon = ip->big_resource_id;
+          entry.ultra_icon = ip->ultra_resource_id;
           break;
         }
         ip++;
@@ -115,21 +110,21 @@ ParseTopographyIndexLine(const char *line) noexcept
 
     // Parse shape field for text display
     entry.shape_field = strtol(p + 1, &endptr, 10) - 1;
-    if (*endptr != _T(','))
+    if (*endptr != ',')
       return std::nullopt;
 
     p = endptr + 1;
 
     // Parse red component of line / shading colour
     uint8_t red = (uint8_t)strtol(p, &endptr, 10);
-    if (*endptr != _T(','))
+    if (*endptr != ',')
       return std::nullopt;
 
     p = endptr + 1;
 
     // Parse green component of line / shading colour
     uint8_t green = (uint8_t)strtol(p, &endptr, 10);
-    if (*endptr != _T(','))
+    if (*endptr != ',')
       return std::nullopt;
 
     p = endptr + 1;
@@ -141,7 +136,7 @@ ParseTopographyIndexLine(const char *line) noexcept
 
     // Parse pen width of lines
     entry.pen_width = 1;
-    if (*p == _T(',')) {
+    if (*p == ',') {
       entry.pen_width = strtoul(p + 1, &endptr, 10);
       if (entry.pen_width < 1)
         entry.pen_width = 1;
@@ -153,14 +148,14 @@ ParseTopographyIndexLine(const char *line) noexcept
 
     // Parse range for displaying labels
     entry.label_range = entry.shape_range;
-    if (*p == _T(',')) {
+    if (*p == ',') {
       entry.label_range = strtod(p + 1, &endptr) * 1000;
       p = endptr;
     }
 
     // Parse range for displaying labels with "important" rendering style
     entry.important_label_range = 0;
-    if (*p == _T(',')) {
+    if (*p == ',') {
       entry.important_label_range = strtod(p + 1, &endptr) * 1000;
       p = endptr;
     }
@@ -168,7 +163,7 @@ ParseTopographyIndexLine(const char *line) noexcept
     // Handle alpha component
     // If not present at all (i.e. v6.6 or earlier file), default to 100% opaque
     uint8_t alpha = 255;
-    if (*p == _T(',')) {
+    if (*p == ',') {
       // An alpha component of shading colour is present (v6.7 or later file).
       alpha = (uint8_t)strtol(p + 1, &endptr, 10);
       // Ignore a totally transparent file!

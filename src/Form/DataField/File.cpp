@@ -3,13 +3,15 @@
 
 #include "File.hpp"
 #include "ComboList.hpp"
+#include "Language/Language.hpp"
 #include "LocalPath.hpp"
 #include "util/StringAPI.hxx"
+#include "util/StringCompare.hxx"
+#include "util/StaticString.hxx"
 #include "system/FileUtil.hpp"
 
 #include <algorithm>
 
-#include <windef.h> /* for MAX_PATH */
 #include <cassert>
 #include <stdlib.h>
 
@@ -20,17 +22,18 @@
  */
 [[gnu::pure]]
 static bool
-IsInternalFile(const TCHAR *str) noexcept
+IsInternalFile(const char *str) noexcept
 {
-  static const TCHAR *const ifiles[] = {
-    _T("xcsoar-checklist.txt"),
-    _T("xcsoar-flarm.txt"),
-    _T("xcsoar-marks.txt"),
-    _T("xcsoar-persist.log"),
-    _T("xcsoar-startup.log"),
-    _T("xcsoar.log"),
-    _T("xcsoar-rasp.dat"),
-    _T("user.cup"),
+  static const char *const ifiles[] = {
+    "xcsoar-checklist.txt",
+    "xcsoar-checklist.xcc",
+    "xcsoar-flarm.txt",
+    "xcsoar-marks.txt",
+    "xcsoar-persist.log",
+    "xcsoar-startup.log",
+    "xcsoar.log",
+    "xcsoar-rasp.dat",
+    "user.cup",
     nullptr
   };
 
@@ -51,7 +54,11 @@ public:
     : datafield(_datafield) {}
 
   void Visit(Path path, Path filename) override {
-    if (!IsInternalFile(filename.c_str()))
+    bool skip = IsInternalFile(filename.c_str());
+    if (skip && datafield.GetFileType() == FileType::CHECKLIST &&
+        StringIsEqual(filename.c_str(), "xcsoar-checklist.txt"))
+      skip = false;
+    if (!skip)
       datafield.AddFile(path);
   }
 };
@@ -73,11 +80,11 @@ FileDataField::FileDataField(DataFieldListener *listener) noexcept
    postponed_value(nullptr) {}
 
 void
-FileDataField::ScanDirectoryTop(const TCHAR *filter) noexcept
+FileDataField::ScanDirectoryTop(const char *filter) noexcept
 {
   if (!loaded) {
     if (!postponed_patterns.full() &&
-        _tcslen(filter) < PatternList::value_type().capacity()) {
+        strlen(filter) < PatternList::value_type().capacity()) {
       postponed_patterns.append() = filter;
       return;
     } else
@@ -91,10 +98,10 @@ FileDataField::ScanDirectoryTop(const TCHAR *filter) noexcept
 }
 
 void
-FileDataField::ScanMultiplePatterns(const TCHAR *patterns) noexcept
+FileDataField::ScanMultiplePatterns(const char *patterns) noexcept
 {
   size_t length;
-  while ((length = _tcslen(patterns)) > 0) {
+  while ((length = strlen(patterns)) > 0) {
     ScanDirectoryTop(patterns);
     patterns += length + 1;
   }
@@ -119,8 +126,17 @@ FileDataField::SetValue(Path text) noexcept
   }
 
   auto i = Find(text);
-  if (i >= 0)
+  if (i >= 0) {
     current_index = i;
+  } else if (text != nullptr && !StringIsEmpty(text.c_str())) {
+    /* file configured in profile but not found on disk - add it to
+       the list so the user can see what's configured */
+    if (!files.full()) {
+      auto &item = files.append();
+      item.Set(text);
+      current_index = files.size() - 1;
+    }
+  }
 }
 
 void
@@ -177,7 +193,7 @@ FileDataField::GetValue() const noexcept
 
   if (current_index >= files.size())
     // TODO: return nullptr instead of empty string?
-    return Path(_T(""));
+    return Path("");
 
   const Path path = files[current_index].path;
   assert(path != nullptr);
@@ -205,11 +221,11 @@ FileDataField::AddNull() noexcept
   assert(!files.full());
 
   Item &item = files.append();
-  item.filename = Path(_T(""));
-  item.path = Path(_T(""));
+  item.filename = Path("");
+  item.path = Path("");
 }
 
-const TCHAR *
+const char *
 FileDataField::GetAsString() const noexcept
 {
   if (!loaded && postponed_value != nullptr)
@@ -218,10 +234,10 @@ FileDataField::GetAsString() const noexcept
   if (current_index < files.size())
     return files[current_index].path.c_str();
   else
-    return _T("");
+    return "";
 }
 
-const TCHAR *
+const char *
 FileDataField::GetAsDisplayString() const noexcept
 {
   if (!loaded && postponed_value != nullptr) {
@@ -236,7 +252,7 @@ FileDataField::GetAsDisplayString() const noexcept
   if (current_index < files.size())
     return files[current_index].filename.c_str();
   else
-    return _T("");
+    return "";
 }
 
 void
@@ -305,7 +321,7 @@ FileDataField::Sort() noexcept
 }
 
 ComboList
-FileDataField::CreateComboList([[maybe_unused]] const TCHAR *reference) const noexcept
+FileDataField::CreateComboList([[maybe_unused]] const char *reference) const noexcept
 {
   /* sorry for the const_cast .. this method keeps the promise of not
      modifying the object, given that one does not count filling the
@@ -314,11 +330,19 @@ FileDataField::CreateComboList([[maybe_unused]] const TCHAR *reference) const no
 
   ComboList combo_list;
 
-  TCHAR buffer[MAX_PATH];
+  StaticString<1024> buffer;
 
+  unsigned combo_index = 0;
   for (unsigned i = 0; i < files.size(); i++) {
     const Path path = files[i].filename;
     assert(path != nullptr);
+
+    const bool is_not_found = !StringIsEmpty(path.c_str()) &&
+                              !File::Exists(files[i].path);
+
+    /* hide not-found files that are no longer selected */
+    if (is_not_found && i != current_index)
+      continue;
 
     /* is a file with the same base name present in another data
        directory? */
@@ -331,27 +355,29 @@ FileDataField::CreateComboList([[maybe_unused]] const TCHAR *reference) const no
       }
     }
 
-    const TCHAR *display_string = path.c_str();
+    const char *display_string = path.c_str();
     if (found) {
       /* yes - append the absolute path to allow the user to see the
          difference */
-      _tcscpy(buffer, path.c_str());
-      _tcscat(buffer, _T(" ("));
-      _tcscat(buffer, files[i].path.c_str());
-      _tcscat(buffer, _T(")"));
+      buffer.Format("%s (%s)", path.c_str(), files[i].path.c_str());
+      display_string = buffer;
+    } else if (is_not_found) {
+      /* file configured in profile does not exist on disk */
+      buffer.Format("%s [%s]", path.c_str(), _("not found"));
       display_string = buffer;
     }
 
-    combo_list.Append(display_string);
+    if (i == current_index)
+      combo_list.current_index = combo_index;
+    combo_index++;
+    combo_list.Append(i, display_string);
   }
-
-  combo_list.current_index = current_index;
 
   return combo_list;
 }
 
 void
-FileDataField::SetFromCombo(int i, const TCHAR *) noexcept
+FileDataField::SetFromCombo(int i, const char *) noexcept
 {
   ModifyIndex(i);
 }
@@ -364,12 +390,12 @@ FileDataField::size() const noexcept
   return files.size();
 }
 
-Path
+const FileDataField::Item &
 FileDataField::GetItem(unsigned index) const noexcept
 {
   EnsureLoadedDeconst();
 
-  return files[index].path;
+  return files[index];
 }
 
 void

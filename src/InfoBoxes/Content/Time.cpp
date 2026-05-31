@@ -3,11 +3,10 @@
 
 #include "InfoBoxes/Content/Time.hpp"
 #include "InfoBoxes/Data.hpp"
+#include "Dialogs/Dialogs.h"
 #include "Interface.hpp"
 #include "Formatter/TimeFormatter.hpp"
 #include "Formatter/LocalTimeFormatter.hpp"
-
-#include <tchar.h>
 
 void
 UpdateInfoBoxTimeLocal(InfoBoxData &data) noexcept
@@ -24,7 +23,7 @@ UpdateInfoBoxTimeLocal(InfoBoxData &data) noexcept
   FormatLocalTimeHHMM(data.value.buffer(), basic.time, settings.utc_offset);
 
   // Set Comment
-  data.FmtComment(_T("{:02}"), basic.date_time_utc.second);
+  data.FmtComment("{:02}", basic.date_time_utc.second);
 }
 
 void
@@ -39,10 +38,10 @@ UpdateInfoBoxTimeUTC(InfoBoxData &data) noexcept
 
   // Set Value
   const BrokenDateTime t = basic.date_time_utc;
-  data.FmtValue(_T("{:02}:{:02}"), t.hour, t.minute);
+  data.FmtValue("{:02}:{:02}", t.hour, t.minute);
 
   // Set Comment
-  data.FmtComment(_T("{:02}"), t.second);
+  data.FmtComment("{:02}", t.second);
 }
 
 void
@@ -55,4 +54,43 @@ UpdateInfoBoxTimeFlight(InfoBoxData &data) noexcept
     return;
   }
   data.SetValueFromTimeTwoLines(flight.flight_time);
+}
+
+void
+InfoBoxContentTimeFlight::Update(InfoBoxData &data) noexcept
+{
+  UpdateInfoBoxTimeFlight(data);
+}
+
+bool
+InfoBoxContentTimeFlight::HandleClick() noexcept
+{
+  dlgStatusShowModal(4);
+  return true;
+}
+
+void
+InfoBoxContentTimeLocal::Update(InfoBoxData &data) noexcept
+{
+  UpdateInfoBoxTimeLocal(data);
+}
+
+bool
+InfoBoxContentTimeLocal::HandleClick() noexcept
+{
+  dlgStatusShowModal(4);
+  return true;
+}
+
+void
+InfoBoxContentTimeUTC::Update(InfoBoxData &data) noexcept
+{
+  UpdateInfoBoxTimeUTC(data);
+}
+
+bool
+InfoBoxContentTimeUTC::HandleClick() noexcept
+{
+  dlgStatusShowModal(4);
+  return true;
 }

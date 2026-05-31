@@ -5,6 +5,8 @@
 #include "Factory.hpp"
 #include "DataEditor.hpp"
 #include "Driver.hpp"
+#include "Engine/GlideSolvers/GlidePolar.hpp"
+#include "Geo/GeoPoint.hpp"
 #include "Parser.hpp"
 #include "Util/NMEAWriter.hpp"
 #include "Register.hpp"
@@ -16,7 +18,7 @@
 #include "NMEA/Info.hpp"
 #include "thread/Mutex.hxx"
 #include "util/StringAPI.hxx"
-#include "util/ConvertString.hpp"
+#include "util/StringCompare.hxx"
 #include "util/Exception.hxx"
 #include "Logger/NMEALogger.hpp"
 #include "Language/Language.hpp"
@@ -27,12 +29,12 @@
 #include "Input/InputQueue.hpp"
 #include "LogFile.hpp"
 #include "Job/Job.hpp"
+#include "Operation/MessageOperationEnvironment.hpp"
 
 #ifdef ANDROID
 #include "java/Closeable.hxx"
 #include "java/Global.hxx"
 #include "Android/InternalSensors.hpp"
-#include "Android/Sensor.hpp"
 #endif
 
 #ifdef __APPLE__
@@ -40,6 +42,8 @@
 #endif
 
 #include <cassert>
+#include <exception>
+#include <optional>
 
 class OpenDeviceJob final : public Job {
   DeviceDescriptor &device;
@@ -53,6 +57,9 @@ public:
     device.DoOpen(env);
   };
 };
+
+static void
+FlushPortBeforePassThroughSwitch(Port &port, OperationEnvironment &env);
 
 DeviceDescriptor::DeviceDescriptor(DeviceBlackboard &_blackboard,
                                    NMEALogger *_nmea_logger,
@@ -196,8 +203,8 @@ try {
   port = std::move(_port);
 
   parser.Reset();
-  parser.SetReal(!StringIsEqual(driver->name, _T("Condor")));
-  if (config.IsDriver(_T("Condor")))
+  parser.SetReal(!StringIsEqual(driver->name, "Condor"));
+  if (config.IsDriver("Condor"))
     parser.DisableGeoid();
 
   if (driver->CreateOnPort != nullptr) {
@@ -387,30 +394,36 @@ try {
   } catch (...) {
     const auto e = std::current_exception();
 
-    TCHAR name_buffer[64];
-    const TCHAR *name = config.GetPortName(name_buffer, 64);
+    char name_buffer[64];
+    const char *name = config.GetPortName(name_buffer, 64);
 
-    LogError(e, WideToUTF8Converter(name));
+    LogError(e, name);
 
-    const auto _msg = GetFullMessage(e);
-    if (const UTF8ToWideConverter what{_msg.c_str()}; what.IsValid()) {
-      LockSetErrorMessage(what);
+    const auto msg = GetFullMessage(e);
+    if (!msg.empty()) {
+      LockSetErrorMessage(msg.c_str());
 
-      StaticString<256> msg;
-      msg.Format(_T("%s: %s (%s)"), _("Unable to open port"), name,
-                 (const TCHAR *)what);
-      env.SetErrorMessage(msg);
+      StaticString<256> _msg;
+      _msg.Format("%s: %s (%s)", _("Unable to open port"), name, msg.c_str());
+      try {
+        if (!env.IsCancelled())
+          env.SetErrorMessage(_msg);
+        else
+          LogFmt("Device-Error without Env: {}", _msg.c_str());
+      } catch ([[maybe_unused]] const std::exception &ex) {
+        LogFmt("Device-Exception without Env: {}", _msg.c_str());
+      }
     }
 
     return false;
   }
 
   if (port == nullptr) {
-    TCHAR name_buffer[64];
-    const TCHAR *name = config.GetPortName(name_buffer, 64);
+    char name_buffer[64];
+    const char *name = config.GetPortName(name_buffer, 64);
 
     StaticString<256> msg;
-    msg.Format(_T("%s: %s."), _("Unable to open port"), name);
+    msg.Format("%s: %s.", _("Unable to open port"), name);
     env.SetErrorMessage(msg);
     return false;
   }
@@ -436,11 +449,11 @@ try {
   const auto e = std::current_exception();
   LogError(e);
 
-  const auto _msg = GetFullMessage(e);
+  const auto msg = GetFullMessage(e);
 
-  if (const UTF8ToWideConverter msg{_msg.c_str()}; msg.IsValid()) {
-    LockSetErrorMessage(msg);
-    env.SetErrorMessage(msg);
+  if (!msg.empty()) {
+    LockSetErrorMessage(msg.c_str());
+    env.SetErrorMessage(msg.c_str());
   }
 
   return false;
@@ -465,8 +478,8 @@ DeviceDescriptor::Open(OperationEnvironment &env)
   assert(!IsOccupied());
   assert(open_job == nullptr);
 
-  TCHAR buffer[64];
-  LogFormat(_T("Opening device %s"), config.GetPortName(buffer, 64));
+  char buffer[64];
+  LogFormat("Opening device: %s", config.GetPortName(buffer, 64));
 
 #ifdef ANDROID
   /* reset the Kalman filter */
@@ -484,6 +497,11 @@ DeviceDescriptor::Close() noexcept
 {
   assert(InMainThread());
   assert(!IsBorrowed());
+
+  /* Cancel SlowReopen(); otherwise a stale OnReopenTimer could call
+     Open() after the port was opened again (e.g. devRestart). */
+  waiting_to_call_open = false;
+  reopen_timer.Cancel();
 
   CancelAsync();
 
@@ -542,6 +560,37 @@ DeviceDescriptor::Reopen(OperationEnvironment &env)
 }
 
 void
+DeviceDescriptor::OnReopenTimer() noexcept
+{
+  assert(InMainThread());
+
+  if (!waiting_to_call_open)
+    return;
+
+  waiting_to_call_open = false;
+
+  // This runs after the 5-second delay
+  try {
+    static MessageOperationEnvironment env;
+    Open(env);
+  } catch (...) {
+    LogError(std::current_exception(), "Failed to reopen device after delay");
+  }
+}
+
+void
+DeviceDescriptor::SlowReopen()
+{
+  assert(InMainThread());
+  assert(!IsBorrowed());
+
+  Close();
+  waiting_to_call_open = true;
+  // Schedule the Open() call after 5 seconds instead of blocking
+  reopen_timer.Schedule(std::chrono::seconds(5));
+}
+
+void
 DeviceDescriptor::AutoReopen(OperationEnvironment &env)
 {
   assert(InMainThread());
@@ -554,8 +603,8 @@ DeviceDescriptor::AutoReopen(OperationEnvironment &env)
       !reopen_clock.CheckUpdate(std::chrono::seconds(30)))
     return;
 
-  TCHAR buffer[64];
-  LogFormat(_T("Reconnecting to device %s"), config.GetPortName(buffer, 64));
+  char buffer[64];
+  LogFormat("Reconnecting to device: %s", config.GetPortName(buffer, 64));
 
   InputEvents::processGlideComputer(GCE_COMMPORT_RESTART);
   Reopen(env);
@@ -570,6 +619,13 @@ DeviceDescriptor::EnableNMEA(OperationEnvironment &env) noexcept
   bool success = false;
 
   try {
+    if (port != nullptr && driver != nullptr &&
+        driver->HasPassThrough() && config.use_second_device) {
+      /* Flush stale bytes before leaving DIRECT/passthrough mode so
+         the mode switch command is sent on a clean transport. */
+      FlushPortBeforePassThroughSwitch(*port, env);
+    }
+
     success = device->EnableNMEA(env);
   } catch (OperationCancelled) {
   } catch (...) {
@@ -584,7 +640,7 @@ DeviceDescriptor::EnableNMEA(OperationEnvironment &env) noexcept
   return success;
 }
 
-const TCHAR *
+const char *
 DeviceDescriptor::GetDisplayName() const noexcept
 {
   return driver != nullptr
@@ -593,7 +649,7 @@ DeviceDescriptor::GetDisplayName() const noexcept
 }
 
 bool
-DeviceDescriptor::IsDriver(const TCHAR *name) const noexcept
+DeviceDescriptor::IsDriver(const char *name) const noexcept
 {
   return driver != nullptr
     ? StringIsEqual(driver->name, name)
@@ -627,7 +683,7 @@ DeviceDescriptor::IsManageable() const noexcept
     if (driver->IsManageable())
       return true;
 
-    if (StringIsEqual(driver->name, _T("LX")) && device != nullptr) {
+    if (StringIsEqual(driver->name, "LX") && device != nullptr) {
       const LXDevice &lx = *(const LXDevice *)device;
       return lx.IsManageable();
     }
@@ -770,21 +826,6 @@ DeviceDescriptor::WriteNMEA(const char *line,
   }
 }
 
-#ifdef _UNICODE
-bool
-DeviceDescriptor::WriteNMEA(const TCHAR *line,
-                            OperationEnvironment &env) noexcept
-{
-  assert(line != nullptr);
-
-  if (port == nullptr)
-    return false;
-
-  WideToACPConverter narrow{line};
-  return narrow.IsValid() && WriteNMEA(narrow, env);
-}
-#endif
-
 bool
 DeviceDescriptor::PutMacCready(double value,
                                OperationEnvironment &env) noexcept
@@ -883,6 +924,123 @@ DeviceDescriptor::PutBallast(double fraction, double overload,
 }
 
 bool
+DeviceDescriptor::PutCrewMass(double crew_mass, OperationEnvironment &env) noexcept
+{
+  assert(InMainThread());
+
+  if (device == nullptr || !config.sync_to_device ||
+      settings_sent.ComparePolarPilotWeight(crew_mass))
+    return true;
+
+  if (!Borrow())
+    /* TODO: postpone until the borrowed device has been returned */
+    return false;
+
+  try {
+    const ScopeReturnDevice restore(*this, env);
+    if (!device->PutCrewMass(crew_mass, env))
+      return false;
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "PutCrewMass() failed");
+    return false;
+  }
+
+  settings_sent.polar_pilot_weight = crew_mass;
+  settings_sent.polar_pilot_weight_available.Update(GetClock());
+
+  return true;
+}
+
+bool
+DeviceDescriptor::PutEmptyMass(double empty_mass, OperationEnvironment &env) noexcept
+{
+  assert(InMainThread());
+
+  if (device == nullptr || !config.sync_to_device ||
+      settings_sent.ComparePolarEmptyWeight(empty_mass))
+    return true;
+
+  if (!Borrow())
+    /* TODO: postpone until the borrowed device has been returned */
+    return false;
+
+  try {
+    const ScopeReturnDevice restore(*this, env);
+    if (!device->PutEmptyMass(empty_mass, env))
+      return false;
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "PutEmptyMass() failed");
+    return false;
+  }
+
+  settings_sent.polar_empty_weight = empty_mass;
+  settings_sent.polar_empty_weight_available.Update(GetClock());
+
+  return true;
+}
+
+bool
+DeviceDescriptor::PutPolar(const GlidePolar &polar,
+                           OperationEnvironment &env) noexcept
+{
+  assert(InMainThread());
+
+  if (device == nullptr || !config.sync_to_device ||
+      config.polar_sync != DeviceConfig::PolarSync::SEND)
+    return true;
+
+  if (driver == nullptr || !driver->CanSendPolar())
+    return true;
+
+  if (!Borrow())
+    return false;
+
+  try {
+    const ScopeReturnDevice restore(*this, env);
+    if (!device->PutPolar(polar, env))
+      return false;
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "PutPolar() failed");
+    return false;
+  }
+
+  return true;
+}
+
+bool
+DeviceDescriptor::PutTarget(const GeoPoint &location, const char *name,
+                            std::optional<double> elevation,
+                            OperationEnvironment &env) noexcept
+{
+  assert(InMainThread());
+
+  if (device == nullptr || !config.sync_to_device)
+    return true;
+
+  if (!Borrow())
+    return false;
+
+  try {
+    const ScopeReturnDevice restore(*this, env);
+    if (!device->PutTarget(location, name, elevation, env))
+      return false;
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "PutTarget() failed");
+    return false;
+  }
+
+  return true;
+}
+
+bool
 DeviceDescriptor::PutVolume(unsigned volume,
                             OperationEnvironment &env) noexcept
 {
@@ -931,7 +1089,7 @@ DeviceDescriptor::PutPilotEvent(OperationEnvironment &env) noexcept
 
 bool
 DeviceDescriptor::PutActiveFrequency(RadioFrequency frequency,
-                                     const TCHAR *name,
+                                     const char *name,
                                      OperationEnvironment &env) noexcept
 {
   assert(InMainThread());
@@ -956,8 +1114,32 @@ DeviceDescriptor::PutActiveFrequency(RadioFrequency frequency,
 }
 
 bool
+DeviceDescriptor::ExchangeRadioFrequencies(OperationEnvironment &env,
+                                           NMEAInfo &info) noexcept
+{
+  assert(InMainThread());
+
+  if (device == nullptr || !config.sync_to_device)
+    return true;
+
+  if (!Borrow())
+    /* TODO: postpone until the borrowed device has been returned */
+    return false;
+
+  try {
+    ScopeReturnDevice restore(*this, env);
+    return device->ExchangeRadioFrequencies(env, info);
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "ExchangeRadioFrequencies() failed");
+    return false;
+  }
+}
+
+bool
 DeviceDescriptor::PutStandbyFrequency(RadioFrequency frequency,
-                                      const TCHAR *name,
+                                      const char *name,
                                       OperationEnvironment &env) noexcept
 {
   assert(InMainThread());
@@ -1037,11 +1219,166 @@ DeviceDescriptor::PutQNH(const AtmosphericPressure value,
   return true;
 }
 
+bool
+DeviceDescriptor::PutElevation(int elevation, OperationEnvironment &env) noexcept
+{
+  assert(InMainThread());
+
+  if (device == nullptr || !config.sync_to_device ||
+      settings_sent.CompareElevation(elevation))
+    return true;
+
+  if (!Borrow())
+    /* TODO: postpone until the borrowed device has been returned */
+    return false;
+
+  try {
+    ScopeReturnDevice restore(*this, env);
+    if (!device->PutElevation(elevation, env))
+      return false;
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "PutElevation() failed");
+    return false;
+  }
+
+  settings_sent.elevation = elevation;
+  settings_sent.elevation_available.Update(GetClock());
+
+  return true;
+}
+
+bool
+DeviceDescriptor::RequestElevation(OperationEnvironment &env) noexcept
+{
+  assert(InMainThread());
+
+  if (device == nullptr)
+    return true;
+
+  if (!Borrow())
+    /* TODO: postpone until the borrowed device has been returned */
+    return false;
+
+  try {
+    ScopeReturnDevice restore(*this, env);
+    if (!device->RequestElevation(env))
+      return false;
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "RequestElevation() failed");
+    return false;
+  }
+
+  return true;
+}
+
 static bool
 DeclareToFLARM(const struct Declaration &declaration, Port &port,
                const Waypoint *home, OperationEnvironment &env)
 {
   return FlarmDevice(port).Declare(declaration, home, env);
+}
+
+static void
+FlushPortBeforePassThroughSwitch(Port &port, OperationEnvironment &env)
+{
+  port.StopRxThread();
+  port.FullFlush(env, std::chrono::milliseconds(50),
+                 std::chrono::milliseconds(300));
+  port.StartRxThread();
+}
+
+static std::optional<unsigned>
+ReadLXGPSBaudrate(Device &device, std::optional<unsigned> &cached_baudrate,
+                  OperationEnvironment &env)
+{
+  auto *lx = dynamic_cast<LXDevice *>(&device);
+  if (lx == nullptr)
+    return std::nullopt;
+
+  if (!lx->ShouldSwitchHostBaudForPassThrough())
+    return std::nullopt;
+
+  unsigned baudrate = 0;
+  if (!lx->ReadLXGPSBaudrate(baudrate, env))
+    return cached_baudrate;
+
+  cached_baudrate = baudrate;
+  return baudrate;
+}
+
+class ScopeRestorePassThroughBaud final {
+  Port *port = nullptr;
+  unsigned old_baudrate = 0;
+  bool active = false;
+
+public:
+  void Arm(Port &_port, unsigned _old_baudrate) noexcept {
+    port = &_port;
+    old_baudrate = _old_baudrate;
+    /* Some Port backends may report 0 when baudrate is unknown.
+       Don't try to restore such values later. */
+    active = old_baudrate != 0;
+  }
+
+  void Restore(OperationEnvironment &env) noexcept {
+    if (!active || port == nullptr)
+      return;
+
+    try {
+      const unsigned current_baudrate = port->GetBaudrate();
+      if (current_baudrate != old_baudrate) {
+        FlushPortBeforePassThroughSwitch(*port, env);
+        port->SetBaudrate(old_baudrate);
+      }
+    } catch (...) {
+      LogError(std::current_exception(),
+               "Failed to restore passthrough baudrate");
+    }
+
+    active = false;
+  }
+
+  ~ScopeRestorePassThroughBaud() noexcept {
+    if (!active || port == nullptr)
+      return;
+
+    try {
+      const unsigned current_baudrate = port->GetBaudrate();
+      if (current_baudrate != old_baudrate)
+        port->SetBaudrate(old_baudrate);
+    } catch (...) {
+      LogError(std::current_exception(),
+               "Failed to restore passthrough baudrate");
+    }
+  }
+};
+
+static bool
+EnablePassThroughWithLXGPSBaud(Device &device, Port &port,
+                               OperationEnvironment &env,
+                               ScopeRestorePassThroughBaud &restore,
+                               std::optional<unsigned> &cached_baudrate)
+{
+  const auto gps_baudrate = ReadLXGPSBaudrate(device, cached_baudrate, env);
+  const unsigned old_baudrate = port.GetBaudrate();
+  restore.Arm(port, old_baudrate);
+
+  FlushPortBeforePassThroughSwitch(port, env);
+  if (!device.EnablePassThrough(env))
+    return false;
+
+  if (gps_baudrate.has_value()) {
+    /* Flush on the current baud first, then switch to the passthrough
+       target baud.  This avoids carrying stale bytes across rates. */
+    FlushPortBeforePassThroughSwitch(port, env);
+    port.SetBaudrate(*gps_baudrate);
+  }
+
+  return true;
 }
 
 static bool
@@ -1050,33 +1387,18 @@ DeclareToFLARM(const struct Declaration &declaration,
                const Waypoint *home,
                OperationEnvironment &env)
 {
+  ScopeRestorePassThroughBaud restore_baud;
+  std::optional<unsigned> cached_baudrate;
+
   /* enable pass-through mode in the "front" device */
-  if (driver.HasPassThrough() && device != nullptr &&
-      !device->EnablePassThrough(env))
-    return false;
-
-  return DeclareToFLARM(declaration, port, home, env);
-}
-
-static bool
-DoDeclare(const struct Declaration &declaration,
-          Port &port, const DeviceRegister &driver, Device *device,
-          bool flarm, const Waypoint *home,
-          OperationEnvironment &env)
-{
-  StaticString<60> text;
-  text.Format(_T("%s: %s."), _("Sending declaration"), driver.display_name);
-  env.SetText(text);
-
-  bool result = device != nullptr && device->Declare(declaration, home, env);
-
-  if (flarm) {
-    text.Format(_T("%s: FLARM."), _("Sending declaration"));
-    env.SetText(text);
-
-    result |= DeclareToFLARM(declaration, port, driver, device, home, env);
+  if (driver.HasPassThrough() && device != nullptr) {
+    if (!EnablePassThroughWithLXGPSBaud(*device, port, env, restore_baud,
+                                        cached_baudrate))
+      return false;
   }
 
+  const bool result = DeclareToFLARM(declaration, port, home, env);
+  restore_baud.Restore(env);
   return result;
 }
 
@@ -1090,20 +1412,80 @@ DeviceDescriptor::Declare(const struct Declaration &declaration,
   assert(driver != nullptr);
   assert(device != nullptr);
 
-  // explicitly set passthrough device? Use it...
-  if (driver->HasPassThrough() && second_device != nullptr) {
-    // set the primary device to passthrough
-    device->EnablePassThrough(env);
-    return second_device != nullptr &&
-      second_device->Declare(declaration, home, env);
-  } else {
-    /* enable the "muxed FLARM" hack? */
-    const bool flarm = blackboard.IsFLARM(index) &&
-      !IsDriver(_T("FLARM"));
+  /* always declare to the primary device first */
+  StaticString<60> text;
+  text.Format("%s: %s.", _("Sending declaration"), driver->display_name);
+  env.SetText(text);
 
-    return DoDeclare(declaration, *port, *driver, device, flarm,
-                     home, env);
+  bool result = device->Declare(declaration, home, env);
+
+  if (driver->HasPassThrough() && second_device != nullptr) {
+    /* explicitly configured passthrough device (e.g. FLARM behind
+       LXNAV vario): enable passthrough and declare to it */
+    text.Format("%s: %s.", _("Sending declaration"),
+                second_driver->display_name);
+    env.SetText(text);
+
+    /* The primary declaration (above) may have stopped the Rx
+       thread.  Restart it so EnablePassThrough() operates with the
+       Rx thread consuming data — this is required for the vario to
+       properly transition to DIRECT mode and for the serial buffers
+       to be drained while the mode switch settles. */
+    port->StartRxThread();
+
+    ScopeRestorePassThroughBaud restore_baud;
+    if (!EnablePassThroughWithLXGPSBaud(*device, *port, env, restore_baud,
+                                        cached_lxgps_baudrate))
+      return result;
+
+    /* Stop the Rx thread and flush all stale data from the serial
+       buffers.  Then send a FLARM version request as a "ping" to
+       verify the passthrough is working bidirectionally before
+       attempting the actual declaration.  This also gives the vario
+       firmware additional time to complete the DIRECT mode
+       transition. */
+    port->StopRxThread();
+    port->FullFlush(env, std::chrono::milliseconds(50),
+                    std::chrono::milliseconds(500));
+    PortWriteNMEA(*port, "PFLAV,R", env);
+    try {
+      port->ExpectString("PFLAV,A",  env, std::chrono::seconds(2));
+    } catch (...) {
+      /* FLARM did not respond to the ping — passthrough may not be
+         working; continue anyway and let the declaration fail
+         gracefully */
+    }
+    port->StartRxThread();
+
+    /* Force protocol re-sync for each new pass-through session. */
+    second_device->LinkTimeout();
+
+    result |= second_device->Declare(declaration, home, env);
+    if (result &&
+        dynamic_cast<FlarmDevice *>(second_device) != nullptr) {
+      /* Ensure PFLAR,0 (restart request) has been sent before we
+         restore baudrate / leave DIRECT mode. */
+      (void)port->Drain();
+      env.Sleep(std::chrono::milliseconds(250));
+    }
+
+    restore_baud.Restore(env);
+  } else {
+    /* no explicit passthrough device; try the "muxed FLARM" hack
+       if FLARM sentences were detected in the NMEA stream */
+    const bool flarm = blackboard.IsFLARM(index) &&
+      !IsDriver("FLARM");
+
+    if (flarm) {
+      text.Format("%s: FLARM.", _("Sending declaration"));
+      env.SetText(text);
+
+      result |= DeclareToFLARM(declaration, *port, *driver, device,
+                                home, env);
+    }
   }
+
+  return result;
 }
 
 bool
@@ -1118,14 +1500,23 @@ DeviceDescriptor::ReadFlightList(RecordedFlightList &flight_list,
   StaticString<60> text;
 
   if (driver->HasPassThrough() && second_device != nullptr) {
-    text.Format(_T("%s: %s."), _("Reading flight list"),
+    text.Format("%s: %s.", _("Reading flight list"),
                 second_driver->display_name);
     env.SetText(text);
 
-    device->EnablePassThrough(env);
-    return second_device->ReadFlightList(flight_list, env);
+    ScopeRestorePassThroughBaud restore_baud;
+    if (!EnablePassThroughWithLXGPSBaud(*device, *port, env, restore_baud,
+                                        cached_lxgps_baudrate))
+      return false;
+
+    /* Force protocol re-sync for each new pass-through session. */
+    second_device->LinkTimeout();
+
+    const bool result = second_device->ReadFlightList(flight_list, env);
+    restore_baud.Restore(env);
+    return result;
   } else {
-    text.Format(_T("%s: %s."), _("Reading flight list"), driver->display_name);
+    text.Format("%s: %s.", _("Reading flight list"), driver->display_name);
     env.SetText(text);
 
     return device->ReadFlightList(flight_list, env);
@@ -1149,18 +1540,58 @@ DeviceDescriptor::DownloadFlight(const RecordedFlightInfo &flight,
 
 
   if (driver->HasPassThrough() && (second_device != nullptr)) {
-    text.Format(_T("%s: %s."), _("Downloading flight log"),
+    text.Format("%s: %s.", _("Downloading flight log"),
                 second_driver->display_name);
     env.SetText(text);
 
-    device->EnablePassThrough(env);
-    return second_device->DownloadFlight(flight, path, env);
+    ScopeRestorePassThroughBaud restore_baud;
+    if (!EnablePassThroughWithLXGPSBaud(*device, *port, env, restore_baud,
+                                        cached_lxgps_baudrate))
+      return false;
+
+    /* Force protocol re-sync for each new pass-through session. */
+    second_device->LinkTimeout();
+
+    const bool result = second_device->DownloadFlight(flight, path, env);
+    restore_baud.Restore(env);
+    return result;
   } else {
-    text.Format(_T("%s: %s."), _("Downloading flight log"),
+    text.Format("%s: %s.", _("Downloading flight log"),
                 driver->display_name);
     env.SetText(text);
 
     return device->DownloadFlight(flight, path, env);
+  }
+}
+
+bool
+DeviceDescriptor::EnableSecondDeviceNMEA(OperationEnvironment &env) noexcept
+{
+  assert(borrowed);
+  assert(port != nullptr);
+  assert(driver != nullptr);
+  assert(device != nullptr);
+
+  if (port == nullptr || driver == nullptr || device == nullptr)
+    return false;
+
+  if (!driver->HasPassThrough() || second_device == nullptr)
+    return true;
+
+  try {
+    ScopeRestorePassThroughBaud restore_baud;
+    if (!EnablePassThroughWithLXGPSBaud(*device, *port, env, restore_baud,
+                                        cached_lxgps_baudrate))
+      return false;
+
+    const bool result = second_device->EnableNMEA(env);
+    restore_baud.Restore(env);
+    return result;
+  } catch (OperationCancelled) {
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(), "EnableSecondDeviceNMEA() failed");
+    return false;
   }
 }
 
@@ -1242,22 +1673,11 @@ DeviceDescriptor::OnCalculatedUpdate(const MoreData &basic,
 }
 
 inline void
-DeviceDescriptor::LockSetErrorMessage(const TCHAR *msg) noexcept
+DeviceDescriptor::LockSetErrorMessage(const char *msg) noexcept
 {
     const std::lock_guard lock{mutex};
     error_message = msg;
 }
-
-#ifdef _UNICODE
-
-inline void
-DeviceDescriptor::LockSetErrorMessage(const char *msg) noexcept
-{
-  if (const UTF8ToWideConverter tmsg(msg); tmsg.IsValid())
-    LockSetErrorMessage(tmsg);
-}
-
-#endif
 
 void
 DeviceDescriptor::OnJobFinished() noexcept
@@ -1291,8 +1711,8 @@ void
 DeviceDescriptor::PortError(const char *msg) noexcept
 {
   {
-    TCHAR buffer[64];
-    LogFormat(_T("Error on device %s: %s"),
+    char buffer[64];
+    LogFormat("Device error on %s: %s",
               config.GetPortName(buffer, 64), msg);
   }
 
@@ -1337,8 +1757,11 @@ DeviceDescriptor::DataReceived(std::span<const std::byte> s) noexcept
 bool
 DeviceDescriptor::LineReceived(const char *line) noexcept
 {
-  if (nmea_logger != nullptr)
-    nmea_logger->Log(line);
+  if (nmea_logger != nullptr) {
+    /* Skip logging high-frequency LXWP2 sentences */
+    if (!StringStartsWith(line, "$LXWP2,"))
+      nmea_logger->Log(line);
+  }
 
   if (dispatcher != nullptr)
     dispatcher->LineReceived(line);

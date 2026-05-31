@@ -2,9 +2,12 @@
 // Copyright The XCSoar Project
 
 #include "Form/Button.hpp"
+#include "Form/ButtonPanel.hpp"
 #include "ui/event/KeyCode.hpp"
 #include "Asset.hpp"
 #include "Renderer/TextButtonRenderer.hpp"
+#include "Renderer/SymbolButtonRenderer.hpp"
+#include "util/StringAPI.hxx"
 #include "Hardware/Vibrator.hpp"
 
 Button::Button(ContainerWindow &parent, const PixelRect &rc,
@@ -15,7 +18,7 @@ Button::Button(ContainerWindow &parent, const PixelRect &rc,
 }
 
 Button::Button(ContainerWindow &parent, const ButtonLook &look,
-               const TCHAR *caption, const PixelRect &rc,
+               const char *caption, const PixelRect &rc,
                WindowStyle style,
                Callback _callback) noexcept
 {
@@ -40,7 +43,7 @@ Button::Create(ContainerWindow &parent,
 
 void
 Button::Create(ContainerWindow &parent, const ButtonLook &look,
-               const TCHAR *caption, const PixelRect &rc,
+               const char *caption, const PixelRect &rc,
                WindowStyle style)
 {
   Create(parent, rc, style, std::make_unique<TextButtonRenderer>(look, caption));
@@ -58,7 +61,7 @@ Button::Create(ContainerWindow &parent, const PixelRect &rc,
 
 void
 Button::Create(ContainerWindow &parent, const ButtonLook &look,
-               const TCHAR *caption, const PixelRect &rc,
+               const char *caption, const PixelRect &rc,
                WindowStyle style,
                Callback _callback) noexcept {
   Create(parent, rc, style,
@@ -67,12 +70,42 @@ Button::Create(ContainerWindow &parent, const ButtonLook &look,
 }
 
 void
-Button::SetCaption(const TCHAR *caption)
+Button::SetCaption(const char *caption)
 {
   assert(caption != nullptr);
 
   auto &r = (TextButtonRenderer &)*renderer;
   r.SetCaption(caption);
+
+  Invalidate();
+}
+
+[[gnu::pure]]
+static const char *
+MenuSymbolCaption(const char *caption) noexcept
+{
+  if (SymbolButtonRenderer::IsSymbolCaption(caption))
+    return caption;
+
+  const char *nl = StringFind(caption, '\n');
+  if (nl == nullptr || nl[1] == '\0' || nl[2] != '\0')
+    return nullptr;
+
+  const char *symbol = nl + 1;
+  return SymbolButtonRenderer::IsSymbolCaption(symbol) ? symbol : nullptr;
+}
+
+void
+Button::SetMenuCaption(const ButtonLook &look, const char *caption) noexcept
+{
+  assert(caption != nullptr);
+
+  const char *symbol = MenuSymbolCaption(caption);
+  if (symbol != nullptr)
+    renderer = std::make_unique<SymbolButtonRenderer>(
+      look, symbol, SymbolButtonRenderer::Style::MENU);
+  else
+    renderer = std::make_unique<TextButtonRenderer>(look, caption);
 
   Invalidate();
 }
@@ -193,6 +226,8 @@ void
 Button::OnSetFocus() noexcept
 {
   PaintWindow::OnSetFocus();
+  if (cursor_key_group != nullptr)
+    cursor_key_group->OnButtonGainedFocus(*this);
   Invalidate();
 }
 
@@ -227,10 +262,13 @@ Button::GetState() const noexcept
     return ButtonState::DISABLED;
   else if (down)
     return ButtonState::PRESSED;
-  else if (HasCursorKeys() && HasFocus())
-    return ButtonState::FOCUSED;
+  /* #ButtonPanel cursor selection uses `look.selected` (bright); that
+     must come before #HasFocus (`look.focused`) so the current action
+     is not downgraded when the list still holds focus. */
   else if (HasCursorKeys() && selected)
     return ButtonState::SELECTED;
+  else if (HasCursorKeys() && HasFocus())
+    return ButtonState::FOCUSED;
   else
     return ButtonState::ENABLED;
 }

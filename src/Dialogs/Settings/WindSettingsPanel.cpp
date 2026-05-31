@@ -38,11 +38,11 @@ WindSettingsPanel::Prepare(ContainerWindow &parent,
   const MapSettings &map_settings = CommonInterface::GetMapSettings();
 
   AddBoolean(_("Circling wind"),
-             _("Estimate the wind vector while circling.  Requires only a GPS."),
+             _("Estimate the wind vector while circling. Requires only a GPS."),
              settings.circling_wind);
 
   AddBoolean(_("ZigZag wind"),
-             _("Estimate the wind vector during glides.  Requires an airspeed sensor."),
+             _("Estimate the wind vector during glides. Requires an airspeed sensor."),
              settings.zig_zag_wind);
 
   AddBoolean(_("External wind"),
@@ -61,11 +61,11 @@ WindSettingsPanel::Prepare(ContainerWindow &parent,
   if (edit_manual_wind) {
     SpeedVector manual_wind = CommonInterface::Calculated().GetWindOrZero();
 
-    AddReadOnly(_("Source"));
+    AddReadOnly(C_("Wind source", "Source"));
 
     WndProperty *wp =
       AddFloat(_("Speed"), _("Manual adjustment of wind speed."),
-               _T("%.0f %s"), _T("%.0f"),
+               "%.0f %s", "%.0f",
                0,
                Units::ToUserWindSpeed(Units::ToSysUnit(200,
                                                        Unit::KILOMETER_PER_HOUR)),
@@ -164,7 +164,7 @@ WindSettingsPanel::UpdateVector() noexcept
   const DerivedInfo &calculated = CommonInterface::Calculated();
   const WindSettings &settings = CommonInterface::SetComputerSettings().wind;
 
-  const TCHAR *source = nullptr;
+  const char *source = nullptr;
   switch (manual_modified
           ? DerivedInfo::WindSource::MANUAL
           : calculated.wind_source) {
@@ -199,9 +199,9 @@ WindSettingsPanel::UpdateVector() noexcept
 
   const bool visible = settings.manual_wind_available;
   if (clear_manual_button)
-    SetRowVisible(CLEAR_MANUAL_BUTTON, visible);
+    SetRowEnabled(CLEAR_MANUAL_BUTTON, visible);
   else if (clear_manual_window != nullptr)
-    clear_manual_window->SetVisible(visible);
+    clear_manual_window->SetEnabled(visible);
 }
 
 void

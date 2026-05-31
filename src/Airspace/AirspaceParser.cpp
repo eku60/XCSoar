@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright The XCSoar Project
 
+
 #include "AirspaceParser.hpp"
 #include "Airspace/Airspaces.hpp"
 #include "Operation/ProgressListener.hpp"
+#include "TransponderCode.hpp"
 #include "Units/System.hpp"
 #include "Language/Language.hpp"
 #include "util/CharUtil.hxx"
@@ -14,15 +16,16 @@
 #include "Airspace/AirspacePolygon.hpp"
 #include "Airspace/AirspaceCircle.hpp"
 #include "Geo/GeoVector.hpp"
+#include "Engine/Airspace/AirspaceAltitude.hpp"
 #include "Engine/Airspace/AirspaceClass.hpp"
 #include "lib/fmt/RuntimeError.hxx"
 #include "io/BufferedReader.hxx"
 #include "io/StringConverter.hpp"
-#include "util/ConvertString.hpp"
 #include "util/StaticString.hxx"
 #include "util/StringCompare.hxx"
 #include "util/StringSplit.hxx"
 
+#include <cassert>
 #include <stdexcept>
 
 using std::string_view_literals::operator""sv;
@@ -46,7 +49,7 @@ struct AirspaceClassStringCouple
 };
 
 static constexpr AirspaceClassStringCouple airspace_class_strings[] = {
-  { "R", RESTRICT },
+  { "R", RESTRICTED },
   { "Q", DANGER },
   { "P", PROHIBITED },
   { "CTR", CTR },
@@ -62,7 +65,40 @@ static constexpr AirspaceClassStringCouple airspace_class_strings[] = {
   { "G", CLASSG },
   { "RMZ", RMZ },
   { "MATZ", MATZ },
-  { "GSEC", WAVE },
+  { "GSEC", GLIDING_SECTOR },
+  { "UNC", UNCLASSIFIED },
+  { "RESTRICTED", RESTRICTED },
+  { "TMA", TMA },
+  { "TRA", TRA },
+  { "TSA", TSA },
+  { "FIR", FIR },
+  { "UIR", UIR },
+  { "ADIZ", ADIZ },
+  { "ATZ", ATZ },
+  { "AWY", AWY },
+  { "MTR", MTR },
+  { "ALERT", ALERT },
+  { "WARNING", WARNING },
+  { "DANGER", DANGER },
+  { "PROHIBITED", PROHIBITED },
+  { "PROTECTED", PROTECTED },
+  { "HTZ", HTZ },
+  { "TRP", TRP },
+  { "TIZ", TIZ },
+  { "TIA", TIA },
+  { "MTA", MTA },
+  { "CTA", CTA },
+  { "ACCSEC", ACC_SECTOR },
+  { "AERIAL_SPORTING_RECREATIONAL", AERIAL_SPORTING_RECREATIONAL },
+  { "ASRA", AERIAL_SPORTING_RECREATIONAL },
+  { "OFR", OVERFLIGHT_RESTRICTION },
+  { "MRT", MRT },
+  { "TFR", TFR },
+  { "VFRSEC", VFR_SECTOR },
+  { "FIS", FIS_SECTOR },
+  { "LTA", LTA },
+  { "UTA", UTA },
+  { "AIRSPACECLASSCOUNT", AIRSPACECLASSCOUNT }
 };
 
 static constexpr AirspaceClassCharCouple airspace_tnp_class_chars[] = {
@@ -81,8 +117,8 @@ static constexpr AirspaceClassStringCouple airspace_tnp_type_strings[] = {
   { "CTR", CTR },
   { "CTA/CTR", CTR },
   { "CTR/CTA", CTR },
-  { "R", RESTRICT },
-  { "RESTRICTED", RESTRICT },
+  { "R", RESTRICTED },
+  { "RESTRICTED", RESTRICTED },
   { "P", PROHIBITED },
   { "PROHIBITED", PROHIBITED },
   { "D", DANGER },
@@ -91,12 +127,16 @@ static constexpr AirspaceClassStringCouple airspace_tnp_type_strings[] = {
   { "GSEC", WAVE },
   { "T", TMZ },
   { "TMZ", TMZ },
-  { "CYR", RESTRICT },
+  { "CYR", RESTRICTED },
   { "CYD", DANGER },
   { "CYA", CLASSF },
   { "MATZ", MATZ },
   { "RMZ", RMZ },
 };
+
+static constexpr AirspaceClass airspace_ICAO_and_Unclassified[] = {
+  AirspaceClass::CLASSA, AirspaceClass::CLASSB, AirspaceClass::CLASSC, AirspaceClass::CLASSD,
+  AirspaceClass::CLASSE, AirspaceClass::CLASSF, AirspaceClass::CLASSG, AirspaceClass::UNCLASSIFIED};
 
 // this can now be called multiple times to load several airspaces.
 
@@ -121,10 +161,12 @@ struct TempAirspace
   }
 
   // General
-  tstring name;
+  std::string name;
+  std::string station_name;
   RadioFrequency radio_frequency;
+  TransponderCode transponder_code;
   AirspaceClass asclass;
-  tstring astype;
+  AirspaceClass astype;
   std::optional<AirspaceAltitude> base;
   std::optional<AirspaceAltitude> top;
   AirspaceActivity days_of_operation;
@@ -150,8 +192,10 @@ struct TempAirspace
     days_of_operation.SetAll();
     name.clear();
     radio_frequency = RadioFrequency::Null();
+    transponder_code = TransponderCode::Null();
+    station_name.clear();
     asclass = OTHER;
-    astype.clear();
+    astype = OTHER; // the default if no AY tag parsed (i.e. AC tag is not a ICAO or not UNCLASSIFIED)
     base.reset();
     top.reset();
     points.clear();
@@ -210,8 +254,11 @@ struct TempAirspace
       throw CommitError{"No top altitude"};
 
     auto as = std::make_shared<AirspacePolygon>(points);
-    as->SetProperties(std::move(name), asclass, std::move(astype), *base, *top);
+    as->SetProperties(std::move(name), std::move(station_name),
+                      std::move(transponder_code), asclass, astype, *base,
+                      *top);
     as->SetRadioFrequency(radio_frequency);
+    as->SetTransponderCode(transponder_code);
     as->SetDays(days_of_operation);
     airspace_database.Add(std::move(as));
   }
@@ -244,8 +291,11 @@ struct TempAirspace
 
     auto as = std::make_shared<AirspaceCircle>(RequireCenter(),
                                                RequireRadius());
-    as->SetProperties(std::move(name), asclass, std::move(astype), *base, *top);
+    as->SetProperties(std::move(name), std::move(station_name),
+                      std::move(transponder_code), asclass, std::move(astype),
+                      *base, *top);
     as->SetRadioFrequency(radio_frequency);
+    as->SetTransponderCode(transponder_code);
     as->SetDays(days_of_operation);
     airspace_database.Add(std::move(as));
   }
@@ -338,97 +388,14 @@ struct TempAirspace
 static AirspaceAltitude
 ReadAltitude(StringParser<> &input)
 {
-  auto unit = Unit::FEET;
-  enum { MSL, AGL, SFC, FL, STD, UNLIMITED } type = MSL;
-  double value = 0;
+  ParseAirspaceAltitudeOptions options;
+  options.strict_unknown_tokens = false;
+  options.accept_amsl = false;
+  options.unlimited_ceiling_m = 50000;
 
-  while (true) {
-    input.Strip();
-
-    if (IsDigitASCII(input.front())) {
-      if (auto x = input.ReadDouble())
-        value = *x;
-    } else if (input.SkipMatchIgnoreCase("GND"sv) ||
-               input.SkipMatchIgnoreCase("AGL"sv)) {
-      type = AGL;
-    } else if (input.SkipMatchIgnoreCase("SFC"sv)) {
-      type = SFC;
-    } else if (input.SkipMatchIgnoreCase("FL"sv)) {
-      type = FL;
-    } else if (input.SkipMatchIgnoreCase("FT"sv)) {
-      unit = Unit::FEET;
-    } else if (input.SkipMatchIgnoreCase("MSL"sv)) {
-      type = MSL;
-    } else if (input.front() == 'M' || input.front() == 'm') {
-      unit = Unit::METER;
-      input.Skip();
-    } else if (input.SkipMatchIgnoreCase("STD"sv)) {
-      type = STD;
-    } else if (input.SkipMatchIgnoreCase("UNL"sv)) {
-      type = UNLIMITED;
-    } else if (input.IsEmpty())
-      break;
-    else
-      input.Skip();
-  }
-
-  AirspaceAltitude altitude;
-
-  switch (type) {
-  case FL:
-    altitude.reference = AltitudeReference::STD;
-    altitude.flight_level = value;
-
-    /* prepare fallback, just in case we have no terrain */
-    altitude.altitude = Units::ToSysUnit(value, Unit::FLIGHT_LEVEL);
-    return altitude;
-
-  case UNLIMITED:
-    altitude.reference = AltitudeReference::MSL;
-    altitude.altitude = 50000;
-    return altitude;
-
-  case SFC:
-    altitude.reference = AltitudeReference::AGL;
-    altitude.altitude_above_terrain = -1;
-
-    /* prepare fallback, just in case we have no terrain */
-    altitude.altitude = 0;
-    return altitude;
-
-  default:
-    break;
-  }
-
-  // For MSL, AGL and STD we convert the altitude to meters
-  value = Units::ToSysUnit(value, unit);
-  switch (type) {
-  case MSL:
-    altitude.reference = AltitudeReference::MSL;
-    altitude.altitude = value;
-    return altitude;
-
-  case AGL:
-    altitude.reference = AltitudeReference::AGL;
-    altitude.altitude_above_terrain = value;
-
-    /* prepare fallback, just in case we have no terrain */
-    altitude.altitude = value;
-    return altitude;
-
-  case STD:
-    altitude.reference = AltitudeReference::STD;
-    altitude.flight_level = Units::ToUserUnit(value, Unit::FLIGHT_LEVEL);
-
-    /* prepare fallback, just in case we have no QNH */
-    altitude.altitude = value;
-    return altitude;
-
-  default:
-    break;
-  }
-
-  return altitude;
+  const auto altitude = ParseAirspaceAltitude(input, options);
+  assert(altitude.has_value());
+  return *altitude;
 }
 
 /**
@@ -562,13 +529,38 @@ ParseArcPoints(StringParser<> &input, TempAirspace &temp_area)
 
 [[gnu::pure]]
 static AirspaceClass
-ParseType(const char *buffer) noexcept
+ParseClass(const char *buffer) noexcept
 {
   for (unsigned i = 0; i < ARRAY_SIZE(airspace_class_strings); i++)
     if (StringIsEqualIgnoreCase(buffer, airspace_class_strings[i].string))
       return airspace_class_strings[i].asclass;
 
   return OTHER;
+}
+
+[[gnu::pure]]
+static AirspaceClass
+ParseType(const char *buffer) noexcept
+{
+  for (unsigned i = 0; i < ARRAY_SIZE(airspace_class_strings); i++)
+    if (StringIsEqualIgnoreCase(buffer, airspace_class_strings[i].string)) {
+      if (StringIsEqualIgnoreCase(buffer, "UNCLASSIFIED")) {
+        return OTHER;
+      } else {
+        return airspace_class_strings[i].asclass;
+      }
+    }
+
+  return OTHER;
+}
+
+[[gnu::pure]]
+static bool
+IsICAOClassOrUnclassified(AirspaceClass asclass) noexcept
+{
+  auto it = std::find(std::begin(airspace_ICAO_and_Unclassified),
+                      std::end(airspace_ICAO_and_Unclassified), asclass);
+  return  it != std::end(airspace_ICAO_and_Unclassified);
 }
 
 [[gnu::pure]]
@@ -643,7 +635,7 @@ ParseLine(Airspaces &airspace_database, unsigned line_number,
       if (temp_area.Commit(airspace_database))
         temp_area.Reset(line_number);
 
-      temp_area.asclass = ParseType(input.c_str());
+      temp_area.asclass = ParseClass(input.c_str());
       break;
 
     case 'N':
@@ -667,7 +659,8 @@ ParseLine(Airspaces &airspace_database, unsigned line_number,
     case 'Y':
     case 'y':
       if (input.SkipWhitespace())
-        temp_area.astype = string_converter.Convert(input.c_str());
+        if (IsICAOClassOrUnclassified(temp_area.asclass))
+          temp_area.astype = ParseType(input.c_str());
       break;
 
     /** 'AR 999.999 or 'AF 999.999' in accordance with the Naviter change proposed in 2018 - (Find 'Additional OpenAir fields' here) http://www.winpilot.com/UsersGuide/UserAirspace.asp **/
@@ -677,6 +670,22 @@ ParseLine(Airspaces &airspace_database, unsigned line_number,
     case 'f':
       if (input.SkipWhitespace())
         temp_area.radio_frequency = RadioFrequency::Parse(ReadRadioFrequency(input.c_str()));
+      break;
+
+    case 'G':
+    case 'g':
+      if (input.SkipWhitespace())
+        temp_area.station_name = string_converter.Convert(input.c_str());
+      break;
+
+    case 'X':
+    case 'x':
+      if (input.SkipWhitespace()) {
+        std::string tempString = std::string(
+            string_converter.Convert(input.c_str())); // Convert to std::string
+        temp_area.transponder_code =
+            TransponderCode::Parse(tempString.c_str());
+      }
       break;
     }
 
@@ -973,7 +982,7 @@ ParseAirspaceFile(Airspaces &airspaces,
   }
 
   if (filetype == AirspaceFileType::UNKNOWN)
-    throw std::runtime_error(WideToUTF8Converter(_("Unknown airspace filetype")));
+    throw std::runtime_error(_("Unknown airspace filetype"));
 
   // Process final area (if any)
   temp_area.Commit(airspaces);

@@ -11,7 +11,8 @@
 #include <string>
 
 #include <cstdint>
-#include <tchar.h>
+#include <new>
+#include <vector>
 
 struct GeoPoint;
 class RGB8Color;
@@ -87,7 +88,9 @@ public:
 
   void Set(std::string_view key, const char *value) noexcept;
 
-  // TCHAR string values
+  // Getters for non-(char *) data types
+
+  // char string values
 
   /**
    * Reads a value from the profile map
@@ -95,17 +98,35 @@ public:
    * @param key name of the value that should be read
    * @param value Pointer to the output buffer
    */
-  bool Get(std::string_view key, std::span<TCHAR> value) const noexcept;
+  bool Get(std::string_view key, std::span<char> value) const noexcept;
 
   template<size_t max>
   bool Get(std::string_view key,
-           BasicStringBuffer<TCHAR, max> &value) const noexcept {
+           BasicStringBuffer<char, max> &value) const noexcept {
     return Get(key, std::span{value.data(), value.capacity()});
   }
 
-#ifdef _UNICODE
-  void Set(std::string_view key, const TCHAR *value) noexcept;
-#endif
+  // std::string values
+
+  /**
+   * Reads a value from the profile map
+   *
+   * @param key name of the value that should be read
+   * @param value Reference to the output string
+   */
+  bool Get(std::string_view key, std::string &value) const noexcept {
+    const char *p = Get(key);
+    if (p == nullptr)
+      return false;
+
+    try {
+      value = p;
+    } catch (const std::bad_alloc &) {
+      return false;
+    }
+
+    return true;
+  }
 
   // numeric values
 
@@ -132,6 +153,15 @@ public:
     if (result)
       value = std::chrono::duration<unsigned>{_value};
     return result;
+  }
+
+  // Value setters for non-(char *) data types
+
+  /**
+   * Sets a value to the profile map from std::string.
+   */
+  void Set(std::string_view key, const std::string &value) noexcept {
+    Set(key, value.c_str());
   }
 
   void Set(std::string_view key, bool value) noexcept {
@@ -171,18 +201,17 @@ public:
 
   AllocatedPath GetPath(std::string_view key) const noexcept;
 
+  std::vector<AllocatedPath> GetMultiplePaths(std::string_view key,
+                                              const char *patterns) const;
+
   [[gnu::pure]]
   bool GetPathIsEqual(std::string_view key, Path value) const noexcept;
 
   /**
    * Gets a path from the profile and return its base name only.
    */
-#ifdef _UNICODE
-  BasicAllocatedString<TCHAR> GetPathBase(std::string_view key) const noexcept;
-#else
   [[gnu::pure]]
-  StringPointer<TCHAR> GetPathBase(std::string_view key) const noexcept;
-#endif
+  StringPointer<char> GetPathBase(std::string_view key) const noexcept;
 
   void SetPath(std::string_view key, Path value) noexcept;
 

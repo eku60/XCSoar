@@ -30,7 +30,7 @@ GlueMapWindow::DrawGesture(Canvas &canvas) const noexcept
   if (!gestures.HasPoints())
     return;
 
-  const TCHAR *gesture = gestures.GetGesture();
+  const char *gesture = gestures.GetGesture();
   if (gesture != nullptr && !InputEvents::IsGesture(gesture))
     canvas.Select(gesture_look.invalid_pen);
   else
@@ -120,14 +120,14 @@ GlueMapWindow::DrawPanInfo(Canvas &canvas) const noexcept
     }
   }
 
-  TCHAR buffer[256];
-  FormatGeoPoint(location, buffer, ARRAY_SIZE(buffer), _T('\n'));
+  char buffer[256];
+  FormatGeoPoint(location, buffer, ARRAY_SIZE(buffer), '\n');
 
-  TCHAR *start = buffer;
+  char *start = buffer;
   while (true) {
-    auto *newline = StringFind(start, _T('\n'));
+    auto *newline = StringFind(start, '\n');
     if (newline != nullptr)
-      *newline = _T('\0');
+      *newline = '\0';
 
     TextInBox(canvas, start, p, mode, render_projection.GetScreenSize());
 
@@ -144,7 +144,7 @@ void
 GlueMapWindow::DrawGPSStatus(Canvas &canvas, const PixelRect &rc,
                              const NMEAInfo &info) const noexcept
 {
-  const TCHAR *txt;
+  const char *txt;
   const MaskedIcon *icon;
 
   if (!info.alive) {
@@ -194,7 +194,7 @@ GlueMapWindow::DrawFlightMode(Canvas &canvas,
 
   bmp->Draw(canvas,
             PixelPoint(rc.right - offset,
-                       rc.bottom - bmp->GetSize().height - Layout::Scale(4)));
+                       rc.bottom - bottom_margin - bmp->GetSize().height - Layout::Scale(4)));
 
   // draw flarm status
   if (!GetMapSettings().show_flarm_alarm_level)
@@ -223,7 +223,7 @@ GlueMapWindow::DrawFlightMode(Canvas &canvas,
 
   bmp->Draw(canvas,
             PixelPoint(rc.right - offset,
-                       rc.bottom - bmp->GetSize().height - Layout::Scale(2)));
+                       rc.bottom - bottom_margin - bmp->GetSize().height - Layout::Scale(2)));
 }
 
 void
@@ -279,18 +279,22 @@ GlueMapWindow::SetBottomMargin(unsigned margin) noexcept
 void
 GlueMapWindow::SetBottomMarginFactor(unsigned margin_factor) noexcept
 {
+  if (follow_mode != FOLLOW_PAN || Layout::landscape) {
+    /* only apply bottom margin in portrait pan mode where
+       overlay buttons cover the bottom of the screen */
+    SetBottomMargin(0);
+    return;
+  }
+
   if (margin_factor == 0) {
     SetBottomMargin(0);
     return;
   }
 
-  PixelRect map_rect = GetClientRect();
+  PixelRect parent_rect = GetParentClientRect();
+  unsigned screen_height = parent_rect.GetHeight();
 
-  if (map_rect.GetHeight() > map_rect.GetWidth()) {
-    SetBottomMargin(map_rect.bottom / margin_factor);
-  } else {
-    SetBottomMargin(0);
-  }
+  SetBottomMargin(screen_height / margin_factor);
 }
 
 void
@@ -310,37 +314,41 @@ GlueMapWindow::DrawMapScale(Canvas &canvas, const PixelRect &rc,
   buffer.clear();
 
   if (GetMapSettings().auto_zoom_enabled)
-    buffer = _T("AUTO ");
+    buffer = "AUTO ";
 
   switch (follow_mode) {
   case FOLLOW_SELF:
     break;
 
   case FOLLOW_PAN:
-    buffer += _T("PAN ");
+    buffer += "PAN ";
     break;
   }
 
   const UIState &ui_state = GetUIState();
-  if (ui_state.auxiliary_enabled) {
+  if (!ui_state.map_scale_page_title.empty()) {
+    buffer += ui_state.map_scale_page_title;
+    buffer += " ";
+  } else if (ui_state.auxiliary_enabled) {
     buffer += ui_state.panel_name;
-    buffer += _T(" ");
+    buffer += " ";
   }
 
   if (Basic().gps.replay)
-    buffer += _T("REPLAY ");
+    buffer += "REPLAY ";
   else if (Basic().gps.simulator) {
     buffer += _("Simulator");
-    buffer += _T(" ");
+    buffer += " ";
   }
 
   if (GetComputerSettings().polar.ballast_timer_active)
     buffer.AppendFormat(
-        _T("BALLAST %d LITERS "),
+        "BALLAST %d LITERS ",
         (int)GetComputerSettings().polar.glide_polar_task.GetBallastLitres());
 
-  if (rasp_renderer != nullptr) {
-    const TCHAR *label = rasp_renderer->GetLabel();
+  if (rasp_renderer != nullptr &&
+      ui_state.page_overlay != PageLayout::Overlay::RASP) {
+    const char *label = rasp_renderer->GetLabel();
     if (label != nullptr)
       buffer += gettext(label);
   }

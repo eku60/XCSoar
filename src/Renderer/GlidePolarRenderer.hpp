@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <tchar.h>
+#include <cstddef>
 
 struct PixelRect;
 class Canvas;
@@ -12,7 +12,8 @@ class ClimbHistory;
 class GlidePolar;
 
 void
-GlidePolarCaption(TCHAR *buffer, const GlidePolar &glide_polar);
+GlidePolarCaption(char *buffer, size_t buffer_size,
+                  const GlidePolar &glide_polar);
 
 void
 RenderGlidePolar(Canvas &canvas, const PixelRect rc,

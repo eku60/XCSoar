@@ -18,13 +18,15 @@
 #include "time/BrokenDate.hpp"
 #include "Language/Language.hpp"
 #include "Math/Angle.hpp"
+#include "LogFile.hpp"
 #include "util/StringAPI.hxx"
 #include "util/TruncateString.hpp"
 
 #include <cassert>
+#include <new>
 
 std::unique_ptr<WndProperty>
-RowFormWidget::CreateEdit(const TCHAR *label, const TCHAR *help,
+RowFormWidget::CreateEdit(const char *label, const char *help,
                           bool read_only) noexcept
 {
   assert(IsDefined());
@@ -50,7 +52,7 @@ RowFormWidget::CreateEdit(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::Add(const TCHAR *label, const TCHAR *help,
+RowFormWidget::Add(const char *label, const char *help,
                    bool read_only) noexcept
 {
   return (WndProperty *)&Add(Row::Type::EDIT,
@@ -58,8 +60,8 @@ RowFormWidget::Add(const TCHAR *label, const TCHAR *help,
 }
 
 void
-RowFormWidget::AddReadOnly(const TCHAR *label, const TCHAR *help,
-                           const TCHAR *text) noexcept
+RowFormWidget::AddReadOnly(const char *label, const char *help,
+                           const char *text) noexcept
 {
   WndProperty *control = Add(label, help, true);
   if (text != nullptr)
@@ -67,8 +69,8 @@ RowFormWidget::AddReadOnly(const TCHAR *label, const TCHAR *help,
 }
 
 void
-RowFormWidget::AddReadOnly(const TCHAR *label, const TCHAR *help,
-                           const TCHAR *display_format,
+RowFormWidget::AddReadOnly(const char *label, const char *help,
+                           const char *display_format,
                            double value) noexcept
 {
   WndProperty *edit = Add(label, help, true);
@@ -78,7 +80,7 @@ RowFormWidget::AddReadOnly(const TCHAR *label, const TCHAR *help,
 }
 
 void
-RowFormWidget::AddReadOnly(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddReadOnly(const char *label, const char *help,
                            bool value) noexcept
 {
   WndProperty *edit = Add(label, help, true);
@@ -87,7 +89,7 @@ RowFormWidget::AddReadOnly(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::Add(const TCHAR *label, const TCHAR *help,
+RowFormWidget::Add(const char *label, const char *help,
                    DataField *df) noexcept
 {
   WndProperty *edit = Add(label, help);
@@ -96,7 +98,7 @@ RowFormWidget::Add(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddBoolean(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddBoolean(const char *label, const char *help,
                           bool value,
                           DataFieldListener *listener) noexcept
 {
@@ -108,9 +110,9 @@ RowFormWidget::AddBoolean(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddInteger(const TCHAR *label, const TCHAR *help,
-                          const TCHAR *display_format,
-                          const TCHAR *edit_format,
+RowFormWidget::AddInteger(const char *label, const char *help,
+                          const char *display_format,
+                          const char *edit_format,
                           int min_value, int max_value, int step, int value,
                           DataFieldListener *listener) noexcept
 {
@@ -123,9 +125,9 @@ RowFormWidget::AddInteger(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddFloat(const TCHAR *label, const TCHAR *help,
-                        const TCHAR *display_format,
-                        const TCHAR *edit_format,
+RowFormWidget::AddFloat(const char *label, const char *help,
+                        const char *display_format,
+                        const char *edit_format,
                         double min_value, double max_value,
                         double step, bool fine,
                         double value,
@@ -140,7 +142,7 @@ RowFormWidget::AddFloat(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddAngle(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddAngle(const char *label, const char *help,
                         Angle value, unsigned step, bool fine,
                         DataFieldListener *listener) noexcept
 {
@@ -151,7 +153,7 @@ RowFormWidget::AddAngle(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddEnum(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddEnum(const char *label, const char *help,
                        const StaticEnumChoice *list, unsigned value,
                        DataFieldListener *listener) noexcept
 {
@@ -171,7 +173,7 @@ RowFormWidget::AddEnum(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddEnum(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddEnum(const char *label, const char *help,
                        DataFieldListener *listener) noexcept
 {
   WndProperty *edit = Add(label, help);
@@ -182,8 +184,8 @@ RowFormWidget::AddEnum(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddText(const TCHAR *label, const TCHAR *help,
-                       const TCHAR *content,
+RowFormWidget::AddText(const char *label, const char *help,
+                       const char *content,
                        DataFieldListener *listener) noexcept
 {
   WndProperty *edit = Add(label, help);
@@ -194,8 +196,8 @@ RowFormWidget::AddText(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddPassword(const TCHAR *label, const TCHAR *help,
-                           const TCHAR *content) noexcept
+RowFormWidget::AddPassword(const char *label, const char *help,
+                           const char *content) noexcept
 {
   WndProperty *edit = Add(label, help);
   PasswordDataField *df = new PasswordDataField(content);
@@ -205,7 +207,7 @@ RowFormWidget::AddPassword(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddDuration(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddDuration(const char *label, const char *help,
                            std::chrono::seconds min_value,
                            std::chrono::seconds max_value,
                            std::chrono::seconds step,
@@ -222,7 +224,7 @@ RowFormWidget::AddDuration(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddDate(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddDate(const char *label, const char *help,
                        BrokenDate date,
                        DataFieldListener *listener) noexcept
 {
@@ -233,7 +235,7 @@ RowFormWidget::AddDate(const TCHAR *label, const TCHAR *help,
 }
 
 WndProperty *
-RowFormWidget::AddRoughTime(const TCHAR *label, const TCHAR *help,
+RowFormWidget::AddRoughTime(const char *label, const char *help,
                             RoughTime value, RoughTimeDelta time_zone,
                             DataFieldListener *listener) noexcept
 {
@@ -264,7 +266,7 @@ RowFormWidget::LoadValue(unsigned i, bool value) noexcept
 }
 
 void
-RowFormWidget::LoadValueEnum(unsigned i, const TCHAR *text) noexcept
+RowFormWidget::LoadValueEnum(unsigned i, const char *text) noexcept
 {
   WndProperty &control = GetControl(i);
   DataFieldEnum &df = *(DataFieldEnum *)control.GetDataField();
@@ -294,7 +296,7 @@ RowFormWidget::LoadValue(unsigned i, double value) noexcept
 }
 
 void
-RowFormWidget::LoadValue(unsigned i, const TCHAR *value) noexcept
+RowFormWidget::LoadValue(unsigned i, const char *value) noexcept
 {
   WndProperty &control = GetControl(i);
   DataFieldString &df = *(DataFieldString *)control.GetDataField();
@@ -463,14 +465,34 @@ RowFormWidget::SaveValue(unsigned i, RoughTime &value_r) const noexcept
 
 bool
 RowFormWidget::SaveValue(unsigned i,
-                         TCHAR *string, size_t max_size) const noexcept
+                         char *string, size_t max_size) const noexcept
 {
-  const TCHAR *new_value = GetDataField(i).GetAsString();
+  const char *new_value = GetDataField(i).GetAsString();
   assert(new_value != nullptr);
 
   if (StringIsEqual(string, new_value))
     return false;
 
   CopyTruncateString(string, max_size, new_value);
+  return true;
+}
+
+bool
+RowFormWidget::SaveValue(unsigned i,
+                         std::string &string) const noexcept
+{
+  const char *new_value = GetDataField(i).GetAsString();
+  assert(new_value != nullptr);
+
+  if (string == new_value)
+    return false;
+
+  try {
+    string = new_value;
+  } catch (const std::bad_alloc &) {
+    LogFmt("SaveValue: allocation failed storing string value");
+    return false;
+  }
+
   return true;
 }

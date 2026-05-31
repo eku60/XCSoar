@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright The XCSoar Project
 
+#include "TransponderCode.hpp"
 #include "AirspacePrinting.hpp"
 #include "Printing.hpp"
 #include "harness_airspace.hpp"
@@ -11,7 +12,6 @@
 #include "Geo/GeoVector.hpp"
 #include "Formatter/AirspaceFormatter.hpp"
 #include "system/FileUtil.hpp"
-#include "util/ConvertString.hpp"
 
 #include <stdlib.h>
 #include <fstream>
@@ -25,7 +25,8 @@ airspace_random_properties(AbstractAirspace& as)
   AirspaceAltitude top;
   base.altitude = rand()%4000;
   top.altitude = base.altitude+rand()%3000;
-  as.SetProperties(_T("hello"), asclass, _T("E"), base, top);
+  TransponderCode code = TransponderCode::Parse("1234");
+  as.SetProperties("hello", "Hello2",std::move(code), asclass, AirspaceClass::CLASSE, base, top);
 }
 
 
@@ -45,7 +46,7 @@ void setup_airspaces(Airspaces& airspaces, const GeoPoint& center, const unsigne
   std::ofstream *fin = NULL;
 
   if (verbose) {
-    Directory::Create(Path(_T("output/results")));
+    Directory::Create(Path("output/results"));
     fin = new std::ofstream("output/results/res-bb-in.txt");
   }
 
@@ -116,7 +117,7 @@ public:
   void Visit(const AbstractAirspace &as) {
     if (do_report) {
       *fout << as;
-      *fout << "# Name: " << WideToUTF8Converter(as.GetName())
+      *fout << "# Name: " << as.GetName()
             << "Base: " << as.GetBase()
             << " Top: " << as.GetTop()
             << "\n";
@@ -232,15 +233,15 @@ public:
   }
 };
 
-void scan_airspaces(const AircraftState state, 
+void scan_airspaces(const AircraftState state,
                     const Airspaces& airspaces,
                     const AirspaceAircraftPerformance& perf,
                     bool do_report,
-                    const GeoPoint &target) 
+                    const GeoPoint &target)
 {
   const double range(20000.0);
 
-  Directory::Create(Path(_T("output/results")));
+  Directory::Create(Path("output/results"));
 
   {
     AirspaceVisitorPrint pvisitor("output/results/res-bb-range.txt",
@@ -266,7 +267,7 @@ void scan_airspaces(const AircraftState state,
     for (const auto &a : airspaces.QueryInside(state))
       pvi.Visit(a.GetAirspace());
   }
-  
+
   {
     AirspaceIntersectionVisitorPrint ivisitor("output/results/res-bb-intersects.txt",
                                               "output/results/res-bb-intersected.txt",

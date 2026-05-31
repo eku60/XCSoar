@@ -2,6 +2,10 @@
 // Copyright The XCSoar Project
 
 #include "WeGlideTasksPanel.hpp"
+#include "Widget/TextWidget.hpp"
+#include "Language/Language.hpp"
+
+#ifdef HAVE_HTTP
 #include "Internal.hpp"
 #include "Dialogs/CoFunctionDialog.hpp"
 #include "Dialogs/Message.hpp"
@@ -9,13 +13,12 @@
 #include "Form/Button.hpp"
 #include "Form/ButtonPanel.hpp"
 #include "Widget/ListWidget.hpp"
-#include "Widget/TextWidget.hpp"
 #include "Widget/ButtonPanelWidget.hpp"
 #include "Widget/TwoWidgets.hpp"
 #include "Task/ValidationErrorStrings.hpp"
-#include "Language/Language.hpp"
 #include "Formatter/UserUnits.hpp"
 #include "Renderer/TwoTextRowsRenderer.hpp"
+#include "util/StaticString.hxx"
 #include "Look/DialogLook.hpp"
 #include "Engine/Task/Ordered/OrderedTask.hpp"
 #include "Operation/PluggableOperationEnvironment.hpp"
@@ -25,7 +28,6 @@
 #include "net/http/Init.hpp"
 #include "lib/curl/Global.hxx"
 #include "util/Compiler.h"
-#include "util/ConvertString.hpp"
 #include "UIGlobals.hpp"
 #include "Components.hpp"
 #include "DataComponents.hpp"
@@ -108,11 +110,12 @@ private:
   }
 
   bool CanActivateItem([[maybe_unused]] unsigned index) const noexcept override {
-      return true;
+      return !list.empty();
   }
 
   void OnActivateItem([[maybe_unused]] unsigned index) noexcept override {
-    LoadTask();
+    if (!list.empty())
+      LoadTask();
   }
 };
 
@@ -120,15 +123,50 @@ void
 WeGlideTasksPanel::OnPaintItem(Canvas &canvas, const PixelRect rc,
                                unsigned idx) noexcept
 {
-  assert(idx <= list.size());
+  if (list.empty()) {
+    row_renderer.DrawFirstRow(canvas, rc, _("No tasks"));
+    return;
+  }
+
+  assert(idx < list.size());
   const auto &info = list[idx];
 
-  if (UTF8ToWideConverter w{info.name.c_str()}; w.IsValid())
-    row_renderer.DrawFirstRow(canvas, rc, w);
+  if (!info.name.empty())
+    row_renderer.DrawFirstRow(canvas, rc, info.name.c_str());
 
-  if (selection != WeGlideTaskSelection::USER)
-    if (UTF8ToWideConverter w{info.user_name.c_str()}; w.IsValid())
-      row_renderer.DrawSecondRow(canvas, rc, w);
+  StaticString<256> second_row;
+  second_row.clear();
+
+  if (!info.scoring_date.empty()) {
+    second_row.append(info.scoring_date.c_str());
+  }
+
+  if (info.kind != WeGlide::TaskKind::UNKNOWN) {
+    if (!second_row.empty())
+      second_row.append(", ");
+    second_row.append(WeGlide::ToString(info.kind));
+  }
+
+  if (!info.turnpoints.empty()) {
+    if (!second_row.empty())
+      second_row.append(", ");
+    second_row.AppendFormat(_("%u TPs"), (unsigned)info.turnpoints.size());
+  }
+
+  if (selection != WeGlideTaskSelection::USER && !info.user_name.empty()) {
+    if (!second_row.empty())
+      second_row.append(" · ");
+    second_row.append(info.user_name.c_str());
+  }
+
+  if (!info.ruleset.empty()) {
+    if (!second_row.empty())
+      second_row.append(" · ");
+    second_row.append(info.ruleset.c_str());
+  }
+
+  if (!second_row.empty())
+    row_renderer.DrawSecondRow(canvas, rc, second_row.c_str());
 
   row_renderer.DrawRightSecondRow(canvas, rc,
                                   FormatUserDistanceSmart(info.distance));
@@ -148,6 +186,14 @@ LoadTaskList(WeGlideTaskSelection selection,
   case WeGlideTaskSelection::PUBLIC_DECLARED:
     return WeGlide::ListDeclaredTasks(*Net::curl, settings,
                                       progress);
+
+  case WeGlideTaskSelection::DAILY_COMPETITIONS:
+    return WeGlide::ListDailyCompetitions(*Net::curl, settings,
+                                          progress);
+
+  case WeGlideTaskSelection::RECENT_SCORES:
+    return WeGlide::ListRecentTaskScores(*Net::curl, settings,
+                                         progress);
   }
 
   gcc_unreachable();
@@ -158,28 +204,62 @@ WeGlideTasksPanel::ReloadList() noexcept
 {
   const auto &settings = CommonInterface::GetComputerSettings();
 
+  if (!settings.weglide.enabled) {
+    list.clear();
+    GetList().SetLength(1);
+    UpdateButtons();
+    RefreshView();
+    return;
+  }
+
   inject_reload.Cancel();
   inject_reload.Start(LoadTaskList(selection, settings.weglide,
                                    null_progress_listener),
                       [this](List &&_list){
                         list = std::move(_list);
-                        GetList().SetLength(list.size());
+                        GetList().SetLength(list.empty() ? 1 : list.size());
                         UpdateButtons();
+                        RefreshView();
                       },
-                      [](std::exception_ptr error){
-                        ShowError(error, _T("Error"));
+                      [this](std::exception_ptr error){
+                        ShowError(error, "Error");
+                        RefreshView();
                       });
 }
 
 void
 WeGlideTasksPanel::RefreshView() noexcept
 {
-  //const auto &info = list[GetList().GetCursorIndex()];
-
   dialog.InvalidateTaskView();
 
-  // TODO dialog.ShowTaskView(...);
-  (void)summary; // TODO
+  if (list.empty() || GetList().GetCursorIndex() >= list.size()) {
+    summary.SetText("");
+  } else {
+    const auto &info = list[GetList().GetCursorIndex()];
+
+    StaticString<512> text;
+    text.clear();
+
+    if (!info.scores.empty()) {
+      unsigned rank = 1;
+      for (const auto &se : info.scores) {
+        if (!text.empty())
+          text.append("\n");
+        text.AppendFormat("%u. %s — %.0f pts, %.1f km/h",
+                         rank++,
+                         se.user_name.c_str(),
+                         se.points, se.speed);
+      }
+    } else if (!info.turnpoints.empty()) {
+      for (const auto &tp : info.turnpoints) {
+        if (!text.empty())
+          text.append(" → ");
+        text.append(tp.name.c_str());
+      }
+    }
+
+    summary.SetText(text.c_str());
+  }
 
   if (GetList().IsVisible() && two_widgets != nullptr)
     two_widgets->UpdateLayout();
@@ -274,3 +354,19 @@ CreateWeGlideTasksPanel(TaskManagerDialog &dialog,
 
   return buttons;
 }
+
+#else
+
+std::unique_ptr<Widget>
+CreateWeGlideTasksPanel([[maybe_unused]] TaskManagerDialog &dialog,
+                        [[maybe_unused]] WeGlideTaskSelection selection,
+                        [[maybe_unused]]
+                         std::unique_ptr<OrderedTask> &active_task,
+                        [[maybe_unused]] bool *task_modified) noexcept
+{
+  auto widget = std::make_unique<TextWidget>();
+  widget->SetText(_("WeGlide is not available in this build."));
+  return widget;
+}
+
+#endif

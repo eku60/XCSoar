@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "InfoBoxes/Content/Thermal.hpp"
+#include "InfoBoxes/Content/ShowAnalysis.hpp"
 #include "InfoBoxes/Data.hpp"
 #include "Units/Units.hpp"
 #include "Formatter/UserUnits.hpp"
@@ -10,15 +11,16 @@
 #include "UIGlobals.hpp"
 #include "Look/Look.hpp"
 #include "Renderer/ClimbPercentRenderer.hpp"
-
-#include <tchar.h>
+#include "Input/InputEvents.hpp"
+#include "PageActions.hpp"
+#include "UIState.hpp"
 
 static void
 SetVSpeed(InfoBoxData &data, double value) noexcept
 {
-  TCHAR buffer[32];
+  char buffer[32];
   FormatUserVerticalSpeed(value, buffer, false);
-  data.SetValue(buffer[0] == _T('+') ? buffer + 1 : buffer);
+  data.SetValue(buffer[0] == '+' ? buffer + 1 : buffer);
   data.SetValueUnit(Units::current.vertical_speed_unit);
 }
 
@@ -42,6 +44,7 @@ UpdateInfoBoxThermal30s(InfoBoxData &data) noexcept
   // Set Color (red/black)
   data.SetValueColor(2 * CommonInterface::Calculated().average <
       CommonInterface::Calculated().common_stats.current_risk_mc ? 1 : 0);
+  data.SetCommentFromVerticalSpeed(CommonInterface::Calculated().current_thermal.lift_rate);
 }
 
 void
@@ -66,6 +69,7 @@ UpdateInfoBoxThermalLastGain(InfoBoxData &data) noexcept
   }
 
   data.SetValueFromAltitude(thermal.gain);
+  data.SetCommentFromVerticalSpeed(thermal.lift_rate);
 }
 
 void
@@ -210,7 +214,7 @@ UpdateInfoBoxCircleDiameter(InfoBoxData &data) noexcept
     return;
   }
 
-  TCHAR buffer[32];
+  char buffer[32];
   Unit unit = FormatSmallUserDistance(buffer, circle_diameter, false, 0);
   data.SetValue (buffer);
   data.SetValueUnit(unit);
@@ -219,9 +223,8 @@ UpdateInfoBoxCircleDiameter(InfoBoxData &data) noexcept
     Angle::FullCircle().Native() / turn_rate.Native();
 
   StaticString<16> duration_buffer;
-  duration_buffer.Format(_T("%u s"), int(circle_duration));
-  _tcscpy (buffer, duration_buffer);
-  data.SetComment (buffer);
+  duration_buffer.Format("%u s", int(circle_duration));
+  data.SetComment(duration_buffer);
 }
 
 InfoBoxContentThermalAssistant::InfoBoxContentThermalAssistant() noexcept
@@ -252,6 +255,19 @@ InfoBoxContentThermalAssistant::OnCustomPaint(Canvas &canvas,
   renderer.Paint(canvas);
 }
 
+bool
+InfoBoxContentThermalAssistant::HandleClick() noexcept
+{
+  const auto &pages = CommonInterface::GetUIState().pages;
+  if (pages.special_page.IsDefined() && pages.special_page.main == PageLayout::Main::THERMAL_ASSISTANT) {
+    PageActions::Restore();
+  } else {
+	InputEvents::eventThermalAssistant("");
+  }
+
+  return true;
+}
+
 void
 InfoBoxContentClimbPercent::OnCustomPaint(Canvas &canvas, const PixelRect &rc)noexcept 
 {
@@ -269,4 +285,22 @@ InfoBoxContentClimbPercent::Update(InfoBoxData &data) noexcept
 
   // TODO: use an appropriate digest
   data.SetCustom(basic.location_available.ToInteger());
+}
+
+bool
+InfoBoxContentClimbPercent::HandleClick() noexcept
+{
+  return ShowAnalysis(AnalysisPage::CLIMB);
+}
+
+void
+InfoBoxContentThermalRatio::Update(InfoBoxData &data) noexcept
+{
+  UpdateInfoBoxThermalRatio(data);
+}
+
+bool
+InfoBoxContentThermalRatio::HandleClick() noexcept
+{
+  return ShowAnalysis(AnalysisPage::CLIMB);
 }

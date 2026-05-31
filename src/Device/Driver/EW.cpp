@@ -14,18 +14,12 @@
 #include "NMEA/Checksum.hpp"
 #include "Operation/Operation.hpp"
 #include "util/TruncateString.hpp"
-#include "util/ConvertString.hpp"
 #include "util/ScopeExit.hxx"
 
 #include <algorithm>
 
-#include <tchar.h>
 #include <stdio.h>
 #include "Waypoint/Waypoint.hpp"
-
-#ifdef _UNICODE
-#include <stringapiset.h>
-#endif
 
 // Additional sentance for EW support
 
@@ -86,22 +80,10 @@ EWDevice::TryConnect(OperationEnvironment &env)
 }
 
 static void
-convert_string(char *dest, size_t size, const TCHAR *src)
+convert_string(char *dest, size_t size, const char *src)
 {
-#ifdef _UNICODE
-  size_t length = _tcslen(src);
-  if (length >= size)
-    length = size - 1;
-
-  int length2 = ::WideCharToMultiByte(CP_ACP, 0, src, length, dest, size,
-                                      nullptr, nullptr);
-  if (length2 < 0)
-    length2 = 0;
-  dest[length2] = '\0';
-#else
   strncpy(dest, src, size - 1);
   dest[size - 1] = '\0';
-#endif
 }
 
 bool
@@ -212,13 +194,11 @@ EWDevice::AddWaypoint(const Waypoint &way_point, OperationEnvironment &env)
   if (ewDecelTpIndex > 6)
     return false;
 
-  // copy at most 6 chars
-  const WideToUTF8Converter name_utf8(way_point.name.c_str());
-  if (!name_utf8.IsValid())
+  if (way_point.name.empty())
     return false;
 
   char IDString[12];
-  char *end = CopyTruncateString(IDString, 7, name_utf8);
+  char *end = CopyTruncateString(IDString, 7, way_point.name.data());
 
   // fill up with spaces
   std::fill(end, IDString + 6, ' ');
@@ -281,8 +261,8 @@ EWCreateOnPort([[maybe_unused]] const DeviceConfig &config, Port &com_port)
 }
 
 const struct DeviceRegister ew_driver = {
-  _T("EW Logger"),
-  _T("EW Logger"),
+  "EW Logger",
+  "EW Logger",
   DeviceRegister::DECLARE,
   EWCreateOnPort,
 };

@@ -5,11 +5,9 @@
 
 #include "ui/window/ContainerWindow.hpp"
 #include "ui/window/SolidContainerWindow.hpp"
-#include "util/tstring.hpp"
 
+#include <string>
 #include <functional>
-#include <tchar.h>
-
 struct DialogLook;
 namespace UI { class SingleWindow; }
 class PeriodClock;
@@ -57,11 +55,17 @@ protected:
   KeyDownFunction key_down_function;
   CharacterFunction character_function;
 
+  /**
+   * If set, invoked from @ref OnResize after the client @ref client_area
+   * is moved, so the dialog can reposition in-dialog controls.
+   */
+  std::function<void()> client_layout_function;
+
   PixelPoint last_drag;
 
   void OnPaint(Canvas &canvas) noexcept override;
 
-  tstring caption;
+  std::string caption;
 
 public:
   WndForm(const DialogLook &_look);
@@ -73,25 +77,25 @@ public:
    */
   WndForm(UI::SingleWindow &_main_window, const DialogLook &_look,
           const PixelRect &rc,
-          const TCHAR *caption=nullptr,
+          const char *caption=nullptr,
           const WindowStyle style = WindowStyle());
 
   /**
    * Construct a full-screen dialog.
    */
   WndForm(UI::SingleWindow &_main_window, const DialogLook &_look,
-          const TCHAR *caption=nullptr,
+          const char *caption=nullptr,
           const WindowStyle style={}) noexcept;
 
   void Create(UI::SingleWindow &main_window, const PixelRect &rc,
-              const TCHAR *caption=nullptr,
+              const char *caption=nullptr,
               const WindowStyle style=WindowStyle());
 
   /**
    * Create a full-screen dialog.
    */
   void Create(UI::SingleWindow &main_window,
-              const TCHAR *caption=nullptr,
+              const char *caption=nullptr,
               const WindowStyle style=WindowStyle());
 
 protected:
@@ -147,12 +151,12 @@ public:
 
   int ShowModal();
 
-  const TCHAR *GetCaption() const {
+  const char *GetCaption() const {
     return caption.c_str();
   }
 
   /** Set the titlebar text */
-  void SetCaption(const TCHAR *_caption);
+  void SetCaption(const char *_caption);
 
   /** from class Window */
   void OnCreate() override;
@@ -178,6 +182,14 @@ public:
 
   void SetCharacterFunction(CharacterFunction function) {
     character_function = function;
+  }
+
+  void SetClientLayoutFunction(std::function<void()> f) {
+    client_layout_function = std::move(f);
+  }
+
+  void ClearClientLayoutFunction() {
+    client_layout_function = {};
   }
 
   /**

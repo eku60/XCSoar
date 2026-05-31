@@ -2,21 +2,22 @@
 // Copyright The XCSoar Project
 
 #include "Profile.hpp"
-#include "Map.hpp"
-#include "File.hpp"
-#include "Current.hpp"
-#include "LogFile.hpp"
 #include "Asset.hpp"
+#include "Current.hpp"
+#include "File.hpp"
 #include "LocalPath.hpp"
-#include "util/StringUtil.hpp"
-#include "util/StringCompare.hxx"
-#include "util/StringAPI.hxx"
-#include "util/tstring.hpp"
+#include "LogFile.hpp"
+#include "Map.hpp"
+#include "lib/fmt/PathFormatter.hpp"
 #include "system/FileUtil.hpp"
 #include "system/Path.hpp"
+#include "util/StringAPI.hxx"
+#include "util/StringCompare.hxx"
+#include "util/StringUtil.hpp"
 
-#include <windef.h> /* for MAX_PATH */
+#include <string>
 #include <cassert>
+#include <windef.h> /* for MAX_PATH */
 
 #define XCSPROFILE "default.prf"
 #define OLDXCSPROFILE "xcsoar-registry.prf"
@@ -44,7 +45,7 @@ Profile::LoadFile(Path path) noexcept
 {
   try {
     LoadFile(map, path);
-    LogFormat(_T("Loaded profile from %s"), path.c_str());
+    LogFmt("Loaded profile from {}", path);
   } catch (...) {
     LogError(std::current_exception(), "Failed to load profile");
   }
@@ -72,7 +73,7 @@ Profile::Save() noexcept
 void
 Profile::SaveFile(Path path)
 {
-  LogFormat(_T("Saving profile to %s"), path.c_str());
+  LogFmt("Saving profile to {}", path);
   SaveFile(map, path);
 }
 
@@ -88,8 +89,8 @@ Profile::SetFiles(Path override_path) noexcept
       if (StringFind(override_path.c_str(), '.') != nullptr)
         startProfileFile = LocalPath(override_path);
       else {
-        tstring t(override_path.c_str());
-        t += _T(".prf");
+        std::string t(override_path.c_str());
+        t += ".prf";
         startProfileFile = LocalPath(t.c_str());
       }
     } else
@@ -98,13 +99,19 @@ Profile::SetFiles(Path override_path) noexcept
   }
 
   // Set the default profile file
-  startProfileFile = LocalPath(_T(XCSPROFILE));
+  startProfileFile = LocalPath(XCSPROFILE);
 }
 
 AllocatedPath
 Profile::GetPath(std::string_view key) noexcept
 {
   return map.GetPath(key);
+}
+
+std::vector<AllocatedPath>
+Profile::GetMultiplePaths(std::string_view key, const char *patterns)
+{
+  return map.GetMultiplePaths(key, patterns);
 }
 
 bool

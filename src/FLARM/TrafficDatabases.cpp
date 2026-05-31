@@ -2,15 +2,27 @@
 // Copyright The XCSoar Project
 
 #include "TrafficDatabases.hpp"
+#include "MessagingRecord.hpp"
 #include "util/StringCompare.hxx"
+#include "util/StaticString.hxx"
 
-const TCHAR *
+const char *
 TrafficDatabases::FindNameById(FlarmId id) const noexcept
 {
-  // try to find flarm from userFile
-  const TCHAR *name = flarm_names.Get(id);
+  // try to find flarm from userFile (secondary names)
+  const char *name = flarm_names.Get(id);
   if (name != nullptr)
     return name;
+
+  // try to find flarm from PFLAM messaging database
+  const auto msg_record = flarm_messages.FindRecordById(id);
+  if (msg_record.has_value() && !msg_record->callsign.empty()) {
+    static thread_local StaticString<256> callsign_buf;
+    const char *cs = msg_record->Format(callsign_buf, msg_record->callsign);
+
+    if (cs != nullptr && cs[0] != 0)
+      return cs;
+  }
 
   // try to find flarm from FlarmNet.org File
   const FlarmNetRecord *record = flarm_net.FindRecordById(id);
@@ -21,7 +33,7 @@ TrafficDatabases::FindNameById(FlarmId id) const noexcept
 }
 
 FlarmId
-TrafficDatabases::FindIdByName(const TCHAR *name) const noexcept
+TrafficDatabases::FindIdByName(const char *name) const noexcept
 {
   assert(!StringIsEmpty(name));
 
@@ -33,13 +45,13 @@ TrafficDatabases::FindIdByName(const TCHAR *name) const noexcept
   // try to find flarm from FlarmNet.org File
   const FlarmNetRecord *record = flarm_net.FindFirstRecordByCallSign(name);
   if (record != NULL)
-    return record->GetId();
+    return record->id;
 
   return FlarmId::Undefined();
 }
 
 unsigned
-TrafficDatabases::FindIdsByName(const TCHAR *name,
+TrafficDatabases::FindIdsByName(const char *name,
                                 FlarmId *buffer, unsigned max) const noexcept
 {
   assert(!StringIsEmpty(name));

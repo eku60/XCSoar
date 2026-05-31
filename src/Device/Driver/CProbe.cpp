@@ -76,13 +76,13 @@ ParseData(NMEAInputLine &line, NMEAInfo &info)
 
   unsigned temperature;
   if (line.ReadHexChecked(temperature)) {
-    info.temperature_available = true;
+    info.temperature_available.Update(info.clock);
     info.temperature = Temperature::FromCelsius(int16_t(temperature) / 10.);
   }
 
   unsigned humidity;
   if (line.ReadHexChecked(humidity)) {
-    info.humidity_available = true;
+    info.humidity_available.Update(info.clock);
     info.humidity = int16_t(humidity) / 10.;
   }
 
@@ -124,8 +124,8 @@ CProbeCreateOnPort([[maybe_unused]] const DeviceConfig &config, [[maybe_unused]]
 }
 
 const struct DeviceRegister c_probe_driver = {
-  _T("CProbe"),
-  _T("Compass C-Probe"),
+  "CProbe",
+  "Compass C-Probe",
   0,
   CProbeCreateOnPort,
 };

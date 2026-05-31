@@ -55,7 +55,7 @@ CGImageToUncompressedImage(CGImageRef image) noexcept
     }
   }
 
-  std::unique_ptr<uint8_t[]> uncompressed(new uint8_t[height * row_size]);
+  std::unique_ptr<uint8_t[]> uncompressed(new uint8_t[height * row_size]());
 
   CGContextRef bitmap = CGBitmapContextCreate(uncompressed.get(), width, height,
                                               8, row_size, bitmap_colorspace,
@@ -80,6 +80,28 @@ LoadJPEGFile(Path path) noexcept
     return {};
 
   CGImageRef image =  CGImageCreateWithJPEGDataProvider(
+      data_provider, nullptr, false, kCGRenderingIntentDefault);
+
+  UncompressedImage result = CGImageToUncompressedImage(image);
+
+  if (nullptr != image)
+    CFRelease(image);
+  CFRelease(data_provider);
+
+  return result;
+}
+
+UncompressedImage
+LoadJPEG(std::span<const std::byte> raw)
+{
+  assert(raw.data() != nullptr);
+
+  CGDataProviderRef data_provider = CGDataProviderCreateWithData(
+      nullptr, raw.data(), raw.size(), nullptr);
+  if (nullptr == data_provider)
+    return {};
+
+  CGImageRef image = CGImageCreateWithJPEGDataProvider(
       data_provider, nullptr, false, kCGRenderingIntentDefault);
 
   UncompressedImage result = CGImageToUncompressedImage(image);

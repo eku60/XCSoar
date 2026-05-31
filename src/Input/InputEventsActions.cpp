@@ -20,7 +20,8 @@ It also covers the configuration side of on screen labels.
 For further information on config file formats see
 
 source/Common/Data/Input/ALL
-doc/html/advanced/input/ALL  http://xcsoar.sourceforge.net/advanced/input/
+doc/html/advanced/input/ALL
+https://xcsoar.readthedocs.io/en/latest/input_events.html
 
 */
 
@@ -41,6 +42,8 @@ doc/html/advanced/input/ALL  http://xcsoar.sourceforge.net/advanced/input/
 #include "Dialogs/dlgAnalysis.hpp"
 #include "Dialogs/FileManager.hpp"
 #include "Dialogs/ReplayDialog.hpp"
+#include "Dialogs/dlgQuickGuide.hpp"
+#include "Dialogs/dlgGestureHelp.hpp"
 #include "Message.hpp"
 #include "Markers/Markers.hpp"
 #include "MainWindow.hpp"
@@ -70,10 +73,11 @@ doc/html/advanced/input/ALL  http://xcsoar.sourceforge.net/advanced/input/
 #include "Components.hpp"
 #include "BackendComponents.hpp"
 #include "DataComponents.hpp"
+#include "Terrain/RasterTerrain.hpp"
 
 #include <cassert>
-#include <tchar.h>
 #include <algorithm>
+#include <limits>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -148,11 +152,11 @@ SuspendAppendSaveWaypoint(Waypoint &&wp)
 
 // TODO code: Keep marker text for use in log file etc.
 void
-InputEvents::eventMarkLocation(const TCHAR *misc)
+InputEvents::eventMarkLocation(const char *misc)
 {
   const NMEAInfo &basic = CommonInterface::Basic();
 
-  if (StringIsEqual(misc, _T("reset"))) {
+  if (StringIsEqual(misc, "reset")) {
     ScopeSuspendAllThreads suspend;
     data_components->waypoints->EraseUserMarkers();
   } else {
@@ -162,15 +166,15 @@ InputEvents::eventMarkLocation(const TCHAR *misc)
 
     MarkLocation(location, basic.date_time_utc);
 
-    const WaypointFactory factory(WaypointOrigin::USER,
+    const WaypointFactory factory(WaypointOrigin::USER, 0,
                                   data_components->terrain.get());
     Waypoint wp = factory.Create(location);
     factory.FallbackElevation(wp);
 
-    TCHAR name[64] = _T("Marker");
+    char name[64] = "Marker";
     if (basic.date_time_utc.IsPlausible()) {
       auto *p = name + StringLength(name);
-      *p++ = _T(' ' );
+      *p++ = ' ' ;
       FormatISO8601(p, basic.date_time_utc);
     }
 
@@ -180,39 +184,33 @@ InputEvents::eventMarkLocation(const TCHAR *misc)
     SuspendAppendSaveWaypoint(std::move(wp));
 
     if (CommonInterface::GetUISettings().sound.sound_modes_enabled)
-      PlayResource(_T("IDR_WAV_CLEAR"));
+      PlayResource("IDR_WAV_CLEAR");
   }
 
   trigger_redraw();
 }
 
 void
-InputEvents::eventPilotEvent([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventPilotEvent([[maybe_unused]] const char *misc)
 try {
   // Configure start window
   const OrderedTaskSettings &ots =
     backend_components->protected_task_manager->GetOrderedTaskSettings();
-  const StartConstraints &start = ots.start_constraints;
+  const StartConstraints &constraints = ots.start_constraints;
 
-  const BrokenTime bt = BrokenDateTime::NowUTC();
-  RoughTime new_start = RoughTime(bt.hour, bt.minute);
-  RoughTime new_end = RoughTime::Invalid();
+  const auto now = CommonInterface::Basic().time;
 
-  if (start.pev_start_wait_time.count() > 0) {
-    auto t = std::chrono::duration_cast<std::chrono::minutes>(start.pev_start_wait_time);
-    // Set start time to the next full minute after wait time.
-    // This way we make sure wait time is passed before xcsoar opens the start.
-    if (bt.second > 0)
-      t += std::chrono::minutes{1};
-    new_start = new_start + RoughTimeDelta::FromDuration(t);
-  }
+  // Note: pev_start_wait_time == 0 means window starts right away
+  TimeStamp new_start_ts( now.ToDuration() + constraints.pev_start_wait_time );
+  FineTime new_start(new_start_ts);
 
-  if (start.pev_start_window.count() > 0) {
-    new_end = new_start + RoughTimeDelta::FromDuration(start.pev_start_window);
-  }
-  const RoughTimeSpan ts = RoughTimeSpan(new_start, new_end);
+  FineTime new_end = (constraints.pev_start_window.count() > 0) ?
+                     FineTime(new_start_ts + constraints.pev_start_window) :
+                     FineTime::Invalid();
 
-  backend_components->protected_task_manager->SetStartTimeSpan(ts);
+  const TimeSpan ts = TimeSpan(new_start, new_end);
+
+  backend_components->protected_task_manager->SetPevStartTimeSpan(ts);
 
   // Log pilot event
   if (backend_components->igc_logger)
@@ -228,7 +226,7 @@ try {
 }
 
 void
-InputEvents::eventScreenModes(const TCHAR *misc)
+InputEvents::eventScreenModes(const char *misc)
 {
   // toggle switches like this:
   //  -- normal infobox
@@ -238,27 +236,27 @@ InputEvents::eventScreenModes(const TCHAR *misc)
 
   const UIState &ui_state = CommonInterface::GetUIState();
 
-  if (StringIsEqual(misc, _T("normal"))) {
+  if (StringIsEqual(misc, "normal")) {
     PageActions::OpenLayout(PageLayout::Default());
-  } else if (StringIsEqual(misc, _T("auxilary"))) {
+  } else if (StringIsEqual(misc, "auxilary")) {
     PageActions::OpenLayout(PageLayout::Aux());
-  } else if (StringIsEqual(misc, _T("toggleauxiliary"))) {
+  } else if (StringIsEqual(misc, "toggleauxiliary")) {
     PageActions::OpenLayout(ui_state.auxiliary_enabled
                             ? PageLayout::Default()
                             : PageLayout::Aux());
-  } else if (StringIsEqual(misc, _T("full"))) {
+  } else if (StringIsEqual(misc, "full")) {
     PageActions::OpenLayout(PageLayout::FullScreen());
-  } else if (StringIsEqual(misc, _T("togglefull"))) {
+  } else if (StringIsEqual(misc, "togglefull")) {
     CommonInterface::main_window->SetFullScreen(
         !CommonInterface::main_window->GetFullScreen());
-  } else if (StringIsEqual(misc, _T("show"))) {
+  } else if (StringIsEqual(misc, "show")) {
     if (CommonInterface::main_window->GetFullScreen())
       Message::AddMessage(_("Screen Mode Full"));
     else if (ui_state.auxiliary_enabled)
         Message::AddMessage(_("Auxiliary InfoBoxes"));
     else
         Message::AddMessage(_("Default InfoBoxes"));
-  } else if (StringIsEqual(misc, _T("previous")))
+  } else if (StringIsEqual(misc, "previous"))
     PageActions::Prev();
   else
     PageActions::Next();
@@ -269,7 +267,7 @@ InputEvents::eventScreenModes(const TCHAR *misc)
 // ClearStatusMessages
 // Do Clear Event Warnings
 void
-InputEvents::eventClearStatusMessages([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventClearStatusMessages([[maybe_unused]] const char *misc)
 {
   // TODO enhancement: allow selection of specific messages (here we are acknowledging all)
   if (CommonInterface::main_window->popup != nullptr)
@@ -281,7 +279,7 @@ InputEvents::eventClearStatusMessages([[maybe_unused]] const TCHAR *misc)
 //  The argument is the label of the mode to activate.
 //  This is used to activate menus/submenus of buttons
 void
-InputEvents::eventMode(const TCHAR *misc)
+InputEvents::eventMode(const char *misc)
 {
   assert(misc != NULL);
 
@@ -292,7 +290,7 @@ InputEvents::eventMode(const TCHAR *misc)
 
 // Don't think we need this.
 void
-InputEvents::eventMainMenu([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventMainMenu([[maybe_unused]] const char *misc)
 {
   // todo: popup main menu
 }
@@ -301,7 +299,7 @@ InputEvents::eventMainMenu([[maybe_unused]] const TCHAR *misc)
 // Displays the checklist dialog
 //  See the checklist dialog section of the reference manual for more info.
 void
-InputEvents::eventChecklist([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventChecklist([[maybe_unused]] const char *misc)
 {
   dlgChecklistShowModal();
 }
@@ -314,13 +312,13 @@ InputEvents::eventChecklist([[maybe_unused]] const TCHAR *misc)
 //  See the status dialog section of the reference manual for more info
 //  on these.
 void
-InputEvents::eventStatus(const TCHAR *misc)
+InputEvents::eventStatus(const char *misc)
 {
-  if (StringIsEqual(misc, _T("system"))) {
+  if (StringIsEqual(misc, "system")) {
     dlgStatusShowModal(1);
-  } else if (StringIsEqual(misc, _T("task"))) {
+  } else if (StringIsEqual(misc, "task")) {
     dlgStatusShowModal(2);
-  } else if (StringIsEqual(misc, _T("aircraft"))) {
+  } else if (StringIsEqual(misc, "aircraft")) {
     dlgStatusShowModal(0);
   } else {
     dlgStatusShowModal(-1);
@@ -332,7 +330,7 @@ InputEvents::eventStatus(const TCHAR *misc)
 //  See the analysis dialog section of the reference manual
 // for more info.
 void
-InputEvents::eventAnalysis([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventAnalysis([[maybe_unused]] const char *misc)
 {
   dlgAnalysisShowModal(*CommonInterface::main_window,
                        CommonInterface::main_window->GetLook(),
@@ -345,12 +343,13 @@ InputEvents::eventAnalysis([[maybe_unused]] const TCHAR *misc)
 // WaypointDetails
 // Displays waypoint details
 //         current: the current active waypoint
-//          select: brings up the waypoint selector, if the user then
-//                  selects a waypoint, then the details dialog is shown.
+//          select: opens waypoint search; details on selection; search stays
+//                  open until Esc or a successful GoTo / task / home / pan in
+//                  details (pan dismisses search so the map is visible).
 //  See the waypoint dialog section of the reference manual
 // for more info.
 void
-InputEvents::eventWaypointDetails(const TCHAR *misc)
+InputEvents::eventWaypointDetails(const char *misc)
 {
   const NMEAInfo &basic = CommonInterface::Basic();
   WaypointPtr wp;
@@ -358,7 +357,7 @@ InputEvents::eventWaypointDetails(const TCHAR *misc)
   bool allow_navigation = true;
   bool allow_edit = true;
 
-  if (StringIsEqual(misc, _T("current"))) {
+  if (StringIsEqual(misc, "current")) {
     if (!backend_components->protected_task_manager)
       return;
 
@@ -374,19 +373,35 @@ InputEvents::eventWaypointDetails(const TCHAR *misc)
        editor doesn't know how to do that */
     allow_navigation = false;
     allow_edit = false;
-  } else if (StringIsEqual(misc, _T("select"))) {
-    wp = ShowWaypointListDialog(*data_components->waypoints, basic.location);
+  } else if (StringIsEqual(misc, "select")) {
+    /* List stays open until Esc or a navigation/task change in details. */
+    ShowWaypointListPersistentDialog(basic.location, true, true);
+    return;
   }
   if (wp)
-    dlgWaypointDetailsShowModal(data_components->waypoints.get(),
-                                std::move(wp),
+    dlgWaypointDetailsShowModal(data_components->waypoints.get(), std::move(wp),
                                 allow_navigation, allow_edit);
 }
 
+// WaypointDetailsPersistent: same list+details flow as "WaypointDetails" select
+// (kept for existing .xci configurations).
 void
-InputEvents::eventWaypointEditor([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventWaypointDetailsPersistent(gcc_unused const char *misc)
+{
+  const NMEAInfo &basic = CommonInterface::Basic();
+  ShowWaypointListPersistentDialog(basic.location, true, true);
+}
+
+void
+InputEvents::eventWaypointEditor([[maybe_unused]] const char *misc)
 {
   dlgConfigWaypointsShowModal(*data_components->waypoints);
+}
+
+void
+InputEvents::eventWaypointImage(const char *misc)
+{
+  WaypointDetailsDispatchImageInput(misc);
 }
 
 // StatusMessage
@@ -394,7 +409,7 @@ InputEvents::eventWaypointEditor([[maybe_unused]] const TCHAR *misc)
 //    The argument is the text to be displayed.
 //    No punctuation characters are allowed.
 void
-InputEvents::eventStatusMessage(const TCHAR *misc)
+InputEvents::eventStatusMessage(const char *misc)
 {
   if (misc != NULL)
     Message::AddMessage(gettext(misc));
@@ -402,13 +417,13 @@ InputEvents::eventStatusMessage(const TCHAR *misc)
 
 // Plays a sound from the filename
 void
-InputEvents::eventPlaySound(const TCHAR *misc)
+InputEvents::eventPlaySound(const char *misc)
 {
   PlayResource(misc);
 }
 
 void
-InputEvents::eventAutoLogger(const TCHAR *misc)
+InputEvents::eventAutoLogger(const char *misc)
 {
   if (is_simulator())
     return;
@@ -420,7 +435,7 @@ InputEvents::eventAutoLogger(const TCHAR *misc)
     return;
 
   if (auto_logger == LoggerSettings::AutoLogger::START_ONLY &&
-      !StringIsEqual(misc, _T("start")))
+      !StringIsEqual(misc, "start"))
     return;
 
   eventLogger(misc);
@@ -438,7 +453,7 @@ InputEvents::eventAutoLogger(const TCHAR *misc)
 // nmea: turns on and off NMEA logging
 // note: the text following the 'note' characters is added to the log file
 void
-InputEvents::eventLogger(const TCHAR *misc)
+InputEvents::eventLogger(const char *misc)
 try {
   auto *logger = backend_components->igc_logger.get();
   if (logger == nullptr)
@@ -451,38 +466,38 @@ try {
   const ComputerSettings &settings_computer =
     CommonInterface::GetComputerSettings();
 
-  if (StringIsEqual(misc, _T("start ask")))
+  if (StringIsEqual(misc, "start ask"))
     logger->GUIStartLogger(basic, settings_computer,
                            backend_components->protected_task_manager.get());
-  else if (StringIsEqual(misc, _T("start")))
+  else if (StringIsEqual(misc, "start"))
     logger->GUIStartLogger(basic, settings_computer,
                            backend_components->protected_task_manager.get(),
                            true);
-  else if (StringIsEqual(misc, _T("stop ask")))
+  else if (StringIsEqual(misc, "stop ask"))
     logger->GUIStopLogger(basic);
-  else if (StringIsEqual(misc, _T("stop")))
+  else if (StringIsEqual(misc, "stop"))
     logger->GUIStopLogger(basic, true);
-  else if (StringIsEqual(misc, _T("toggle ask")))
+  else if (StringIsEqual(misc, "toggle ask"))
     logger->GUIToggleLogger(basic, settings_computer,
                             backend_components->protected_task_manager.get());
-  else if (StringIsEqual(misc, _T("toggle")))
+  else if (StringIsEqual(misc, "toggle"))
     logger->GUIToggleLogger(basic, settings_computer,
                             backend_components->protected_task_manager.get(),
                             true);
-  else if (StringIsEqual(misc, _T("nmea"))) {
+  else if (StringIsEqual(misc, "nmea")) {
     backend_components->nmea_logger->ToggleEnabled();
     if (backend_components->nmea_logger->IsEnabled()) {
       Message::AddMessage(_("NMEA log on"));
     } else {
       Message::AddMessage(_("NMEA log off"));
     }
-  } else if (StringIsEqual(misc, _T("show")))
+  } else if (StringIsEqual(misc, "show"))
     if (logger->IsLoggerActive()) {
       Message::AddMessage(_("Logger on"));
     } else {
       Message::AddMessage(_("Logger off"));
     }
-  else if (StringIsEqual(misc, _T("note"), 4))
+  else if (StringIsEqual(misc, "note", 4))
     // add note to logger file if available..
     logger->LoggerNote(misc + 4);
 } catch (...) {
@@ -493,7 +508,7 @@ try {
 // Repeats the last status message.  If pressed repeatedly, will
 // repeat previous status messages
 void
-InputEvents::eventRepeatStatusMessage([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventRepeatStatusMessage([[maybe_unused]] const char *misc)
 {
   // new interface
   // TODO enhancement: display only by type specified in misc field
@@ -501,10 +516,26 @@ InputEvents::eventRepeatStatusMessage([[maybe_unused]] const TCHAR *misc)
     CommonInterface::main_window->popup->Repeat();
 }
 
+// QuickGuide
+// Open the Quick Guide dialog
+void
+InputEvents::eventQuickGuide([[maybe_unused]] const char *misc)
+{
+  dlgQuickGuideShowModal(true);
+}
+
+// GestureHelp
+// Open the standalone gesture help dialog
+void
+InputEvents::eventGestureHelp([[maybe_unused]] const char *misc)
+{
+  dlgGestureHelpShowModal();
+}
+
 // NearestWaypointDetails
 // Displays the waypoint details dialog
 void
-InputEvents::eventNearestWaypointDetails([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventNearestWaypointDetails([[maybe_unused]] const char *misc)
 {
   const auto location = GetVisibleLocation();
   if (!location.IsValid())
@@ -517,7 +548,7 @@ InputEvents::eventNearestWaypointDetails([[maybe_unused]] const TCHAR *misc)
 // NearestMapItems
 // Displays the map item list dialog
 void
-InputEvents::eventNearestMapItems([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventNearestMapItems([[maybe_unused]] const char *misc)
 {
   const auto location = GetVisibleLocation();
   if (!location.IsValid())
@@ -530,18 +561,18 @@ InputEvents::eventNearestMapItems([[maybe_unused]] const TCHAR *misc)
 // The null event does nothing.  This can be used to override
 // default functionality
 void
-InputEvents::eventNull([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventNull([[maybe_unused]] const char *misc)
 {
   // do nothing
 }
 
 void
-InputEvents::eventBeep([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventBeep([[maybe_unused]] const char *misc)
 {
 #ifdef _WIN32
   MessageBeep(MB_ICONEXCLAMATION);
 #else
-  PlayResource(_T("IDR_WAV_CLEAR"));
+  PlayResource("IDR_WAV_CLEAR");
   #endif
 }
 
@@ -553,41 +584,43 @@ InputEvents::eventBeep([[maybe_unused]] const TCHAR *misc)
 //  Airspace: Airspace filter settings
 //  Replay: IGC replay dialog
 void
-InputEvents::eventSetup(const TCHAR *misc)
+InputEvents::eventSetup(const char *misc)
 {
-  if (StringIsEqual(misc, _T("Basic")))
+  if (StringIsEqual(misc, "Basic"))
     dlgBasicSettingsShowModal();
-  else if (StringIsEqual(misc, _T("Wind")))
+  else if (StringIsEqual(misc, "Wind"))
     ShowWindSettingsDialog();
-  else if (StringIsEqual(misc, _T("System")))
+  else if (StringIsEqual(misc, "System"))
     SystemConfiguration();
-  else if (StringIsEqual(misc, _T("Task")))
+  else if (StringIsEqual(misc, "Task"))
     dlgTaskManagerShowModal();
-  else if (StringIsEqual(misc, _T("Airspace")))
+  else if (StringIsEqual(misc, "Airspace"))
     dlgAirspaceShowModal(false);
-  else if (StringIsEqual(misc, _T("Weather")))
-    ShowWeatherDialog(_T("rasp"));
-  else if (StringIsEqual(misc, _T("Replay"))) {
+  else if (StringIsEqual(misc, "Weather"))
+    ShowWeatherDialog("rasp");
+  else if (StringIsEqual(misc, "Replay")) {
     if (!CommonInterface::MovementDetected() && backend_components->replay)
       ShowReplayDialog(*backend_components->replay);
-  } else if (StringIsEqual(misc, _T("Switches")))
+  } else if (StringIsEqual(misc, "Switches"))
     dlgSwitchesShowModal();
-  else if (StringIsEqual(misc, _T("Teamcode")))
+  else if (StringIsEqual(misc, "Teamcode"))
     dlgTeamCodeShowModal();
-  else if (StringIsEqual(misc, _T("Target")))
+  else if (StringIsEqual(misc, "Target"))
     dlgTargetShowModal();
-  else if (StringIsEqual(misc, _T("Plane")))
+  else if (StringIsEqual(misc, "Plane"))
     dlgPlanesShowModal();
-  else if (StringIsEqual(misc, _T("Profile")))
+  else if (StringIsEqual(misc, "Profile"))
     ProfileListDialog();
-  else if (StringIsEqual(misc, _T("Alternates")))
-    dlgAlternatesListShowModal(data_components->waypoints.get());
+  else if (StringIsEqual(misc, "Alternates")) {
+    dlgAlternatesListShowModal(data_components->waypoints.get(),
+                               AlternateInfoBoxSlot::FIRST);
+  }
 
   trigger_redraw();
 }
 
 void
-InputEvents::eventCredits([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventCredits([[maybe_unused]] const char *misc)
 {
   dlgCreditsShowModal(*CommonInterface::main_window);
 }
@@ -596,7 +629,7 @@ InputEvents::eventCredits([[maybe_unused]] const TCHAR *misc)
 // Runs an external program of the specified filename.
 // Note that XCSoar will wait until this program exits.
 void
-InputEvents::eventRun(const TCHAR *misc)
+InputEvents::eventRun(const char *misc)
 {
 #ifdef _WIN32
   PROCESS_INFORMATION pi;
@@ -617,29 +650,29 @@ InputEvents::eventRun(const TCHAR *misc)
 }
 
 void
-InputEvents::eventBrightness([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventBrightness([[maybe_unused]] const char *misc)
 {
   // not implemented (was only implemented on Altair)
 }
 
 void
-InputEvents::eventExit([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventExit([[maybe_unused]] const char *misc)
 {
   UIActions::SignalShutdown(false);
 }
 
 void
-InputEvents::eventUserDisplayModeForce(const TCHAR *misc)
+InputEvents::eventUserDisplayModeForce(const char *misc)
 {
   UIState &ui_state = CommonInterface::SetUIState();
 
-  if (StringIsEqual(misc, _T("unforce")))
+  if (StringIsEqual(misc, "unforce"))
     ui_state.force_display_mode = DisplayMode::NONE;
-  else if (StringIsEqual(misc, _T("forceclimb")))
+  else if (StringIsEqual(misc, "forceclimb"))
     ui_state.force_display_mode = DisplayMode::CIRCLING;
-  else if (StringIsEqual(misc, _T("forcecruise")))
+  else if (StringIsEqual(misc, "forcecruise"))
     ui_state.force_display_mode = DisplayMode::CRUISE;
-  else if (StringIsEqual(misc, _T("forcefinal")))
+  else if (StringIsEqual(misc, "forcefinal"))
     ui_state.force_display_mode = DisplayMode::FINAL_GLIDE;
 
   ActionInterface::UpdateDisplayMode();
@@ -647,18 +680,27 @@ InputEvents::eventUserDisplayModeForce(const TCHAR *misc)
 }
 
 void
-InputEvents::eventAddWaypoint(const TCHAR *misc)
+InputEvents::eventAddWaypoint(const char *misc)
 {
   const NMEAInfo &basic = CommonInterface::Basic();
   const DerivedInfo &calculated = CommonInterface::Calculated();
   auto &way_points = *data_components->waypoints;
 
-  if (StringIsEqual(misc, _T("takeoff"))) {
-    if (basic.location_available && calculated.terrain_valid) {
-      ScopeSuspendAllThreads suspend;
-      way_points.AddTakeoffPoint(basic.location, calculated.terrain_altitude);
-      way_points.Optimise();
+  if (StringIsEqual(misc, "goto")) {
+    const auto location = GetVisibleLocation();
+    if (!location.IsValid())
+      return;
+
+    double elevation = std::numeric_limits<double>::quiet_NaN();
+    if (data_components->terrain != nullptr) {
+      const auto h = data_components->terrain->GetTerrainHeight(location);
+      if (!h.IsSpecial()) {
+        elevation = h.GetValue();
+      }
     }
+
+    ScopeSuspendAllThreads suspend;
+    way_points.AddTempPoint(location, elevation, "(goto)");
   } else {
     Waypoint edit_waypoint = way_points.Create(basic.location);
     edit_waypoint.elevation = calculated.terrain_altitude;
@@ -706,7 +748,6 @@ eventAirspaceWarnings - on, off, time nn, ack nn
 eventTerrain          - see map_window.Event_Terrain
 eventCompass          - on, off, cruise on, crusie off, climb on, climb off
 eventVario            - on, off // JMW what does this do?
-eventOrientation      - north, track,  ???
 eventTerrainRange     - on, off (might be part of eventTerrain)
 eventSounds           - Include Task and Modes sounds along with Vario
                       - Include master nn, deadband nn, netto trigger
@@ -717,35 +758,35 @@ mph/kts/...
 // helpers
 
 void
-InputEvents::eventWeather(const TCHAR *misc)
+InputEvents::eventWeather(const char *misc)
 {
   ShowWeatherDialog(misc);
 }
 
 void
-InputEvents::eventQuickMenu([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventQuickMenu([[maybe_unused]] const char *misc)
 {
  dlgQuickMenuShowModal(*CommonInterface::main_window);
 }
 
 void
-InputEvents::eventFileManager([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventFileManager([[maybe_unused]] const char *misc)
 {
   ShowFileManager();
 }
 
 void
-InputEvents::eventExchangeFrequencies([[maybe_unused]] const TCHAR *misc)
+InputEvents::eventExchangeFrequencies([[maybe_unused]] const char *misc)
 {
   XCSoarInterface::ExchangeRadioFrequencies(true);
 }
 
 void
-InputEvents::eventUploadIGCFile([[maybe_unused]] const TCHAR *misc) {
+InputEvents::eventUploadIGCFile([[maybe_unused]] const char *misc) {
   FileDataField df;
-  df.ScanMultiplePatterns(_T("*.igc\0"));
+  df.ScanMultiplePatterns("*.igc\0");
   df.SetFileType(FileType::IGC);
-  if (FilePicker(_T("IGC-FilePicker"), df)) {
+  if (FilePicker("IGC-FilePicker", df)) {
     auto path = df.GetValue();
     if (!path.empty())
       if (WeGlide::UploadIGCFile(path)) {

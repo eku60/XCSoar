@@ -140,7 +140,7 @@ ATR833Device::HandleMessage(std::span<const std::byte> src,
 
 bool
 ATR833Device::PutActiveFrequency(RadioFrequency frequency,
-                                 [[maybe_unused]] const TCHAR *name,
+                                 [[maybe_unused]] const char *name,
                                  OperationEnvironment &env)
 {
   ATRBuffer buffer(SETACTIVE);
@@ -151,7 +151,7 @@ ATR833Device::PutActiveFrequency(RadioFrequency frequency,
 
 bool
 ATR833Device::PutStandbyFrequency(RadioFrequency frequency,
-                                  [[maybe_unused]] const TCHAR *name,
+                                  [[maybe_unused]] const char *name,
                                   OperationEnvironment &env)
 {
   ATRBuffer buffer(SETSTANDBY);
@@ -159,6 +159,15 @@ ATR833Device::PutStandbyFrequency(RadioFrequency frequency,
   port.FullWrite(buffer.Finish(), env, std::chrono::seconds{2});
   return true;
 }
+
+bool
+ATR833Device::ExchangeRadioFrequencies(OperationEnvironment &env,
+                                       [[maybe_unused]] NMEAInfo &info)
+{
+  ATRBuffer buffer(EXCHANGE);
+  port.FullWrite(buffer.Finish(), env, std::chrono::seconds{2});
+  return true;
+} 
 
 void
 ATR833Device::LinkTimeout()

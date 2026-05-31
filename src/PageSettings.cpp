@@ -4,20 +4,90 @@
 #include "PageSettings.hpp"
 #include "InfoBoxes/InfoBoxSettings.hpp"
 #include "Language/Language.hpp"
+#include "Weather/Rasp/RaspStore.hpp"
 #include "util/StringBuilder.hxx"
 
 #include <algorithm>
 
-const TCHAR *
+void
+PageLayout::Normalise() noexcept
+{
+  if (main == Main::EDL_MAP) {
+    main = Main::MAP;
+    overlay = Overlay::EDL;
+    if (bottom == Bottom::NOTHING)
+      bottom = Bottom::EDL_CONTROLS;
+  }
+
+  if (unsigned(overlay) >= unsigned(Overlay::MAX))
+    overlay = Overlay::NONE;
+
+  if (IsMapMain()) {
+    if (UsesWeatherOverlay()) {
+      if (bottom == Bottom::NOTHING)
+        bottom = Bottom::EDL_CONTROLS;
+    } else if (overlay == Overlay::NONE &&
+               bottom == Bottom::EDL_CONTROLS)
+      bottom = Bottom::NOTHING;
+  } else {
+    overlay = Overlay::NONE;
+    if (bottom == Bottom::EDL_CONTROLS)
+      bottom = Bottom::NOTHING;
+  }
+
+  if (overlay != Overlay::RASP)
+    rasp_field = -1;
+  else if (rasp_field < 0)
+    rasp_field = 0;
+}
+
+static void
+AppendOverlayTitle(BasicStringBuilder<char> &builder,
+                   const PageLayout &layout,
+                   const RaspStore *rasp)
+{
+  switch (layout.overlay) {
+  case PageLayout::Overlay::NONE:
+    break;
+
+  case PageLayout::Overlay::RASP:
+    builder.Append(", RASP");
+    if (rasp != nullptr &&
+        layout.rasp_field >= 0 &&
+        unsigned(layout.rasp_field) < rasp->GetItemCount()) {
+      const auto &item = rasp->GetItemInfo(layout.rasp_field);
+      const char *label = item.label != nullptr
+        ? gettext(item.label)
+        : item.name;
+      if (label != nullptr && *label != '\0') {
+        builder.Append(' ');
+        builder.Append(label);
+      }
+    }
+    break;
+
+  case PageLayout::Overlay::EDL:
+    builder.Append(", EDL");
+    break;
+
+  case PageLayout::Overlay::MAX:
+    gcc_unreachable();
+  }
+}
+
+const char *
 PageLayout::MakeTitle(const InfoBoxSettings &info_box_settings,
-                      std::span<TCHAR> buffer,
+                      std::span<char> buffer,
+                      const RaspStore *rasp,
                       const bool concise) const noexcept
 {
   if (!valid)
-    return _T("---");
+    return "---";
 
   switch (main) {
   case PageLayout::Main::MAP:
+  case PageLayout::Main::MAP_NORTH_UP:
+  case PageLayout::Main::EDL_MAP:
     break;
 
   case PageLayout::Main::FLARM_RADAR:
@@ -33,7 +103,7 @@ PageLayout::MakeTitle(const InfoBoxSettings &info_box_settings,
     gcc_unreachable();
   }
 
-  BasicStringBuilder<TCHAR> builder{buffer};
+  BasicStringBuilder<char> builder{buffer};
 
   try {
     if (infobox_config.enabled) {
@@ -49,7 +119,7 @@ PageLayout::MakeTitle(const InfoBoxSettings &info_box_settings,
           builder.Append(' ');
           builder.Append(_("Auto"));
         } else {
-          builder.Append(_T(" ("));
+          builder.Append(" (");
           builder.Append(_("Auto"));
           builder.Append(')');
         }
@@ -61,20 +131,24 @@ PageLayout::MakeTitle(const InfoBoxSettings &info_box_settings,
         builder.Append(_("Map (Full screen)"));
     }
 
+    AppendOverlayTitle(builder, *this, rasp);
+
     switch (bottom) {
     case Bottom::NOTHING:
     case Bottom::CUSTOM:
       break;
 
     case Bottom::CROSS_SECTION:
-      // TODO: better text and translate
-      builder.Append(_T(", XS"));
+      builder.Append(", XS");
+      break;
+
+    case Bottom::EDL_CONTROLS:
       break;
 
     case Bottom::MAX:
       gcc_unreachable();
     }
-  } catch (BasicStringBuilder<TCHAR>::Overflow) {
+  } catch (BasicStringBuilder<char>::Overflow) {
   }
 
   return buffer.data();

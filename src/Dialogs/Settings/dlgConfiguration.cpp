@@ -44,6 +44,10 @@
 #include "UtilsSettings.hpp"
 #include "net/http/Features.hpp"
 
+#ifdef HAVE_HTTP
+#include "Panels/NOTAMConfigPanel.hpp"
+#endif
+
 #ifdef HAVE_PCM_PLAYER
 #include "Panels/AudioVarioConfigPanel.hpp"
 #endif
@@ -54,15 +58,15 @@
 
 #ifdef HAVE_TRACKING
 #include "Panels/TrackingConfigPanel.hpp"
-#endif
-
 #include "Panels/CloudConfigPanel.hpp"
+#endif
 
 #if defined(HAVE_PCMET) || defined(HAVE_HTTP)
 #include "Panels/WeatherConfigPanel.hpp"
 #endif
 
 #include "Panels/WeGlideConfigPanel.hpp"
+#include "Panels/NetworkConfigPanel.hpp"
 
 #include <cassert>
 
@@ -82,6 +86,9 @@ static constexpr TabMenuPage map_pages[] = {
   { N_("Waypoints"), CreateWaypointDisplayConfigPanel },
   { N_("Terrain"), CreateTerrainDisplayConfigPanel },
   { N_("Airspace"), CreateAirspaceConfigPanel },
+#ifdef HAVE_HTTP
+  { N_("NOTAM"), CreateNOTAMConfigPanel },
+#endif
   { nullptr, nullptr }
 };
 
@@ -126,15 +133,16 @@ static constexpr TabMenuPage setup_pages[] = {
   { N_("Time"), CreateTimeConfigPanel },
 #ifdef HAVE_TRACKING
   { N_("Tracking"), CreateTrackingConfigPanel },
+  { "XCSoar Cloud", CreateCloudConfigPanel },
 #endif
-  { _T("XCSoar Cloud"), CreateCloudConfigPanel },
 #if defined(HAVE_PCMET) || defined(HAVE_HTTP)
   { N_("Weather"), CreateWeatherConfigPanel },
 #endif
-  { _T("WeGlide"), CreateWeGlideConfigPanel },
+  { "WeGlide", CreateWeGlideConfigPanel },
 #ifdef HAVE_VOLUME_CONTROLLER
   { N_("Audio"), CreateAudioConfigPanel },
 #endif
+  { N_("Network"), CreateNetworkConfigPanel },
   { nullptr, nullptr }
 };
 
@@ -212,16 +220,15 @@ protected:
                const PixelRect &rc) noexcept override {
     Layout layout(rc);
 
+    expert.CreateInDialogForm(parent, look, _("Expert"), layout.expert,
+                              [](bool value){ OnUserLevel(value); });
+
     WindowStyle style;
     style.Hide();
     style.TabStop();
 
-    expert.Create(parent, look, _("Expert"),
-                  layout.expert, style,
-                  [](bool value){ OnUserLevel(value); });
-
-    button2.Create(parent, look.button, _T(""), layout.button2, style);
-    button1.Create(parent, look.button, _T(""), layout.button1, style);
+    button2.Create(parent, look.button, "", layout.button2, style);
+    button1.Create(parent, look.button, "", layout.button1, style);
   }
 
   void Show(const PixelRect &rc) noexcept override {
@@ -256,7 +263,7 @@ protected:
 };
 
 void
-ConfigPanel::BorrowExtraButton(unsigned i, const TCHAR *caption,
+ConfigPanel::BorrowExtraButton(unsigned i, const char *caption,
                                std::function<void()> callback) noexcept
 {
   ConfigurationExtraButtons &extra =
@@ -303,8 +310,8 @@ OnPageFlipped(WidgetDialog &dialog, TabMenuDisplay &menu)
 {
   menu.OnPageFlipped();
 
-  TCHAR buffer[128];
-  const TCHAR *caption = menu.GetCaption(buffer, ARRAY_SIZE(buffer));
+  char buffer[128];
+  const char *caption = menu.GetCaption(buffer, ARRAY_SIZE(buffer));
   if (caption == nullptr)
     caption = _("Configuration");
   dialog.SetCaption(caption);
@@ -351,6 +358,6 @@ void dlgConfigurationShowModal()
     Profile::Save();
     if (require_restart)
       ShowMessageBox(_("Changes to configuration saved.  Restart XCSoar to apply changes."),
-                  _T(""), MB_OK);
+                  "", MB_OK);
   }
 }

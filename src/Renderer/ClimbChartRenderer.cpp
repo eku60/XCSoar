@@ -14,28 +14,36 @@
 #include "Engine/Task/TaskManager.hpp"
 #include "TaskLegRenderer.hpp"
 #include "GradientRenderer.hpp"
+#include "util/UTF8.hpp"
 
 void
-ClimbChartCaption(TCHAR *sTmp,
+ClimbChartCaption(char *sTmp, size_t buffer_size,
                   const FlightStatistics &fs)
 {
+  if (sTmp == nullptr || buffer_size == 0)
+    return;
+
   const std::lock_guard lock{fs.mutex};
+
   if (fs.thermal_average.IsEmpty()) {
-    sTmp[0] = _T('\0');
+    sTmp[0] = '\0';
+    return;
   } else if (fs.thermal_average.GetCount() == 1) {
-    StringFormatUnsafe(sTmp, _T("%s:\r\n  %3.1f %s"),
-                       _("Avg. climb"),
-                       (double)Units::ToUserVSpeed(fs.thermal_average.GetAverageY()),
-                       Units::GetVerticalSpeedName());
+    StringFormat(sTmp, buffer_size, "%s:\r\n  %3.1f %s",
+                 _("Avg. climb"),
+                 (double)Units::ToUserVSpeed(fs.thermal_average.GetAverageY()),
+                 Units::GetVerticalSpeedName());
   } else {
-    StringFormatUnsafe(sTmp, _T("%s:\r\n  %3.1f %s\r\n\r\n%s:\r\n  %3.2f %s/hr"),
-                       _("Avg. climb"),
-                       (double)Units::ToUserVSpeed(fs.thermal_average.GetAverageY()),
-                       Units::GetVerticalSpeedName(),
-                       _("Climb trend"),
-                       (double)Units::ToUserVSpeed(fs.thermal_average.GetGradient()),
-                       Units::GetVerticalSpeedName());
+    StringFormat(sTmp, buffer_size, "%s:\r\n  %3.1f %s\r\n\r\n%s:\r\n  %3.2f %s/hr",
+                 _("Avg. climb"),
+                 (double)Units::ToUserVSpeed(fs.thermal_average.GetAverageY()),
+                 Units::GetVerticalSpeedName(),
+                 _("Climb trend"),
+                 (double)Units::ToUserVSpeed(fs.thermal_average.GetGradient()),
+                 Units::GetVerticalSpeedName());
   }
+
+  CropIncompleteUTF8(sTmp);
 }
 
 void
@@ -48,8 +56,8 @@ RenderClimbChart(Canvas &canvas, const PixelRect rc,
                  const TaskManager &task)
 {
   ChartRenderer chart(chart_look, canvas, rc);
-  chart.SetXLabel(_T("t"), _T("hr"));
-  chart.SetYLabel(_T("w"), Units::GetVerticalSpeedName());
+  chart.SetXLabel("t", "hr");
+  chart.SetYLabel("w", Units::GetVerticalSpeedName());
   chart.Begin();
 
   if (fs.thermal_average.IsEmpty()) {
@@ -73,14 +81,16 @@ RenderClimbChart(Canvas &canvas, const PixelRect rc,
     rc_upper.bottom = chart.ScreenY(MACCREADY);
 
     DrawVerticalGradient(canvas, rc_upper,
-                         chart_look.color_positive, COLOR_WHITE, COLOR_WHITE);
+                         chart_look.color_positive, chart_look.background_color,
+                         chart_look.background_color);
   }
   {
     PixelRect rc_lower = chart.GetChartRect();
     rc_lower.top = chart.ScreenY(MACCREADY);
 
     DrawVerticalGradient(canvas, rc_lower,
-                         COLOR_WHITE, chart_look.color_negative, COLOR_WHITE);
+                         chart_look.background_color, chart_look.color_negative,
+                         chart_look.background_color);
   }
 
   RenderTaskLegs(chart, task, nmea_info, derived_info, 0.8);
@@ -89,7 +99,7 @@ RenderClimbChart(Canvas &canvas, const PixelRect rc,
   chart.DrawWeightBarGraph(fs.thermal_average);
 
   chart.DrawXGrid(0.25, 0.25, ChartRenderer::UnitFormat::TIME);
-  chart.DrawYGrid(Units::ToSysVSpeed(1), 1, ChartRenderer::UnitFormat::NUMERIC);
+  chart.DrawYGrid(Units::ToSysVSpeed(0.2), 0.2, ChartRenderer::UnitFormat::NUMERIC);
 
   chart.DrawTrend(fs.thermal_average, ChartLook::STYLE_BLUETHINDASH);
 
@@ -98,7 +108,7 @@ RenderClimbChart(Canvas &canvas, const PixelRect rc,
                  ChartLook::STYLE_REDTHICKDASH);
 
   chart.DrawLabel({chart.GetXMin()*0.9+chart.GetXMax()*0.1, MACCREADY},
-                  _T("MC"));
+                  "MC");
 
   chart.Finish();
 }

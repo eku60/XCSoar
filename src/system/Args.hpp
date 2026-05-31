@@ -4,14 +4,9 @@
 #pragma once
 
 #include "util/Compiler.h"
-#include "util/tstring.hpp"
 #include "util/NumberParser.hpp"
 #include "system/Path.hpp"
-
-#ifdef _UNICODE
-#include "system/ConvertPathName.hpp"
-#endif
-
+#include <string>
 #include <list>
 #include <algorithm>
 #include <stdlib.h>
@@ -55,7 +50,7 @@ public:
   }
 
 #ifdef _WIN32
-  Args(const TCHAR *_cmdline, const char *_usage)
+  Args(const char *_cmdline, const char *_usage)
     :usage(_usage) {
     ParseCommandLine(_cmdline);
   }
@@ -99,13 +94,6 @@ public:
     if (name == nullptr)
       name = "";
   }
-
-#ifdef _UNICODE
-  void ParseCommandLine(const TCHAR *_cmdline) {
-    WideToACPConverter convert(_cmdline);
-    ParseCommandLine(convert);
-  }
-#endif
 #endif
 
   Args &operator=(const Args &other) = delete;
@@ -170,33 +158,19 @@ public:
     return result;
   }
 
-  tstring ExpectNextT() {
+  std::string ExpectNextT() {
     const char *p = ExpectNext();
     assert(p != nullptr);
 
-#ifdef _UNICODE
-    PathName convert(p);
-    return tstring(((Path)convert).c_str());
-#else
-    return tstring(p);
-#endif
+    return std::string(p);
   }
 
-#ifdef _UNICODE
-  AllocatedPath ExpectNextPath() {
-    const char *p = ExpectNext();
-    assert(p != nullptr);
-
-    return AllocatedPath(PathName(p));
-  }
-#else
   Path ExpectNextPath() {
     const char *p = ExpectNext();
     assert(p != nullptr);
 
     return Path(p);
   }
-#endif
 
   void ExpectEnd() {
     if (!IsEmpty())

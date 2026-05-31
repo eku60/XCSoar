@@ -61,7 +61,7 @@ The main ways of setting tasks are the following:
 \begin{itemize}
 \item Using the task editor dialogue
 \item Selecting waypoints from the map and adding them to the task from the
- waypoint details dialogue
+ airfields/ waypoint details dialogue
 \item Loading the task from a file
 \end{itemize}
 
@@ -130,7 +130,7 @@ symbol.
 to show the
 item list under the cross-hair, or your index finger on the map.
 
-The waypoint details dialogue contains two major pages (accessed via the
+The airfields or waypoint details dialogue contains two major pages (accessed via the
 \bmenuw{$>$} and \bmenuw{$<$} buttons). Depending on the availability of further
 details of the waypoint they will by shown on extra pages.
 
@@ -181,7 +181,7 @@ This page contains a column of buttons allowing various actions to be performed:
 \item[\button{Edit}] allows to change the various attributes of the selected waypoint
 \end{description}
 
-It is a good idea to set your home waypoint from the waypoint details
+It is a good idea to set your home waypoint from the airfields or waypoint details
 dialogue. This causes XCSoar to start up at the home location regardless
 of whether a GPS fix is received.  If no home is set, then XCSoar
 starts in the centre of the terrain map.
@@ -241,7 +241,7 @@ move to the bottom (or top) of the list with the cursor.
 
 Selecting an item will result in different behaviour
 depending on what function opened the waypoint selector.  In typical
-use it brings up the waypoint details dialogue for the selected
+use it brings up the airfields or waypoint details dialogue for the selected
 waypoint.
 
 \section{Task manager}\label{sec:task-manager-dialog}
@@ -276,7 +276,9 @@ that directly changes to the Task Calculator screen.
 \item[Remaining task time]  This field displays the time remaining to complete the task.
 \item[Task distance]  This field displays the total task distance.
 \item[Remaining distance]  This field displays the remaining distance to complete the task.
-\item[Speed estimated]  This field displays the estimated speed  for the remaining of the task considering the provided MacCready setting.
+\item[Speed estimated]  This field displays the estimated average cross-country 
+speed for the task as of task completion, assuming flying the rest of the task 
+at the provided MacCready setting.
 \item[Speed average]  %TODO: To define
 \item[Set MacCready]  Allows the user to adjust the MacCready value and 
   see the effect it has on the estimated task time.
@@ -375,9 +377,9 @@ type allows the pilot to enter the following parameters
   \item [Finish height ref.] This specifies whether the minimum finish height 
     is referenced to ground level of the finish point (``AGL'') or Mean Sea Level (``MSL'')
 
-  \item [PEV start wait time] This specifies an interval in minutes between
-   pilot presses the \emph{Pilot Event} (see \ref{sec:pilotevent}) button is
-   pressed and start window opens. If set to 0, the start will open
+  \item [PEV start wait time] This specifies an interval in minutes between the
+   pilot presses the \emph{Pilot Event} (see \ref{sec:pilotevent}) button and start 
+   window opens. If set to 0, the start will open
    immediately after \emph{Pilot Event} button is pressed.
 
   \item [PEV start window] This specifies an interval in minutes during which
@@ -695,7 +697,7 @@ task details.
 \subsection*{Alternates}\label{sec:alternates}
 Alternates are maintained throughout the flight, reflecting good airmenship by 
 always keeping an eye on possible alternates.\menulabelr{\bmenug{Nav 1/2}\blink
-\bmenug{Alternates}} Six landing 
+\bmenug{Alternates}} Up to ten landing
 options are maintained. They are filtered by the configured ``alternates mode'' 
 criteria (Simple, Task, or Home). \config{alternatesmode} 
 Choosing Task or Home puts some bias on the presentation of alternates to the 
@@ -703,6 +705,14 @@ heading, you were taking whilst still task oriented.
 
 As is with every waypoint list, additional information might be called by tapping \bmenuw{Details} before deciding which final to go. Select a waypoint from the list and push \bmenuw{Goto}.
 \sketch{figures/alternates_list.png}
+
+The Alternate 1 / Alternate 2 InfoBoxes and their variants can be used either
+in \textbf{AUTO} mode or in \textbf{MANUAL} mode. AUTO is the default and
+shows the best automatically selected alternates. In MANUAL mode, a reachable
+alternate can be selected from the alternates list for each slot independently.
+This manual selection is runtime-only: it is not saved when XCSoar is
+restarted, and it remains active until the pilot changes it again or switches
+the slot back to AUTO.
 
 Although the items on the alternate list obey different rules they interact 
 in the same way 

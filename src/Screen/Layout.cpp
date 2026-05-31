@@ -17,6 +17,7 @@ unsigned scale = 1;
 unsigned scale_1024 = 1024;
 unsigned pen_width_scale = 1024;
 unsigned fine_pen_width_scale = 1024;
+unsigned vdpi = 72;
 unsigned pt_scale = 1024;
 unsigned vpt_scale = 1024;
 unsigned font_scale = 1024;
@@ -82,27 +83,29 @@ Initialise(const UI::Display &display, PixelSize new_size,
   const bool is_small_screen = IsSmallScreen(GetDisplaySize(display, new_size),
                                              dpi);
 
+  const auto SmallScreenAdjust = [is_small_screen](unsigned value) constexpr noexcept {
+    if (is_small_screen)
+      /* small screens (on portable devices) use a smaller font because
+         the viewing distance is usually smaller */
+      value =  value * 2 / 3;
+    return value;
+  };
+
   // always start w/ shortest dimension
   // square should be shrunk
   scale_1024 = std::max(1024U, min_screen_pixels * 1024 / (square ? 320 : 240));
   scale = scale_1024 / 1024;
+
+  vdpi = SmallScreenAdjust(dpi.y);
 
   pen_width_scale = std::max(1024u, dpi.x * 1024u / 80u);
   fine_pen_width_scale = std::max(1024u, dpi.x * 1024u / 160u);
 
   pt_scale = 1024 * dpi.y / 72;
 
-  vpt_scale = pt_scale;
-  if (is_small_screen)
-    /* small screens (on portable devices) use a smaller font because
-       the viewing distance is usually smaller */
-    vpt_scale = vpt_scale * 2 / 3;
+  vpt_scale = SmallScreenAdjust(pt_scale);
 
-  font_scale = 1024 * dpi.y * ui_scale / 72 / 100;
-  if (is_small_screen)
-    /* small screens (on portable devices) use a smaller font because
-       the viewing distance is usually smaller */
-    font_scale = font_scale * 2 / 3;
+  font_scale = SmallScreenAdjust(1024 * dpi.y * ui_scale / 72 / 100);
 
   text_padding = VptScale(2);
 

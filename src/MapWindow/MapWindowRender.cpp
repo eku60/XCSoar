@@ -6,6 +6,7 @@
 #include "Look/MapLook.hpp"
 #include "Weather/Rasp/RaspRenderer.hpp"
 #include "Weather/Rasp/RaspCache.hpp"
+#include "Weather/Rasp/RaspStore.hpp"
 #include "Topography/CachedTopographyRenderer.hpp"
 #include "Renderer/AircraftRenderer.hpp"
 #include "Renderer/WaveRenderer.hpp"
@@ -39,7 +40,10 @@ MapWindow::RenderRasp(Canvas &canvas) noexcept
     return;
 
   const WeatherUIState &state = GetUIState().weather;
-  if (rasp_renderer && state.map != (int)rasp_renderer->GetParameter()) {
+  if (rasp_renderer &&
+      (state.map < 0 ||
+       unsigned(state.map) >= rasp_store->GetItemCount() ||
+       state.map != (int)rasp_renderer->GetParameter())) {
 #ifndef ENABLE_OPENGL
     const std::lock_guard lock{mutex};
 #endif
@@ -47,7 +51,8 @@ MapWindow::RenderRasp(Canvas &canvas) noexcept
     rasp_renderer.reset();
   }
 
-  if (state.map < 0)
+  if (state.map < 0 ||
+      unsigned(state.map) >= rasp_store->GetItemCount())
     return;
 
   if (!rasp_renderer) {
@@ -117,7 +122,8 @@ MapWindow::RenderAirspace(Canvas &canvas) noexcept
                                  render_projection,
                                  Basic(), Calculated(),
                                  GetComputerSettings().airspace,
-                                 GetMapSettings().airspace);
+                                 GetMapSettings().airspace,
+                                 &label_block);
   }
 }
 
@@ -132,6 +138,8 @@ MapWindow::RenderNOAAStations(Canvas &canvas) noexcept
     if (it->parsed_metar_available && it->parsed_metar.location_available)
       if (auto pt = render_projection.GeoToScreenIfVisible(it->parsed_metar.location))
         look.noaa.icon.Draw(canvas, *pt);
+#else
+  (void)canvas;
 #endif
 }
 
@@ -244,13 +252,13 @@ MapWindow::Render(Canvas &canvas, const PixelRect &rc) noexcept
   draw_sw.Mark("RenderGlide");
   RenderGlide(canvas);
 
-  draw_sw.Mark("RenderMisc1");
-  // Render weather/terrain max/min values
-  DrawTaskOffTrackIndicator(canvas);
-
   // Render track bearing (projected track ground/air relative)
   draw_sw.Mark("DrawTrackBearing");
   RenderTrackBearing(canvas, aircraft_pos);
+  
+  // Render Detour cost markers
+  draw_sw.Mark("RenderMisc1");
+  DrawTaskOffTrackIndicator(canvas);
 
   draw_sw.Mark("RenderMisc2");
   DrawBestCruiseTrack(canvas, aircraft_pos);

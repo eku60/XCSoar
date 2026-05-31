@@ -11,8 +11,6 @@
 #include <memory>
 
 #include <cassert>
-#include <tchar.h>
-
 #define RASP_FILENAME "xcsoar-rasp.dat"
 
 class Path;
@@ -30,18 +28,18 @@ public:
   static constexpr unsigned MAX_WEATHER_TIMES = 96; /**< Max time segments of each item */
 
   struct MapInfo {
-    const TCHAR *name;
+    const char *name;
 
     /**
      * Human-readable label.  Call gettext() for internationalization.
      */
-    const TCHAR *label;
+    const char *label;
 
     /**
      * Human-readable help text.  Call gettext() for
      * internationalization.
      */
-    const TCHAR *help;
+    const char *help;
   };
 
   struct MapItem {
@@ -50,18 +48,18 @@ public:
     /**
      * Human-readable label.  Call gettext() for internationalization.
      */
-    const TCHAR *label;
+    const char *label;
 
     /**
      * Human-readable help text.  Call gettext() for
      * internationalization.
      */
-    const TCHAR *help;
+    const char *help;
 
     bool times[MAX_WEATHER_TIMES];
 
     MapItem() = default;
-    explicit MapItem(const TCHAR *_name);
+    explicit MapItem(const char *_name);
   };
 
   typedef StaticArray<MapItem, MAX_WEATHER_MAP> MapList;
@@ -95,15 +93,16 @@ public:
   void ScanAll();
 
   bool IsTimeAvailable(unsigned item_index, unsigned time_index) const {
-    assert(item_index < maps.size());
-    assert(time_index < MAX_WEATHER_TIMES);
+    if (item_index >= maps.size() || time_index >= MAX_WEATHER_TIMES)
+      return false;
 
     return maps[item_index].times[time_index];
   }
 
   template<typename C>
   void ForEachTime(unsigned item_index, C &&c) {
-    assert(item_index < maps.size());
+    if (item_index >= maps.size())
+      return;
 
     const auto &mi = maps[item_index];
 
@@ -127,7 +126,7 @@ public:
 
   std::unique_ptr<ZipArchive> OpenArchive() const;
 
-  static bool NarrowWeatherFilename(char *filename, Path name,
+  static bool WeatherFilename(char *filename, Path name,
                                     unsigned time_index);
 
 private:

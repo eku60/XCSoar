@@ -8,6 +8,8 @@
 #include "ui/event/Globals.hpp"
 #include "util/Compiler.h"
 
+#include <atomic>
+
 using namespace UI;
 
 /**
@@ -58,10 +60,13 @@ Java_org_xcsoar_EventBridge_onKeyDown([[maybe_unused]] JNIEnv *env, [[maybe_unus
     /* XCSoar not yet initialised */
     return;
 
-  if (!has_cursor_keys && IsCursorKey(key_code))
+  if (IsCursorKey(key_code)) {
+    bool expected = false;
     /* enable this flag as soon as we see the first cursor event; used
        by HasCursorKeys() */
-    has_cursor_keys = true;
+    has_cursor_keys.compare_exchange_strong(expected, true, 
+                                            std::memory_order_relaxed);
+  }
 
   event_queue->Inject(Event(Event::KEY_DOWN, TranslateKeyCode(key_code)));
   ResetUserIdle();
@@ -116,6 +121,18 @@ Java_org_xcsoar_EventBridge_onMouseMove([[maybe_unused]] JNIEnv *env, [[maybe_un
 
   event_queue->Purge(Event::MOUSE_MOTION);
   event_queue->Inject(Event(Event::MOUSE_MOTION, PixelPoint(x, y)));
+  ResetUserIdle();
+}
+
+gcc_visibility_default
+void
+Java_org_xcsoar_EventBridge_onMouseCancel([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jclass cls)
+{
+  if (event_queue == nullptr)
+    /* XCSoar not yet initialised */
+    return;
+
+  event_queue->Inject(Event::MOUSE_CANCEL);
   ResetUserIdle();
 }
 

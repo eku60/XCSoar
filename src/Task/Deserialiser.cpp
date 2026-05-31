@@ -14,7 +14,6 @@
 #include "Task/Factory/AbstractTaskFactory.hpp"
 #include "XML/DataNode.hpp"
 #include "Engine/Waypoint/Waypoints.hpp"
-#include "util/ConvertString.hpp"
 
 #include <memory>
 
@@ -35,16 +34,14 @@ DeserialiseWaypoint(const ConstDataNode &node, const Waypoints *waypoints)
   GeoPoint loc;
   Deserialise(loc, *loc_node);
 
-  const char *_name = node.GetAttribute("name");
-  if (_name == nullptr)
+  const char *name = node.GetAttribute("name");
+  if (name == nullptr)
     // Turnpoints need names
     return nullptr;
 
-  const UTF8ToWideConverter name{_name};
-
   if (waypoints != nullptr) {
     // Try to find waypoint by name
-    auto from_database = waypoints->LookupName(name.c_str());
+    auto from_database = waypoints->LookupName(name);
 
     // If waypoint by name found and closer than 10m to the original
     if (from_database != nullptr &&
@@ -70,7 +67,7 @@ DeserialiseWaypoint(const ConstDataNode &node, const Waypoints *waypoints)
 
   const char *comment = node.GetAttribute("comment");
   if (comment != nullptr)
-    wp->comment = UTF8ToWideConverter{comment};
+    wp->comment = comment;
 
   if (node.GetAttribute("altitude", wp->elevation))
     wp->has_elevation = true;
@@ -316,4 +313,12 @@ LoadTask(OrderedTask &task, const ConstDataNode &node,
   for (const auto &i : children) {
     DeserialiseTaskpoint(fact, *i, waypoints);
   }
+
+  /* 
+    Normalize deserialized taskpoint types to match the task factory type.
+    Some exporters (e.g., WeGlide) may serialize intermediate points with
+    generic types (e.g., "turn") even when the task is declared as AAT.
+  */
+  if (fact.MutateTPsToTaskType())
+    fact.UpdateGeometry();
 }

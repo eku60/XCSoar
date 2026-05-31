@@ -3,33 +3,42 @@
 
 #include "StartupDialog.hpp"
 #include "Error.hpp"
-#include "ProfilePasswordDialog.hpp"
-#include "ProfileListDialog.hpp"
-#include "WidgetDialog.hpp"
-#include "Widget/TwoWidgets.hpp"
-#include "Widget/RowFormWidget.hpp"
-#include "UIGlobals.hpp"
-#include "Profile/Profile.hpp"
-#include "ui/canvas/Canvas.hpp"
-#include "Screen/Layout.hpp"
-#include "Look/DialogLook.hpp"
-#include "Form/Form.hpp"
 #include "Form/Button.hpp"
 #include "Form/DataField/File.hpp"
-#include "Language/Language.hpp"
+#include "Form/Form.hpp"
 #include "Gauge/LogoView.hpp"
-#include "LogFile.hpp"
+#include "Language/Language.hpp"
 #include "LocalPath.hpp"
+#include "LogFile.hpp"
+#include "Look/DialogLook.hpp"
+#include "Profile/Profile.hpp"
+#include "ProfileListDialog.hpp"
+#include "ProfilePasswordDialog.hpp"
+#include "Screen/Layout.hpp"
+#include "UIGlobals.hpp"
+#include "Widget/RowFormWidget.hpp"
+#include "Widget/TwoWidgets.hpp"
+#include "WidgetDialog.hpp"
 #include "system/FileUtil.hpp"
+#include "ui/canvas/Canvas.hpp"
 
 class LogoWindow final : public PaintWindow {
   LogoView logo;
+  bool dark_mode;
+
+public:
+  explicit LogoWindow(bool _dark_mode = false,
+                     Color _background_color = COLOR_WHITE) noexcept
+    :dark_mode(_dark_mode), background_color(_background_color) {}
 
 protected:
   void OnPaint(Canvas &canvas) noexcept override {
-    canvas.ClearWhite();
-    logo.draw(canvas, GetClientRect());
+    canvas.Clear(background_color);
+    logo.draw(canvas, GetClientRect(), dark_mode);
   }
+
+private:
+  Color background_color;
 };
 
 class LogoQuitWidget final : public NullWidget {
@@ -40,8 +49,9 @@ class LogoQuitWidget final : public NullWidget {
   Button quit;
 
 public:
-  LogoQuitWidget(const ButtonLook &_look, WndForm &_dialog) noexcept
-    :look(_look), dialog(_dialog) {}
+  LogoQuitWidget(const ButtonLook &_look, WndForm &_dialog,
+                 bool dark_mode, Color background_color) noexcept
+    :look(_look), dialog(_dialog), logo(dark_mode, background_color) {}
 
 private:
   PixelRect GetButtonRect(PixelRect rc) noexcept {
@@ -118,8 +128,8 @@ public:
 };
 
 static bool
-SelectProfileCallback([[maybe_unused]] const TCHAR *caption, [[maybe_unused]] DataField &_df,
-                      [[maybe_unused]] const TCHAR *help_text) noexcept
+SelectProfileCallback([[maybe_unused]] const char *caption, [[maybe_unused]] DataField &_df,
+                      [[maybe_unused]] const char *help_text) noexcept
 {
   FileDataField &df = (FileDataField &)_df;
 
@@ -182,7 +192,7 @@ dlgStartupShowModal() noexcept
 
   /* scan all profile files */
   auto *dff = new FileDataField();
-  dff->ScanDirectoryTop(_T("*.prf"));
+  dff->ScanDirectoryTop("*.prf");
 
   if (dff->GetNumFiles() == 1) {
     /* skip this dialog if there is only one */
@@ -205,7 +215,7 @@ dlgStartupShowModal() noexcept
   unsigned length = dff->size();
 
   for (unsigned i = 0; i < length; ++i) {
-    const auto path = dff->GetItem(i);
+    const auto path = Path(dff->GetItem(i).path);
     const auto timestamp = File::GetLastModification(path);
     if (timestamp > best_timestamp) {
       best_timestamp = timestamp;
@@ -222,7 +232,8 @@ dlgStartupShowModal() noexcept
                                    UIGlobals::GetDialogLook(),
                                    nullptr);
 
-  dialog.SetWidget(std::make_unique<LogoQuitWidget>(look.button, dialog),
+  dialog.SetWidget(std::make_unique<LogoQuitWidget>(look.button, dialog,
+                                                    look.dark_mode, look.background_color),
                    std::make_unique<StartupWidget>(look, dialog, dff));
 
   return dialog.ShowModal() == mrOK;

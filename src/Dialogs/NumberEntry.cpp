@@ -10,7 +10,7 @@
 #include "UIGlobals.hpp"
 
 bool
-NumberEntryDialog(const TCHAR *caption,
+NumberEntryDialog(const char *caption,
                   int &value, unsigned length)
 {
   /* create the dialog */
@@ -33,6 +33,7 @@ NumberEntryDialog(const TCHAR *caption,
                       length, 0);
   entry->Resize(entry->GetRecommendedSize());
   entry->SetValue(value);
+  entry->SetCallback(dialog.MakeModalResultCallback(mrOK));
 
   /* create buttons */
 
@@ -52,7 +53,7 @@ NumberEntryDialog(const TCHAR *caption,
 }
 
 bool
-NumberEntryDialog(const TCHAR *caption,
+NumberEntryDialog(const char *caption,
                   unsigned &value, unsigned length)
 {
   /* create the dialog */
@@ -75,6 +76,7 @@ NumberEntryDialog(const TCHAR *caption,
                         length, 0);
   entry->Resize(entry->GetRecommendedSize());
   entry->SetValue(value);
+  entry->SetCallback(dialog.MakeModalResultCallback(mrOK));
 
   /* create buttons */
 
@@ -94,7 +96,7 @@ NumberEntryDialog(const TCHAR *caption,
 }
 
 bool
-AngleEntryDialog(const TCHAR *caption, Angle &value)
+AngleEntryDialog(const char *caption, Angle &value)
 {
   /* create the dialog */
 
@@ -115,6 +117,7 @@ AngleEntryDialog(const TCHAR *caption, Angle &value)
   entry->CreateAngle(client_area, client_area.GetClientRect(), control_style);
   entry->Resize(entry->GetRecommendedSize());
   entry->SetValue(value);
+  entry->SetCallback(dialog.MakeModalResultCallback(mrOK));
 
   /* create buttons */
 

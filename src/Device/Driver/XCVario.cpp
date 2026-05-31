@@ -62,7 +62,7 @@ private:
   C.C    = MacCready 0 to 10 m/s
   EE     = bugs degradation, 0 = clean to 30 %,
   F.FF  = Ballast 1.00 to 1.60 ( for protocol version 1, empty in protocol version 2)
-  G      = 0 in climb, 1 in cruise,
+  G      = 1 in climb, 0 in cruise,
   HH.H   = Outside airtemp in degrees celcius ( may have leading negative sign ) e.g. 24.4,
   QQQQ.Q = QNH in hectoPascal e.g. 1013.2,
   PPPP.P = static pressure in hPa,
@@ -125,9 +125,10 @@ XVCDevice::PXCV(NMEAInputLine &line, NMEAInfo &info)
   }
 
   // Outside air temperature (OAT)
-  info.temperature_available = line.ReadChecked(value);
-  if (info.temperature_available)
+  if (line.ReadChecked(value)) {
     info.temperature = Temperature::FromCelsius(value);
+    info.temperature_available.Update(info.clock);
+  }
 
   // QNH as set or autoset in XCVario
   if (line.ReadChecked(value))
@@ -299,8 +300,8 @@ XVCCreateOnPort([[maybe_unused]] const DeviceConfig &config, Port &com_port)
 }
 
 const struct DeviceRegister xcv_driver = {
-  _T("XCVario"),
-  _T("XCVario"),
+  "XCVario",
+  "XCVario",
   DeviceRegister::RECEIVE_SETTINGS | DeviceRegister::SEND_SETTINGS,
   XVCCreateOnPort,
 };

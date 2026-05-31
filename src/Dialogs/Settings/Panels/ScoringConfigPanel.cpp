@@ -3,6 +3,7 @@
 
 #include "ScoringConfigPanel.hpp"
 #include "Profile/Keys.hpp"
+#include "Profile/Profile.hpp"
 #include "Form/DataField/Enum.hpp"
 #include "Form/DataField/Boolean.hpp"
 #include "Form/DataField/Listener.hpp"
@@ -18,6 +19,8 @@ enum ControlIndex {
   SPACER,
   SHOW_FAI_TRIANGLE_AREAS,
   FAI_TRIANGLE_THRESHOLD,
+  SPACER2,
+  SHOW_95_PERCENT_RULE_HELPERS
 };
 
 class ScoringConfigPanel final
@@ -55,8 +58,8 @@ ScoringConfigPanel::ShowFAITriangleControls(bool show)
 }
 
 static constexpr StaticEnumChoice fai_triangle_threshold_list[] = {
-  { FAITriangleSettings::Threshold::FAI, _T("750km (FAI)") },
-  { FAITriangleSettings::Threshold::KM500, _T("500km (OLC, DMSt)") },
+  { FAITriangleSettings::Threshold::FAI, "750km (FAI)" },
+  { FAITriangleSettings::Threshold::KM500, "500km (OLC, DMSt)" },
   nullptr
 };
 
@@ -83,10 +86,10 @@ ScoringConfigPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
       N_("A combination of Classic and FAI rules. 30% of the FAI score are added to the Classic score.") },
     { Contest::DMST, ContestToString(Contest::DMST),
       /* German competition, no translation */
-      _T("Deutsche Meisterschaft im Streckensegelflug.") },
+      "Deutsche Meisterschaft im Streckensegelflug." },
     { Contest::XCONTEST, ContestToString(Contest::XCONTEST),
       N_("PG online contest with different track values: Free flight - 1 km = 1.0 point; "
-          "flat trianlge - 1 km = 1.2 p; FAI triangle - 1 km = 1.4 p.") },
+          "flat triangle - 1 km = 1.2 p; FAI triangle - 1 km = 1.4 p.") },
     { Contest::DHV_XC, ContestToString(Contest::DHV_XC),
       N_("European PG online contest of the DHV organization. Pretty much the same as the XContest rules, "
           "but with different track values: 1 km = 1.5 points, 1.75 p and 2.0 p for FAI triangles respectively.") },
@@ -94,14 +97,20 @@ ScoringConfigPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
       N_("Austrian online glider contest. Tracks around max. six waypoints are scored. The "
           "bounding box part with 1 km = 1.0 point and the additional zick-zack part with 1 km = 0.5 p.") },
     { Contest::NET_COUPE, ContestToString(Contest::NET_COUPE),
-      N_("The FFVV NetCoupe \"libre\" competiton.") },
+      N_("FFVP Federal Cup (NetCoupe) on WeGlide. The scored path has at most "
+          "three turnpoints between start and finish and at least 25 km total. "
+          "Points are proportional to credited distance, 100 divided by the "
+          "glider handicap (DAeC-style index), and a success factor of 1.0 for "
+          "a free flight or 1.2 for a task declared electronically before "
+          "takeoff. XCSoar live scoring uses a success factor of 1.0 only, not "
+          "the 1.2 multiplier for declared tasks.") },
     { Contest::WEGLIDE_FREE, ContestToString(Contest::WEGLIDE_FREE),
       N_("WeGlide combines multiple scoring systems in the WeGlide Free contest. The free score is a combination "
           "of the free distance score and the area bonus. For the area bonus, the scoring program determines the "
           "largest FAI triangle and the largest Out & Return distance that can be fitted into the flight route.") },
     { Contest::WEGLIDE_OR, ContestToString(Contest::WEGLIDE_OR),
       N_("A start point, one turn point and a finish point are chosen from the flight path such that "
-          "the distance between the start point and the turn point is maximized") },
+          "the distance between the start point and the turn point is maximized.") },
     { Contest::CHARRON, ContestToString(Contest::CHARRON),
       N_("LVZC Charron.online, 5 legs under 200km 6 legs above. Minimum leg distance is 20km, 5 points per km.") },
     nullptr
@@ -129,6 +138,17 @@ ScoringConfigPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
           (unsigned)map_settings.fai_triangle_settings.threshold);
   SetExpertRow(FAI_TRIANGLE_THRESHOLD);
 
+  AddSpacer();
+  SetExpertRow(SPACER2);
+
+  // xgettext:no-c-format
+  AddBoolean(_("95% dist. rule helpers"),
+             _("Show helpers for Argentinean Federation \"95% distance\" rule. "
+               "The AAT Distance Around Target InfoBox will show projected "
+               "distance vs. maximum and change colors as you approach 95%."),
+             map_settings.show_95_percent_rule_helpers);
+  SetExpertRow(SHOW_95_PERCENT_RULE_HELPERS);
+
   ShowFAITriangleControls(map_settings.show_fai_triangle_areas);
 }
 
@@ -153,6 +173,18 @@ ScoringConfigPanel::Save(bool &_changed) noexcept
   changed |= SaveValueEnum(FAI_TRIANGLE_THRESHOLD,
                            ProfileKeys::FAITriangleThreshold,
                            map_settings.fai_triangle_settings.threshold);
+
+  changed |= SaveValue(SHOW_95_PERCENT_RULE_HELPERS,
+                       ProfileKeys::Show95PercentRuleHelpers,
+                       map_settings.show_95_percent_rule_helpers);
+
+  /* Mark profile as using current Contest enum encoding (see ContestProfile). */
+  unsigned contest_enum_layout = 0;
+  if (!Profile::Get(ProfileKeys::ContestEnumLayout, contest_enum_layout) ||
+      contest_enum_layout < 2U) {
+    Profile::Set(ProfileKeys::ContestEnumLayout, 2U);
+    changed = true;
+  }
 
   _changed |= changed;
 

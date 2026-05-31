@@ -8,16 +8,17 @@
 #include "Renderer/ProgressBarRenderer.hpp"
 #include "Screen/Layout.hpp"
 #include "Look/DialogLook.hpp"
-#include "util/tstring_view.hxx"
 #include "UIGlobals.hpp"
+
+#include <string_view>
 
 class ProgressWidget::ProgressBar final : public PaintWindow {
   unsigned range = 0, position = 0;
 
-  tstring text;
+  std::string text;
 
 public:
-  explicit ProgressBar(tstring &&_text) noexcept
+  explicit ProgressBar(std::string &&_text) noexcept
     :text(std::move(_text)) {}
 
   void SetRange(unsigned _range) noexcept {
@@ -32,27 +33,28 @@ public:
     Invalidate();
   }
 
-  void SetText(const TCHAR *_text) noexcept {
+  void SetText(const char *_text) noexcept {
     text = _text;
     Invalidate();
   }
 
 protected:
   void OnPaint(Canvas &canvas) noexcept override {
-    DrawSimpleProgressBar(canvas, canvas.GetRect(), position, 0, range);
+    auto &look = UIGlobals::GetDialogLook();
+    DrawSimpleProgressBar(canvas, canvas.GetRect(), position, 0, range,
+                          look.dark_mode ? &look.background_color : nullptr);
 
     if (!text.empty()) {
-      auto &look = UIGlobals::GetDialogLook();
       auto &font = look.text_font;
       canvas.Select(font);
 
       const int text_height = font.GetHeight();
       const int padding = ((int)canvas.GetHeight() - text_height) / 2;
 
-      canvas.SetTextColor(COLOR_BLACK);
+      canvas.SetTextColor(look.text_color);
       canvas.SetBackgroundTransparent();
 
-      const tstring_view _text{text};
+      const std::string_view _text{text};
       canvas.DrawText({padding, padding}, _text);
     }
   }
@@ -97,7 +99,7 @@ ProgressWidget::Unprepare() noexcept
 }
 
 void
-ProgressWidget::SetText(const TCHAR *_text) noexcept
+ProgressWidget::SetText(const char *_text) noexcept
 {
   if (IsDefined()) {
     auto &pb = (ProgressBar &)GetWindow();

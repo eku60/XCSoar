@@ -11,7 +11,6 @@
 #include "Screen/Layout.hpp"
 #include "Form/DataField/Prefix.hpp"
 #include "Form/DataField/Listener.hpp"
-#include "FLARM/FlarmNetRecord.hpp"
 #include "FLARM/Details.hpp"
 #include "FLARM/Id.hpp"
 #include "FLARM/Global.hpp"
@@ -77,8 +76,10 @@ class TrafficListWidget : public ListWidget, public DataFieldListener,
      */
     bool loaded = false;
 
-    const FlarmNetRecord *record;
-    const TCHAR *callsign;
+    /** 
+     * Resolved human-readable FLARM fields plus metadata about their origin. 
+     */
+    ResolvedInfo info;
 
     /**
      * This object's location.  Check GeoPoint::IsValid().
@@ -94,7 +95,7 @@ class TrafficListWidget : public ListWidget, public DataFieldListener,
     /**
      * The display name of the SkyLines account.
      */
-    tstring name;
+    std::string name;
 
 #ifdef HAVE_SKYLINES_TRACKING
     StaticString<20> near_name;
@@ -116,7 +117,7 @@ class TrafficListWidget : public ListWidget, public DataFieldListener,
 #ifdef HAVE_SKYLINES_TRACKING
     explicit Item(uint32_t _id, SkyLinesTracking::Data::Time _time_of_day,
                   const GeoPoint &_location, int _altitude,
-                  tstring &&_name)
+                  std::string &&_name)
       :id(FlarmId::Undefined()), skylines_id(_id),
        time_of_day(_time_of_day),
        color(FlarmColor::COUNT),
@@ -148,12 +149,12 @@ class TrafficListWidget : public ListWidget, public DataFieldListener,
 
     void Load() {
       if (IsFlarm()) {
-        record = traffic_databases->flarm_net.FindRecordById(id);
-        callsign = traffic_databases->FindNameById(id);
+        /* Load resolved info from multiple sources (messaging, FLARMnet,
+           user database) */
+        info = FlarmDetails::ResolveInfo(id);
 #ifdef HAVE_SKYLINES_TRACKING
       } else if (IsSkyLines()) {
-        record = nullptr;
-        callsign = nullptr;
+        /* SkyLines data doesn't have resolved info */
 #endif
       } else {
         gcc_unreachable();
@@ -323,7 +324,7 @@ public:
 
   void Prepare([[maybe_unused]] ContainerWindow &parent,
                [[maybe_unused]] const PixelRect &rc) noexcept override {
-    PrefixDataField *callsign_df = new PrefixDataField(_T(""), listener);
+    PrefixDataField *callsign_df = new PrefixDataField("", listener);
     Add(_("Competition ID"), nullptr, callsign_df);
   }
 };
@@ -356,7 +357,7 @@ TrafficListWidget::UpdateList()
   items.clear();
   last_update.Clear();
 
-  const TCHAR *callsign = filter_widget->GetValueString(CALLSIGN);
+  const char *callsign = filter_widget->GetValueString(CALLSIGN);
   if (!StringIsEmpty(callsign)) {
     FlarmId ids[30];
     unsigned count = FlarmDetails::FindIdsByCallSign(callsign, ids, 30);
@@ -392,9 +393,9 @@ TrafficListWidget::UpdateList()
       const std::lock_guard lock{data.mutex};
       for (const auto &i : data.traffic) {
         const auto name_i = data.user_names.find(i.first);
-        tstring name = name_i != data.user_names.end()
+        std::string name = name_i != data.user_names.end()
           ? name_i->second
-          : tstring();
+          : std::string();
 
         items.emplace_back(i.first, i.second.time_of_day,
                            i.second.location, i.second.altitude,
@@ -508,8 +509,8 @@ TrafficListWidget::UpdateButtons()
   bool flarm_cursor = valid_cursor && items[cursor].IsFlarm();
   bool valid_location = valid_cursor && items[cursor].location.IsValid();
 
-  buttons->SetRowVisible(DETAILS, flarm_cursor);
-  buttons->SetRowVisible(MAP, valid_location);
+  buttons->SetRowEnabled(DETAILS, flarm_cursor);
+  buttons->SetRowEnabled(MAP, valid_location);
 }
 
 void
@@ -569,8 +570,7 @@ TrafficListWidget::OnPaintItem(Canvas &canvas, PixelRect rc,
 
   item.AutoLoad();
 
-  const FlarmNetRecord *record = item.record;
-  const TCHAR *callsign = item.callsign;
+  const ResolvedInfo &info = item.info;
 
   const DialogLook &look = UIGlobals::GetDialogLook();
   const Font &name_font = *look.list.font_bold;
@@ -579,7 +579,7 @@ TrafficListWidget::OnPaintItem(Canvas &canvas, PixelRect rc,
   const unsigned text_padding = Layout::GetTextPadding();
   const unsigned frame_padding = text_padding / 2;
 
-  TCHAR tmp_id[10];
+  char tmp_id[10];
   item.id.Format(tmp_id);
 
   canvas.Select(name_font);
@@ -587,22 +587,22 @@ TrafficListWidget::OnPaintItem(Canvas &canvas, PixelRect rc,
   StaticString<256> tmp;
 
   if (item.IsFlarm()) {
-    if (record != nullptr)
-      tmp.Format(_T("%s - %s - %s"),
-                 callsign, record->registration.c_str(), tmp_id);
-    else if (callsign != nullptr)
-      tmp.Format(_T("%s - %s"), callsign, tmp_id);
+    if (!info.callsign.empty() && !info.registration.empty())
+      tmp.Format("%s - %s - %s",
+                 info.callsign.c_str(), info.registration.c_str(), tmp_id);
+    else if (!info.callsign.empty())
+      tmp.Format("%s - %s", info.callsign.c_str(), tmp_id);
     else
-      tmp.Format(_T("%s"), tmp_id);
+      tmp.Format("%s", tmp_id);
 #ifdef HAVE_SKYLINES_TRACKING
   } else if (item.IsSkyLines()) {
     if (!item.name.empty())
       tmp = item.name.c_str();
     else
-      tmp.UnsafeFormat(_T("SkyLines %u"), item.skylines_id);
+      tmp.UnsafeFormat("SkyLines %u", item.skylines_id);
 #endif
   } else {
-    tmp = _T("?");
+    tmp = "?";
   }
 
   if (item.color != FlarmColor::NONE) {
@@ -647,24 +647,24 @@ TrafficListWidget::OnPaintItem(Canvas &canvas, PixelRect rc,
                                                FormatBearing(item.vector.bearing).c_str());
   }
 
-  if (record != nullptr) {
+  if (!info.IsEmpty()) {
     tmp.clear();
 
-    if (!record->pilot.empty())
-      tmp = record->pilot.c_str();
+    if (!info.pilot.empty())
+      tmp = info.pilot.c_str();
 
-    if (!record->plane_type.empty()) {
+    if (!info.plane_type.empty()) {
       if (!tmp.empty())
-        tmp.append(_T(" - "));
+        tmp.append(" - ");
 
-      tmp.append(record->plane_type);
+      tmp.append(info.plane_type.c_str());
     }
 
-    if (!record->airfield.empty()) {
+    if (!info.airfield.empty()) {
       if (!tmp.empty())
-        tmp.append(_T(" - "));
+        tmp.append(" - ");
 
-      tmp.append(record->airfield);
+      tmp.append(info.airfield.c_str());
     }
 
     if (!tmp.empty())
@@ -679,12 +679,12 @@ TrafficListWidget::OnPaintItem(Canvas &canvas, PixelRect rc,
       tmp.clear();
 
     if (!item.near_name.empty())
-      tmp.AppendFormat(_T(" near %s (%s)"),
+      tmp.AppendFormat(" near %s (%s)",
                        item.near_name.c_str(),
                        FormatUserDistanceSmart(item.near_distance).c_str());
 
     if (!tmp.empty())
-      tmp.append(_T("; "));
+      tmp.append("; ");
     tmp.append(FormatUserAltitude(item.altitude).c_str());
 
     if (!tmp.empty())
@@ -702,7 +702,7 @@ TrafficListWidget::OpenDetails(unsigned index)
   Item &item = items[index];
 
   if (item.IsFlarm()) {
-    dlgFlarmTrafficDetailsShowModal(item.id);
+    (void)dlgFlarmTrafficDetailsShowModal(item.id);
     UpdateList();
   }
 }
@@ -764,7 +764,7 @@ TrafficListDialog()
 }
 
 FlarmId
-PickFlarmTraffic(const TCHAR *title, FlarmId array[], unsigned count)
+PickFlarmTraffic(const char *title, FlarmId array[], unsigned count)
 {
   assert(count > 0);
 

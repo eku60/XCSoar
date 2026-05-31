@@ -52,8 +52,10 @@ RowFormWidget::Row::GetMinimumHeight(const DialogLook &look,
   case Type::DUMMY:
     return 0;
 
-  case Type::WIDGET:
-    return widget->GetMinimumSize().height;
+  case Type::WIDGET: {
+    const unsigned height = widget->GetMinimumSize().height;
+    return height > 0 ? height : Layout::GetMinimumControlHeight();
+  }
 
   case Type::GENERIC:
     break;
@@ -266,7 +268,7 @@ RowFormWidget::AddSpacer() noexcept
 }
 
 void
-RowFormWidget::AddMultiLine(const TCHAR *text) noexcept
+RowFormWidget::AddMultiLine(const char *text) noexcept
 {
   assert(IsDefined());
 
@@ -279,7 +281,11 @@ RowFormWidget::AddMultiLine(const TCHAR *text) noexcept
   ContainerWindow &panel = (ContainerWindow &)GetWindow();
   auto ltw = std::make_unique<LargeTextWindow>();
   ltw->Create(panel, rc, style);
+#ifndef USE_WINUSER
   ltw->SetFont(look.text_font);
+#endif
+  ltw->SetColors(look.ReadOnlyValueBackground(), look.list.text_color,
+                 look.ReadOnlyValueBorderColor());
 
   if (text != nullptr)
     ltw->SetText(text);
@@ -288,7 +294,7 @@ RowFormWidget::AddMultiLine(const TCHAR *text) noexcept
 }
 
 Button *
-RowFormWidget::AddButton(const TCHAR *label,
+RowFormWidget::AddButton(const char *label,
                          std::function<void()> callback) noexcept
 {
   assert(IsDefined());
@@ -308,7 +314,7 @@ RowFormWidget::AddButton(const TCHAR *label,
 }
 
 void
-RowFormWidget::SetMultiLineText(unsigned i, const TCHAR *text) noexcept
+RowFormWidget::SetMultiLineText(unsigned i, const char *text) noexcept
 {
   assert(text != nullptr);
   assert(rows[i].type == Row::Type::MULTI_LINE);
@@ -417,7 +423,7 @@ PixelSize
 RowFormWidget::GetMinimumSize() const noexcept
 {
   const unsigned value_width =
-    look.text_font.TextSize(_T("Foo Bar Foo Bar")).width;
+    look.text_font.TextSize("Foo Bar Foo Bar").width;
 
   const bool expert = UIGlobals::GetDialogSettings().expert;
 
@@ -426,9 +432,18 @@ RowFormWidget::GetMinimumSize() const noexcept
     : (GetRecommendedCaptionWidth() + value_width);
 
   PixelSize size(edit_width, 0u);
-  for (const auto &i : rows)
-    if (i.IsAvailable(expert))
-      size.height += i.GetMinimumHeight(look, vertical);
+  for (const auto &i : rows) {
+    if (!i.IsAvailable(expert))
+      continue;
+
+    size.height += i.GetMinimumHeight(look, vertical);
+
+    if (i.type == Row::Type::WIDGET) {
+      const unsigned width = i.widget->GetMinimumSize().width;
+      if (width > size.width)
+        size.width = width;
+    }
+  }
 
   return size;
 }
@@ -437,15 +452,27 @@ PixelSize
 RowFormWidget::GetMaximumSize() const noexcept
 {
   const unsigned value_width =
-    look.text_font.TextSize(_T("Foo Bar Foo Bar")).width * 2;
+    look.text_font.TextSize("Foo Bar Foo Bar").width * 2;
+
+  const bool expert = UIGlobals::GetDialogSettings().expert;
 
   const unsigned edit_width = vertical
     ? std::max(GetRecommendedCaptionWidth(), value_width)
     : (GetRecommendedCaptionWidth() + value_width);
 
   PixelSize size(edit_width, 0u);
-  for (const auto &i : rows)
+  for (const auto &i : rows) {
+    if (!i.IsAvailable(expert))
+      continue;
+
     size.height += i.GetMaximumHeight(look, vertical);
+
+    if (i.type == Row::Type::WIDGET) {
+      const unsigned width = i.widget->GetMaximumSize().width;
+      if (width > size.width)
+        size.width = width;
+    }
+  }
 
   return size;
 }
@@ -476,8 +503,12 @@ RowFormWidget::Unprepare() noexcept
 void
 RowFormWidget::Show(const PixelRect &rc) noexcept
 {
+  PixelRect safe_rc = rc;
+  if (safe_rc.GetHeight() == 0)
+    safe_rc.bottom = safe_rc.top + 1;
+
   Window &panel = GetWindow();
-  panel.Move(rc);
+  panel.Move(safe_rc);
 
   UpdateLayout();
 

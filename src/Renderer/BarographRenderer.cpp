@@ -15,28 +15,40 @@
 #include "Engine/Task/TaskManager.hpp"
 #include "TaskLegRenderer.hpp"
 #include "GradientRenderer.hpp"
+#include "util/UTF8.hpp"
+
+#include <fmt/format.h>
 
 void
-BarographCaption(TCHAR *sTmp, const FlightStatistics &fs)
+BarographCaption(char *sTmp, size_t buffer_size, const FlightStatistics &fs)
 {
+  if (sTmp == nullptr || buffer_size == 0)
+    return;
+
   const std::lock_guard lock{fs.mutex};
+
   if (!fs.altitude_ceiling.HasResult() || fs.altitude_base.IsEmpty()) {
-    sTmp[0] = _T('\0');
+    sTmp[0] = '\0';
   } else if (fs.altitude_ceiling.GetCount() < 4) {
-    StringFormatUnsafe(sTmp, _T("%s:\r\n  %.0f-%.0f %s"),
-                       _("Working band"),
-                       (double)Units::ToUserAltitude(fs.GetMinWorkingHeight()),
-                       (double)Units::ToUserAltitude(fs.GetMaxWorkingHeight()),
-                       Units::GetAltitudeName());
+    auto result = fmt::format_to_n(sTmp, buffer_size - 1, "{}:\r\n  {:.0f}-{:.0f} {}",
+                                   _("Working band"),
+                                   (double)Units::ToUserAltitude(fs.GetMinWorkingHeight()),
+                                   (double)Units::ToUserAltitude(fs.GetMaxWorkingHeight()),
+                                   Units::GetAltitudeName());
+    *result.out = '\0';
+    CropIncompleteUTF8(sTmp);
   } else {
-    StringFormatUnsafe(sTmp, _T("%s:\r\n  %.0f-%.0f %s\r\n\r\n%s:\r\n  %.0f %s/hr"),
-                       _("Working band"),
-                       (double)Units::ToUserAltitude(fs.GetMinWorkingHeight()),
-                       (double)Units::ToUserAltitude(fs.GetMaxWorkingHeight()),
-                       Units::GetAltitudeName(),
-                       _("Ceiling trend"),
-                       (double)Units::ToUserAltitude(fs.altitude_ceiling.GetGradient()),
-                       Units::GetAltitudeName());
+    auto result = fmt::format_to_n(sTmp, buffer_size - 1,
+                                   "{}:\r\n  {:.0f}-{:.0f} {}\r\n\r\n{}:\r\n  {:.0f} {}/hr",
+                                   _("Working band"),
+                                   (double)Units::ToUserAltitude(fs.GetMinWorkingHeight()),
+                                   (double)Units::ToUserAltitude(fs.GetMaxWorkingHeight()),
+                                   Units::GetAltitudeName(),
+                                   _("Ceiling trend"),
+                                   (double)Units::ToUserAltitude(fs.altitude_ceiling.GetGradient()),
+                                   Units::GetAltitudeName());
+    *result.out = '\0';
+    CropIncompleteUTF8(sTmp);
   }
 }
 
@@ -99,8 +111,8 @@ RenderBarograph(Canvas &canvas, const PixelRect rc,
                 const ProtectedTaskManager *_task)
 {
   ChartRenderer chart(chart_look, canvas, rc);
-  chart.SetXLabel(_T("t"), _T("hr"));
-  chart.SetYLabel(_T("h"), Units::GetAltitudeName());
+  chart.SetXLabel("t", "hr");
+  chart.SetYLabel("h", Units::GetAltitudeName());
   chart.Begin();
 
   if (!fs.altitude.HasResult()) {
@@ -133,11 +145,14 @@ RenderBarograph(Canvas &canvas, const PixelRect rc,
   canvas.Select(cross_section_look.terrain_brush);
 
   chart.DrawFilledLineGraph(fs.altitude_terrain);
-  canvas.SelectWhitePen();
-  canvas.SelectWhiteBrush();
+
+  Pen bg_pen(1, chart_look.background_color);
+  Brush bg_brush(chart_look.background_color);
+  canvas.Select(bg_pen);
+  canvas.Select(bg_brush);
 
   chart.DrawXGrid(0.25, 0.25, ChartRenderer::UnitFormat::TIME);
-  chart.DrawYGrid(Units::ToSysAltitude(1000), 1000, ChartRenderer::UnitFormat::NUMERIC);
+  chart.DrawYGrid(Units::ToSysAltitude(250), 250, ChartRenderer::UnitFormat::NUMERIC);
 
   if (fs.altitude_base.HasResult()) {
     chart.DrawLineGraph(fs.altitude_base, ChartLook::STYLE_REDTHICKDASH);

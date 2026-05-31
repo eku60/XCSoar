@@ -32,7 +32,7 @@ class PortTerminalBridge final : public DataHandler {
 public:
   PortTerminalBridge(TerminalWindow &_terminal)
     :terminal(_terminal) {}
-  virtual ~PortTerminalBridge() {}
+  ~PortTerminalBridge() {}
 
   bool DataReceived(std::span<const std::byte> s) noexcept {
     {
@@ -155,9 +155,9 @@ ShowPortMonitor(DeviceDescriptor &device)
 {
   const Look &look = UIGlobals::GetLook();
 
-  std::array<TCHAR, 64> buffer;
+  std::array<char, 64> buffer;
   StaticString<128> caption;
-  caption.Format(_T("%s: %s"), _("Port monitor"),
+  caption.Format("%s: %s", _("Port monitor"),
                  device.GetConfig().GetPortName(buffer.data(), buffer.size()));
 
   TWidgetDialog<PortMonitorWidget>

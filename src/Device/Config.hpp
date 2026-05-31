@@ -6,8 +6,6 @@
 #include "util/StaticString.hxx"
 
 #include <cstdint>
-#include <tchar.h>
-
 /**
  * Configuration structure for serial devices
  */
@@ -87,11 +85,15 @@ struct DeviceConfig {
     BLE_SENSOR,
 
     /**
-     * Bluetooth Low Energy HM10 protocol to a paired device.  Unlike
-     * #BLE_SENSOR, this provides a bidirectional data stream and
-     * XCSoar accesses it through the #Port interface.
+     * Bluetooth Low Energy serial bridge to a paired device (HM-10 or
+     * Nordic UART Service).  Unlike #BLE_SENSOR, this provides a
+     * bidirectional data stream and XCSoar accesses it through the
+     * #Port interface.
+     *
+     * @note The profile stores this mode under the legacy port type string
+     * @c ble_hm10 (see Profile/DeviceConfig.cpp).
      */
-    BLE_HM10,
+    BLE_SERIAL,
 
     /**
      * A GliderLink broadcast receiver. Available on Android only
@@ -127,6 +129,11 @@ struct DeviceConfig {
    * The path name of the serial port, e.g. "COM4:" or "/dev/ttyUSB0".
    */
   StaticString<64> path;
+
+  /**
+   * The path name of the bluetooth port, e.g. "COM15 (Larus1234)".
+   */
+  StaticString<128> port_name;
 
   /**
    * The Bluetooth MAC address of the peer.
@@ -201,6 +208,26 @@ struct DeviceConfig {
   static_assert(std::size(ignitions_to_revolutions_factors) == (std::size_t)EngineType::MAX);
 
   /**
+   * Whether to synchronize the glide polar between XCSoar and the
+   * device.
+   */
+  enum class PolarSync : uint8_t {
+    /** No polar synchronization. */
+    OFF = 0,
+
+    /** Adopt the polar from the device. */
+    RECEIVE,
+
+    /** Push XCSoar's polar to the device. */
+    SEND,
+
+    /**
+     * A dummy entry that is used for validating profile values.
+     */
+    COUNT
+  };
+
+  /**
    * Name of the driver.
    */
   StaticString<32> driver_name;
@@ -255,6 +282,20 @@ struct DeviceConfig {
   bool sync_from_device;
 
   /**
+   * Should XCSoar send its current GPS position to the device as
+   * $GPGGA / $GPRMC sentences?  Only honored by drivers that advertise
+   * #DeviceRegister::SEND_POSITION (e.g. LX160).  When this is false the
+   * driver still emits navigation context such as $GPRMB.  Defaults to
+   * true; turn off when an upstream GPS source already feeds the device.
+   */
+  bool send_position;
+
+  /**
+   * Polar synchronization direction (off, receive, or send).
+   */
+  PolarSync polar_sync;
+
+  /**
    * Does this port type use a baud rate?
    */
   static constexpr bool UsesSpeed(PortType port_type) noexcept {
@@ -266,7 +307,7 @@ struct DeviceConfig {
   static constexpr bool UsesBluetoothMac(PortType port_type) noexcept {
     return port_type == PortType::RFCOMM ||
       port_type == PortType::BLE_SENSOR ||
-      port_type == PortType::BLE_HM10;
+      port_type == PortType::BLE_SERIAL;
   }
 
   constexpr bool IsDisabled() const noexcept {
@@ -290,7 +331,7 @@ struct DeviceConfig {
   constexpr bool IsAndroidBluetooth() const noexcept {
     switch (port_type) {
     case PortType::BLE_SENSOR:
-    case PortType::BLE_HM10:
+    case PortType::BLE_SERIAL:
     case PortType::RFCOMM:
     case PortType::RFCOMM_SERVER:
       return true;
@@ -317,7 +358,7 @@ struct DeviceConfig {
   }
 
   [[gnu::pure]]
-  static bool MaybeBluetooth(PortType port_type, const TCHAR *path) noexcept;
+  static bool MaybeBluetooth(PortType port_type, const char *path) noexcept;
 
   [[gnu::pure]]
   bool MaybeBluetooth() const noexcept;
@@ -355,7 +396,7 @@ struct DeviceConfig {
       return false;
 
     case PortType::SERIAL:
-    case PortType::BLE_HM10:
+    case PortType::BLE_SERIAL:
     case PortType::RFCOMM:
     case PortType::RFCOMM_SERVER:
     case PortType::AUTO:
@@ -400,12 +441,12 @@ struct DeviceConfig {
     return UsesTCPPort(port_type);
   }
 
-  constexpr bool IsDriver(const TCHAR *name) const noexcept {
+  constexpr bool IsDriver(const char *name) const noexcept {
     return UsesDriver() && driver_name.equals(name);
   }
 
   bool IsVega() const noexcept {
-    return IsDriver(_T("Vega"));
+    return IsDriver("Vega");
   }
 
   constexpr bool IsAndroidInternalGPS() const noexcept {
@@ -456,5 +497,5 @@ struct DeviceConfig {
    * Generates a human-readable (localised) port name.
    */
   [[gnu::pure]]
-  const TCHAR *GetPortName(TCHAR *buffer, size_t max_size) const noexcept;
+  const char *GetPortName(char *buffer, size_t max_size) const noexcept;
 };

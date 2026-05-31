@@ -14,15 +14,18 @@ LXCreateOnPort(const DeviceConfig &config, Port &com_port)
 
   const bool is_nano = config.BluetoothNameStartsWith("LXNAV-NANO");
 
-  return new LXDevice(com_port, baud_rate, bulk_baud_rate, config.use_second_device, is_nano);
+  return new LXDevice(com_port, baud_rate, bulk_baud_rate,
+                      config.use_second_device, config.polar_sync,
+                      is_nano);
 }
 
 const struct DeviceRegister lx_driver = {
-  _T("LX"),
-  _T("LXNAV"),
+  "LX",
+  "LXNAV",
   DeviceRegister::DECLARE | DeviceRegister::LOGGER |
   DeviceRegister::PASS_THROUGH |
   DeviceRegister::BULK_BAUD_RATE |
-  DeviceRegister::RECEIVE_SETTINGS | DeviceRegister::SEND_SETTINGS,
+  DeviceRegister::RECEIVE_SETTINGS | DeviceRegister::SEND_SETTINGS |
+  DeviceRegister::RECEIVE_POLAR | DeviceRegister::SEND_POLAR,
   LXCreateOnPort,
 };

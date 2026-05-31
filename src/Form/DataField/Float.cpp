@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "Float.hpp"
+#include "util/StringFormat.hpp"
 #include "ComboList.hpp"
 #include "Math/Util.hpp"
 #include "util/NumberParser.hpp"
@@ -10,17 +11,17 @@
 
 static bool DataFieldKeyUp = false;
 
-const TCHAR *
+const char *
 DataFieldFloat::GetAsString() const noexcept
 {
-  _stprintf(mOutBuf, edit_format, (double)mValue);
+  StringFormat(mOutBuf, sizeof(mOutBuf), edit_format, (double)mValue);
   return mOutBuf;
 }
 
-const TCHAR *
+const char *
 DataFieldFloat::GetAsDisplayString() const noexcept
 {
-  _stprintf(mOutBuf, display_format, (double)mValue, unit.c_str());
+  StringFormat(mOutBuf, sizeof(mOutBuf), display_format, (double)mValue, unit.c_str());
   return mOutBuf;
 }
 
@@ -84,7 +85,7 @@ DataFieldFloat::SpeedUp(bool keyup) noexcept
 }
 
 void
-DataFieldFloat::SetFromCombo([[maybe_unused]] int iDataFieldIndex, const TCHAR *sValue) noexcept
+DataFieldFloat::SetFromCombo([[maybe_unused]] int iDataFieldIndex, const char *sValue) noexcept
 {
   ModifyValue(ParseDouble(sValue));
 }
@@ -93,14 +94,14 @@ void
 DataFieldFloat::AppendComboValue(ComboList &combo_list,
                                  double value) const noexcept
 {
-  TCHAR a[decltype(edit_format)::capacity()], b[decltype(display_format)::capacity()];
-  _stprintf(a, edit_format, (double)value);
-  _stprintf(b, display_format, (double)value, unit.c_str());
+  char a[decltype(edit_format)::capacity()], b[decltype(display_format)::capacity()];
+  StringFormat(a, sizeof(a), edit_format, (double)value);
+  StringFormat(b, sizeof(b), display_format, (double)value, unit.c_str());
   combo_list.Append(a, b);
 }
 
 ComboList
-DataFieldFloat::CreateComboList(const TCHAR *reference_string) const noexcept
+DataFieldFloat::CreateComboList(const char *reference_string) const noexcept
 {
   const auto reference = reference_string != nullptr
     ? ParseDouble(reference_string)
@@ -121,7 +122,7 @@ DataFieldFloat::CreateComboList(const TCHAR *reference_string) const noexcept
   auto first = corrected_value - surrounding_items * mStep;
   if (first > mMin + epsilon)
     /* there are values before "first" - give the user a choice */
-    combo_list.Append(ComboList::Item::PREVIOUS_PAGE, _T("<<More Items>>"));
+    combo_list.Append(ComboList::Item::PREVIOUS_PAGE, "<<More Items>>");
   else if (first < mMin - epsilon)
     first = int(mMin / mStep) * mStep;
 
@@ -181,7 +182,7 @@ DataFieldFloat::CreateComboList(const TCHAR *reference_string) const noexcept
 
   if (last < mMax - epsilon)
     /* there are values after "last" - give the user a choice */
-    combo_list.Append(ComboList::Item::NEXT_PAGE, _T("<<More Items>>"));
+    combo_list.Append(ComboList::Item::NEXT_PAGE, "<<More Items>>");
 
   return combo_list;
 }

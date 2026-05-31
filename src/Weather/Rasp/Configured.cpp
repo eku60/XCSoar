@@ -8,13 +8,13 @@
 #include "LocalPath.hpp"
 
 std::shared_ptr<RaspStore>
-LoadConfiguredRasp() noexcept
+LoadConfiguredRasp(bool legacy_default) noexcept
 {
   auto path = Profile::GetPath(ProfileKeys::RaspFile);
-  if (path == nullptr)
+  if (legacy_default && path == nullptr)
     /* if no path is configured, attempt to load xcsoar-rasp.dat
        (XCSoar < 7.29) */
-    path = LocalPath(_T(RASP_FILENAME));
+    path = LocalPath(RASP_FILENAME);
 
   auto rasp = std::make_shared<RaspStore>(std::move(path));
   rasp->ScanAll();

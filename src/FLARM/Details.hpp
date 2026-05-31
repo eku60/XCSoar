@@ -3,10 +3,46 @@
 
 #pragma once
 
-#include <tchar.h>
+#include "RadioFrequency.hpp"
+
+#include <string>
 
 class FlarmId;
 struct FlarmNetRecord;
+struct MessagingRecord;
+
+enum class ResolvedSource : unsigned char {
+  NONE,
+  MESSAGING,
+  FLARMNET,
+  COUNT, // Helper to report the number of tracked fields.
+};
+
+/**
+ * Resolved human-readable FLARM fields plus metadata about their origin.
+ * All string fields are owned copies that remain valid for the lifetime
+ * of this object.
+ */
+struct ResolvedInfo {
+  std::string pilot;
+  std::string plane_type;
+  std::string registration;
+  std::string callsign;
+  std::string airfield;  // FLARMnet-only
+  RadioFrequency frequency = RadioFrequency::Null();
+  ResolvedSource source = ResolvedSource::NONE;
+
+  /**
+   * Checks if any resolved information fields are available.
+   */
+  bool IsEmpty() const noexcept {
+    return pilot.empty() &&
+           plane_type.empty() &&
+           registration.empty() &&
+           callsign.empty() &&
+           airfield.empty();
+  }
+};
 
 namespace FlarmDetails {
 
@@ -27,7 +63,7 @@ LookupRecord(FlarmId id) noexcept;
  * @return The corresponding callsign if found, otherwise NULL
  */
 [[gnu::pure]]
-const TCHAR *
+const char *
 LookupCallsign(FlarmId id) noexcept;
 
 /**
@@ -38,7 +74,7 @@ LookupCallsign(FlarmId id) noexcept;
  */
 [[gnu::pure]]
 FlarmId
-LookupId(const TCHAR *cn) noexcept;
+LookupId(const char *cn) noexcept;
 
 /**
  * Adds a FLARM details couple (callsign + FLARM id)
@@ -48,9 +84,31 @@ LookupId(const TCHAR *cn) noexcept;
  * @return True if successfully added, False otherwise
  */
 bool
-AddSecondaryItem(FlarmId id, const TCHAR *name) noexcept;
+AddSecondaryItem(FlarmId id, const char *name) noexcept;
+
+/**
+ * Stores a messaging record in the database and triggers periodic save.
+ * @param record The messaging record to store
+ */
+void
+StoreMessagingRecord(const MessagingRecord &record) noexcept;
 
 unsigned
-FindIdsByCallSign(const TCHAR *cn, FlarmId array[], unsigned size) noexcept;
+FindIdsByCallSign(const char *cn, FlarmId array[], unsigned size) noexcept;
+
+/**
+ * Resolves human-readable fields with preference: messaging -> FLARMnet.
+ * Callsign uses existing FindNameById() priority (user -> messaging -> FLARMnet).
+ * Airfield is FLARMnet-only.
+ */
+[[gnu::pure]]
+ResolvedInfo
+ResolveInfo(FlarmId id);
+
+/**
+ * Retrieves the localized string corresponding to the resolved source enum.
+ */
+[[gnu::const]]
+const char *ToString(ResolvedSource source) noexcept;
 
 } // namespace FlarmDetails

@@ -44,11 +44,11 @@ Getting the Source Code
 The XCSoar source code is managed with `git <http://git-scm.com/>`__. It
 can be downloaded with the following command::
 
-  git clone https://github.com/XCSoar/XCSoar
+  git clone --recurse-submodules https://github.com/XCSoar/XCSoar
 
 To update your repository, type::
 
-  git pull
+  git pull --recurse-submodules
 
 To update third-party libraries used by XCSoar (such as `Boost
 <http://www.boost.org/>`__), type::
@@ -65,13 +65,13 @@ The following is needed for all targets:
 -  GNU make
 
 -  GNU compiler collection (``gcc``), version 10 or later or clang/LLVM
-   10 (with "make CLANG=y")
+   12 (with "make CLANG=y")
 
 -  GNU gettext
 
--  `rsvg <http://librsvg.sourceforge.net/)>`__
+-  `rsvg <https://librsvg.sourceforge.net/>`__
 
--  `ImageMagick 6.4 <http://www.imagemagick.org/>`__
+-  `ImageMagick 6.4 <https://www.imagemagick.org/>`__
 
 -  `xsltproc <http://xmlsoft.org/XSLT/xsltproc2.html>`__
 
@@ -98,24 +98,24 @@ Compiling for Linux/UNIX
 The following additional packages are needed to build for Linux and
 similar operating systems:
 
--  `zlib <http://www.zlib.net/>`__
+-  `zlib <https://www.zlib.net/>`__
 
-- `c-ares <https://c-ares.haxx.se/`__
+-  `c-ares <https://c-ares.org/>`__
 
--  `CURL <http://curl.haxx.se/>`__
+-  `CURL <https://curl.se/>`__
 
--  `Lua <http://www.lua.org/>`__
+-  `Lua <https://www.lua.org/>`__
 
 -  `libinput <https://www.freedesktop.org/wiki/Software/libinput/>`__
    (not required when using Wayland or on the KOBO)
 
--  `SDL <http://www.libsdl.org/>`__
+-  `SDL <https://www.libsdl.org/>`__
 
--  `SDL_ttf <http://www.libsdl.org/projects/SDL_ttf/>`__
+-  `SDL_ttf <https://github.com/libsdl-org/SDL_ttf>`__
 
--  `libpng <http://www.libpng.org/>`__
+-  `libpng <http://www.libpng.org/pub/png/libpng.html>`__
 
--  `libjpeg <http://libjpeg.sourceforge.net/>`__
+-  `libjpeg <https://libjpeg.sourceforge.net/>`__
 
 -  OpenGL (Mesa)
 
@@ -129,7 +129,7 @@ The following command installs these on Debian::
       libfmt-dev \
       libdbus-1-dev \
       libsodium-dev \
-      libfreetype6-dev \
+      libfreetype-dev \
       libpng-dev libjpeg-dev \
       libtiff5-dev libgeotiff-dev \
       libc-ares-dev \
@@ -163,16 +163,16 @@ Compiling for Android
 
 For Android, you need:
 
-- `Android SDK level 33 <http://developer.android.com/sdk/>`__
+- `Android SDK level 35 <http://developer.android.com/sdk/>`__
 
-- `Android NDK r26c <http://developer.android.com/sdk/ndk/>`__
+- `Android NDK r26d <http://developer.android.com/sdk/ndk/>`__
 
 - `Ogg Vorbis <http://www.vorbis.com/>`__
 
 - Java JDK
 
 On Debian::
-  
+
   sudo apt-get install
       default-jdk-headless \
       vorbis-tools \
@@ -180,18 +180,18 @@ On Debian::
 
 The required Android SDK components are:
 
-- Android SDK Build-Tools 33.0.2
+- Android SDK Build-Tools 35.0.0
 
-- SDK Platform 33
+- SDK Platform 35
 
 These can be installed from the Android Studio SDK Manager, or using the
 SDK command line tools:
 
-tools/bin/sdkmanager  "build-tools;33.0.2"  "platforms;android-33"
+tools/bin/sdkmanager  "build-tools;35.0.0"  "platforms;android-35"
 
 The ``Makefile`` assumes that the Android SDK is installed in
 ``~/opt/android-sdk-linux`` and the NDK is installed in
-``~/opt/android-ndk-r26c``. You can use the options ``ANDROID_SDK`` and
+``~/opt/android-ndk-r26d``. You can use the options ``ANDROID_SDK`` and
 ``ANDROID_NDK`` to override these paths.
 
 Load/update the IOIO source code::
@@ -244,56 +244,82 @@ Use one of the following targets:
 ``WIN64`` Windows x64 (amd64 / x86-64)
 ========= ============================
 
-Compiling for iOS and macOS
+Compiling for iOS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-On macOS, the following tools are required:
+To compile for iOS, you need a Mac with Xcode (at least the Command Line Tools) installed.
 
-- png2icns from `libicns <http://icns.sourceforge.net>`__ to build for
-  macOS
+Install the required Homebrew packages via the provisioning script::
 
-- `dpkg <https://alioth.debian.org/projects/dpkg>`__ to build the iOS
-  IPA package
+  ./ide/provisioning/install-darwin-packages.sh BASE IOS
 
-- `mkisofs <http://cdrecord.org/private/cdrecord.html>`__ to build the
-  macOS DMG package
+Note that you always need to install the BASE packages and the specific IOS or MACOS packages.
 
 To compile for iOS / AArch64, run::
 
   make TARGET=IOS64 ipa
 
+To compile with the iOS simulator SDK, run::
+
+  make TARGET=IOS64SIM ipa
+
+To build and run simulator tests automatically, run::
+
+  make check-ios-sim
+
+This target builds simulator artifacts (``TARGET=IOS64SIM``), installs
+``XCSoar.app`` into an available iPhone simulator, and runs selected test
+binaries. There is no fixed default device name (``simctl`` depends on
+installed runtimes and Xcode). With ``SIM_DEVICE_NAME`` unset, the script
+picks an available iPhone from ``simctl list``; you can set ``SIM_DEVICE_NAME``
+to require a specific model.
+
+Implementation note: the runner uses a Python script
+(``darwin/check-ios-sim.py``) and discovers simulators via
+``xcrun simctl list devices available --json``.
+Execution is delegated to the existing Perl TAP harness
+(``test/src/testall.pl``) using generated simulator wrapper executables.
+
+Optional environment variables::
+
+  SIM_DEVICE_NAME="iPhone 16"      # Optional: require this model; else any iPhone
+  SIM_TESTS_MODE=all               # Default mode: run all test_* / Test* binaries
+  SIM_TESTS_MODE=smoke             # Run only smoke subset from SIM_SMOKE_TESTS
+  SIM_SMOKE_TESTS="TestCRC8 ..."  # Override smoke test selection
+  SIM_SKIP_TESTS="TestWrapText"    # Space-separated tests to skip in simulator
+
 To compile for iOS / ARMv7, run::
 
   make TARGET=IOS32 ipa
+
+Compiling for macOS (with Homebrew)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Install the required Homebrew packages via the provisioning script::
+
+  ./ide/provisioning/install-darwin-packages.sh BASE MACOS
+
+Note that you always need to install the BASE packages and the specific IOS or MACOS packages.
+
+To compile for macOS / ARM64, run::
+
+  make TARGET=MACOS dmg
 
 To compile for macOS / x86_64, run::
 
   make TARGET=OSX64 dmg
 
-Compiling for macOS (with Homebrew)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Debugging for iOS and macOS
 
-Install the required Homebrew packages::
-
-  brew install \
-    automake autoconf libtool \
-    pkg-config \
-    quilt \
-    librsvg \
-    imagemagick gettext sox \
-    fmt \
-    sdl2 \
-    libsodium \
-    freetype \
-    libpng libjpeg-turbo \
-    libtiff libgeotiff proj \
-    c-ares \
-    curl \
-    lua
-
-Then compile::
-
-  make dmg
+Debugging under iOS and macOS is possible using the LLDB debugger.
+To make this convenient, Xcode or Visual Studio can be used.
+An example Xcode project is provided in `darwin/XCSoar.xcodeproj`. 
+It includes one target for iOS and macOS and will automatically build 
+the XCSoar binary for the selected device target, using the build
+helper script `darwin/build.sh`.
+For iOS debugging with Visual Studio Code, the `iOS Debug`
+extension (https://github.com/nisargjhaveri/vscode-ios-debug) can be used.
+Note that this also requires an Xcode installation.
 
 Compiling on the Raspberry Pi 4
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -351,7 +377,8 @@ Debian packages::
   sudo apt-get install \
       fakeroot \
       python3-setuptools \
-      ttf-bitstream-vera
+      ttf-bitstream-vera \
+      fonts-roboto-unhinted
 
 Then compile using this command::
 
@@ -405,6 +432,149 @@ find out more about this.
 To include kernel images in ``KoboRoot.tgz``, copy ``uImage.otg``,
 ``uImage.kobo``, ``uImage.glohd.otg``, ``uImage.glohd``,
 ``uImage.aura2`` and ``uImage.aura2.otg`` to ``/opt/kobo/kernel``.
+
+.. _build-system-reference:
+
+Graphics Backends by Target
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Defaults shown are from the build system (they can be overridden with
+``ENABLE_SDL=y|n`` and ``OPENGL=y|n``).
+
+.. list-table::
+ :widths: 12 20 12 18 38
+ :header-rows: 1
+
+ * - Target
+   - Platform / ABI
+   - SDL (default)
+   - Graphics Engine (default)
+   - Notes
+ * - ``UNIX``
+   - Linux/Unix (native)
+   - no
+   - OpenGL
+   - Default on Unix-like hosts; main desktop build.
+ * - ``UNIX32``
+   - Linux/Unix 32-bit
+   - no
+   - OpenGL
+   - ``UNIX`` with ``-m32``.
+ * - ``UNIX64``
+   - Linux/Unix 64-bit
+   - no
+   - OpenGL
+   - ``UNIX`` with ``-m64``.
+ * - ``OPT``
+   - Linux/Unix optimized
+   - no
+   - OpenGL
+   - Alias for ``UNIX`` with ``DEBUG=n`` (set ``TARGET_OUTPUT_DIR`` if
+     you want a separate output tree).
+ * - ``WAYLAND``
+   - Linux/Unix (Wayland)
+   - no
+   - OpenGL (EGL)
+   - Experimental Wayland display server build.
+ * - ``FUZZER``
+   - Linux/Unix (libFuzzer)
+   - no
+   - Software (VFB)
+   - Builds fuzz targets with clang + libFuzzer.
+ * - ``PC``
+   - Windows 32-bit (i686)
+   - no
+   - GDI
+   - MinGW-w64 cross-compile target.
+ * - ``WIN64``
+   - Windows 64-bit (x86_64)
+   - no
+   - GDI
+   - Flavor of ``PC`` with 64-bit toolchain.
+ * - ``ANDROID``
+   - Android ARMv7
+   - no
+   - OpenGL ES (EGL)
+   - Alias for ``ANDROID7``.
+ * - ``ANDROID7``
+   - Android ARMv7 (32-bit)
+   - no
+   - OpenGL ES (EGL)
+   - Default Android ABI (armeabi-v7a).
+ * - ``ANDROIDAARCH64``
+   - Android ARM64 (64-bit)
+   - no
+   - OpenGL ES (EGL)
+   - arm64-v8a.
+ * - ``ANDROID86``
+   - Android x86 (32-bit)
+   - no
+   - OpenGL ES (EGL)
+   - x86 ABI.
+ * - ``ANDROIDX64``
+   - Android x86_64 (64-bit)
+   - no
+   - OpenGL ES (EGL)
+   - x86_64 ABI.
+ * - ``ANDROIDFAT``
+   - Android multi-ABI
+   - no
+   - OpenGL ES (EGL)
+   - "Fat" package across supported ABIs.
+ * - ``MACOS``
+   - macOS ARM64
+   - yes
+   - OpenGL (ANGLE)
+   - Apple Silicon (min macOS 12.0).
+ * - ``OSX64``
+   - macOS x86_64
+   - yes
+   - OpenGL (ANGLE)
+   - Intel (min macOS 12.0).
+ * - ``IOS32``
+   - iOS armv7
+   - yes
+   - OpenGL ES
+   - Legacy 32-bit iOS (min iOS 10.0).
+ * - ``IOS64``
+   - iOS arm64
+   - yes
+   - OpenGL ES
+   - Device build (min iOS 11.0).
+ * - ``IOS64SIM``
+   - iOS simulator arm64
+   - yes
+   - OpenGL ES
+   - Simulator SDK (min iOS 11.0).
+ * - ``PI``
+   - Raspberry Pi 1-3
+   - no
+   - OpenGL (EGL/KMS)
+   - ARMv6 cross-compile target.
+ * - ``PI2``
+   - Raspberry Pi 2
+   - no
+   - OpenGL (EGL/KMS)
+   - ARMv7 + NEON cross-compile target.
+ * - ``CUBIE``
+   - Cubieboard
+   - no
+   - OpenGL (EGL/KMS)
+   - Cross-compile target (ARMv7 + NEON).
+ * - ``KOBO``
+   - Kobo e-readers
+   - no
+   - Framebuffer (software)
+   - Cross-compile target (ARMv7 + NEON).
+ * - ``NEON``
+   - Generic ARMv7 + NEON
+   - yes
+   - OpenGL
+   - Internal flavor used by ``PI2``, ``CUBIE``, ``KOBO``.
+
+For a full list of build variables and their defaults, see the
+parameter list at the top of ``Makefile`` and the files in
+``build/*.mk``.
 
 Editing the Manuals
 ~~~~~~~~~~~~~~~~~~~

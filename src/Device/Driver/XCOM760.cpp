@@ -18,11 +18,13 @@ public:
   /* virtual methods from class Device */
   bool PutVolume(unsigned volume, OperationEnvironment &env) override;
   bool PutActiveFrequency(RadioFrequency frequency,
-                          const TCHAR *name,
+                          const char *name,
                           OperationEnvironment &env) override;
   bool PutStandbyFrequency(RadioFrequency frequency,
-                           const TCHAR *name,
+                           const char *name,
                            OperationEnvironment &env) override;
+  bool ExchangeRadioFrequencies(OperationEnvironment &env,
+                                NMEAInfo &info) override;
 };
 
 bool
@@ -36,7 +38,7 @@ XCOM760Device::PutVolume(unsigned volume, OperationEnvironment &env)
 
 bool
 XCOM760Device::PutActiveFrequency(RadioFrequency frequency,
-                                  [[maybe_unused]] const TCHAR *name,
+                                  [[maybe_unused]] const char *name,
                                   OperationEnvironment &env)
 {
   char szTmp[32];
@@ -49,13 +51,22 @@ XCOM760Device::PutActiveFrequency(RadioFrequency frequency,
 
 bool
 XCOM760Device::PutStandbyFrequency(RadioFrequency frequency,
-                                   [[maybe_unused]] const TCHAR *name,
+                                   [[maybe_unused]] const char *name,
                                    OperationEnvironment &env)
 {
   char szTmp[32];
   sprintf(szTmp, "$TXSF=%u.%03u\r\n",
           frequency.GetKiloHertz() / 1000,
           frequency.GetKiloHertz() % 1000);
+  port.FullWrite(szTmp, env, std::chrono::milliseconds{100});
+  return true;
+}
+
+bool
+XCOM760Device::ExchangeRadioFrequencies(OperationEnvironment &env,
+                                        [[maybe_unused]] NMEAInfo &info)
+{
+  const char szTmp[32] = "$TOGG\r\n";
   port.FullWrite(szTmp, env, std::chrono::milliseconds{100});
   return true;
 }
@@ -67,8 +78,8 @@ XCOM760CreateOnPort([[maybe_unused]] const DeviceConfig &config, Port &com_port)
 }
 
 const struct DeviceRegister xcom760_driver = {
-  _T("XCOM760"),
-  _T("XCOM760"),
+  "XCOM760",
+  "XCOM760",
   DeviceRegister::NO_TIMEOUT | DeviceRegister::SEND_SETTINGS,
   XCOM760CreateOnPort,
 };

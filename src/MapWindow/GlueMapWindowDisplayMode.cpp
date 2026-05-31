@@ -8,6 +8,12 @@
 #include "Interface.hpp"
 #include "Profile/Profile.hpp"
 #include "Screen/Layout.hpp"
+#include "PageActions.hpp"
+#include "Weather/Features.hpp"
+
+#ifdef ENABLE_OPENGL
+#include "ui/canvas/opengl/Globals.hpp"
+#endif
 
 #include <algorithm> // for std::clamp()
 
@@ -133,9 +139,22 @@ GlueMapWindow::RestoreMapScale() noexcept
   const bool circling =
     CommonInterface::GetUIState().display_mode == DisplayMode::CIRCLING;
 
-  visible_projection.SetScale(settings.circle_zoom_enabled && circling
-                              ? settings.circling_scale
-                              : settings.cruise_scale);
+  double scale = settings.circle_zoom_enabled && circling
+    ? settings.circling_scale
+    : settings.cruise_scale;
+
+#ifdef ENABLE_OPENGL
+  if (OpenGL::max_map_scale > 0) {
+    /* enforce the GPU-imposed zoom-out limit;
+       min pixels/meter = map_resolution_factor / max_map_scale */
+    const double min_scale =
+      double(visible_projection.GetMinScreenDistance()) / 8.0
+      / double(OpenGL::max_map_scale);
+    scale = std::max(scale, min_scale);
+  }
+#endif
+
+  visible_projection.SetScale(scale);
   OnProjectionModified();
 }
 
@@ -185,6 +204,19 @@ GlueMapWindow::UpdateScreenAngle() noexcept
   const DerivedInfo &calculated = CommonInterface::Calculated();
   const MapSettings &settings = CommonInterface::GetMapSettings();
   const UIState &ui_state = CommonInterface::GetUIState();
+
+  // force north-up if the current page is a dedicated MAP_NORTH_UP or weather page
+  const PageLayout &layout = PageActions::GetConfiguredLayout();
+  if (layout.main == PageLayout::Main::MAP_NORTH_UP
+#ifdef HAVE_EDL
+      || layout.UsesEdlOverlay()
+#endif
+      ) {
+    visible_projection.SetScreenAngle(Angle::Zero());
+    OnProjectionModified();
+    compass_visible = false;
+    return;
+  }
 
   MapOrientation orientation =
     ui_state.display_mode == DisplayMode::CIRCLING

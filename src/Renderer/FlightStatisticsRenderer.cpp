@@ -27,6 +27,10 @@
 #include "Engine/Contest/Solvers/Retrospective.hpp"
 #include "Computer/Settings.hpp"
 
+#ifdef ENABLE_OPENGL
+#include "ui/canvas/opengl/Scope.hpp"
+#endif
+
 #include <algorithm>
 
 FlightStatisticsRenderer::FlightStatisticsRenderer(const ChartLook &_chart_look,
@@ -114,7 +118,10 @@ FlightStatisticsRenderer::RenderContest(Canvas &canvas, const PixelRect rc,
 
 #ifdef ENABLE_OPENGL
   /* desaturate the map background, to focus on the contest */
-  canvas.FadeToWhite(0xc0);
+  {
+    const ScopeAlphaBlend alpha_blend;
+    canvas.Clear(ColorWithAlpha(chart_look.background_color, 0xc0));
+  }
 #endif
 
   {
@@ -122,6 +129,7 @@ FlightStatisticsRenderer::RenderContest(Canvas &canvas, const PixelRect rc,
     //    canvas.Select(*dialog_look.small_font);
     canvas.Select(chart_look.label_font);
     canvas.SetBackgroundTransparent();
+    canvas.SetTextColor(chart_look.text_color);
 
     for (const auto &i : retrospective.getNearWaypointList()) {
       auto wp_pos = proj.GeoToScreen(i.waypoint->location);
@@ -187,7 +195,7 @@ FlightStatisticsRenderer::RenderContest(Canvas &canvas, const PixelRect rc,
 }
 
 void
-FlightStatisticsRenderer::CaptionContest(TCHAR *sTmp,
+FlightStatisticsRenderer::CaptionContest(char *sTmp,
                                          const ContestSettings &settings,
                                          const DerivedInfo &derived) noexcept
 {
@@ -203,8 +211,8 @@ FlightStatisticsRenderer::CaptionContest(TCHAR *sTmp,
 
     StringFormatUnsafe(sTmp,
                        (Layout::landscape
-                        ? _T("%s:\r\n%s\r\n%s (FAI)\r\n%s:\r\n%.1f %s\r\n%s: %s\r\n%s: %s\r\n")
-                        : _T("%s: %s\r\n%s (FAI)\r\n%s: %.1f %s\r\n%s: %s\r\n%s: %s\r\n")),
+                        ? "%s:\r\n%s\r\n%s (FAI)\r\n%s:\r\n%.1f %s\r\n%s: %s\r\n%s: %s\r\n"
+                        : "%s: %s\r\n%s (FAI)\r\n%s: %.1f %s\r\n%s: %s\r\n%s: %s\r\n"),
                        _("Distance"),
                        FormatUserDistanceSmart(result_classic.distance).c_str(),
                        FormatUserDistanceSmart(result_fai.distance).c_str(),
@@ -222,8 +230,8 @@ FlightStatisticsRenderer::CaptionContest(TCHAR *sTmp,
 
     StringFormatUnsafe(sTmp,
                        (Layout::landscape
-                        ? _T("%s:\r\n%s (Free)\r\n%s (Triangle)\r\n%s:\r\n%.1f %s\r\n%s: %s\r\n%s: %s\r\n")
-                        : _T("%s: %s (Free)\r\n%s (Triangle)\r\n%s: %.1f %s\r\n%s: %s\r\n%s: %s\r\n")),
+                        ? "%s:\r\n%s (Free)\r\n%s (Triangle)\r\n%s:\r\n%.1f %s\r\n%s: %s\r\n%s: %s\r\n"
+                        : "%s: %s (Free)\r\n%s (Triangle)\r\n%s: %.1f %s\r\n%s: %s\r\n%s: %s\r\n"),
                        _("Distance"),
                        FormatUserDistanceSmart(result_free.distance).c_str(),
                        FormatUserDistanceSmart(result_triangle.distance).c_str(),
@@ -249,8 +257,8 @@ FlightStatisticsRenderer::CaptionContest(TCHAR *sTmp,
 
     StringFormatUnsafe(sTmp,
                        (Layout::landscape
-                        ? _T("%s:\r\n%s\r\n%s:\r\n%.1f %s\r\n%s: %s\r\n%s: %s\r\n")
-                        : _T("%s: %s\r\n%s: %.1f %s\r\n%s: %s\r\n%s: %s\r\n")),
+                        ? "%s:\r\n%s\r\n%s:\r\n%.1f %s\r\n%s: %s\r\n%s: %s\r\n"
+                        : "%s: %s\r\n%s: %.1f %s\r\n%s: %s\r\n%s: %s\r\n"),
                        _("Distance"),
                        FormatUserDistanceSmart(result_olc.distance).c_str(),
                        _("Score"), (double)result_olc.score, _("pts"),
@@ -299,7 +307,10 @@ FlightStatisticsRenderer::RenderTask(Canvas &canvas, const PixelRect rc,
 
 #ifdef ENABLE_OPENGL
   /* desaturate the map background, to focus on the task */
-  canvas.FadeToWhite(0xc0);
+  {
+    const ScopeAlphaBlend alpha_blend;
+    canvas.Clear(ColorWithAlpha(chart_look.background_color, 0xc0));
+  }
 #endif
 
   {
@@ -336,14 +347,14 @@ FlightStatisticsRenderer::RenderTask(Canvas &canvas, const PixelRect rc,
 }
 
 void
-FlightStatisticsRenderer::CaptionTask(TCHAR *sTmp, const DerivedInfo &derived) noexcept
+FlightStatisticsRenderer::CaptionTask(char *sTmp, const DerivedInfo &derived) noexcept
 {
   const TaskStats &task_stats = derived.ordered_task_stats;
   const CommonStats &common = derived.common_stats;
 
   if (!task_stats.task_valid ||
       !derived.task_stats.total.remaining.IsDefined()) {
-    _tcscpy(sTmp, _("No task"));
+    strcpy(sTmp, _("No task"));
   } else {
     const auto d_remaining = derived.task_stats.total.remaining.GetDistance();
     if (task_stats.has_targets) {
@@ -352,7 +363,7 @@ FlightStatisticsRenderer::CaptionTask(TCHAR *sTmp, const DerivedInfo &derived) n
 
       if (Layout::landscape) {
         StringFormatUnsafe(sTmp,
-                           _T("%s:\r\n  %s\r\n%s:\r\n  %s\r\n%s:\r\n  %5.0f %s\r\n%s:\r\n  %5.0f %s\r\n"),
+                           "%s:\r\n  %s\r\n%s:\r\n  %s\r\n%s:\r\n  %5.0f %s\r\n%s:\r\n  %5.0f %s\r\n",
                            _("Task to go"), timetext1.c_str(),
                            _("AAT to go"), timetext2.c_str(),
                            _("Distance to go"),
@@ -362,7 +373,7 @@ FlightStatisticsRenderer::CaptionTask(TCHAR *sTmp, const DerivedInfo &derived) n
                            Units::GetTaskSpeedName());
       } else {
         StringFormatUnsafe(sTmp,
-                           _T("%s: %s\r\n%s: %s\r\n%s: %5.0f %s\r\n%s: %5.0f %s\r\n"),
+                           "%s: %s\r\n%s: %s\r\n%s: %5.0f %s\r\n%s: %5.0f %s\r\n",
                            _("Task to go"), timetext1.c_str(),
                            _("AAT to go"), timetext2.c_str(),
                            _("Distance to go"),
@@ -373,7 +384,7 @@ FlightStatisticsRenderer::CaptionTask(TCHAR *sTmp, const DerivedInfo &derived) n
                            Units::GetTaskSpeedName());
       }
     } else {
-      StringFormatUnsafe(sTmp, _T("%s: %s\r\n%s: %5.0f %s\r\n"),
+      StringFormatUnsafe(sTmp, "%s: %s\r\n%s: %5.0f %s\r\n",
                          _("Task to go"),
                          FormatSignedTimeHHMM(task_stats.total.time_remaining_now).c_str(),
                          _("Distance to go"),

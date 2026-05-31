@@ -102,7 +102,7 @@ private:
    * @param name Name of the radio station.
    * @return Name of the radio station (printable ASCII, MAX_NAME_LENGTH characters).
    */
-  static void GetStationName(char *station_name, const TCHAR *name);
+  static void GetStationName(char *station_name, const char *name);
   /**
    * Sends the frequency to the radio.
    *
@@ -116,7 +116,7 @@ private:
    */
   bool PutFrequency(std::byte cmd,
                     RadioFrequency frequency,
-                    const TCHAR *name,
+                    const char *name,
                     OperationEnvironment &env);
 
   void LockSetResponse(std::byte _response) noexcept {
@@ -156,14 +156,22 @@ public:
    * Sets the active frequency on the radio.
    */
   virtual bool PutActiveFrequency(RadioFrequency frequency,
-                                  const TCHAR *name,
+                                  const char *name,
                                   OperationEnvironment &env) override;
   /**
    * Sets the standby frequency on the radio.
    */
   virtual bool PutStandbyFrequency(RadioFrequency frequency,
-                                   const TCHAR *name,
+                                   const char *name,
                                    OperationEnvironment &env) override;
+  /**
+   * Exchanges active and standby frequencies on the radio.
+   */
+  virtual bool ExchangeRadioFrequencies(OperationEnvironment &env,
+                                        NMEAInfo &info) override;
+
+  static void UpdateRadioFrequencies(NMEAInfo &basic);
+
   /**
    * Receives and handles data from the radio.
    *
@@ -251,14 +259,14 @@ KRT2Device::DataReceived(std::span<const std::byte> s,
 }
 
 inline void
-KRT2Device::GetStationName(char *station_name, const TCHAR *name)
+KRT2Device::GetStationName(char *station_name, const char *name)
 {
   if(name == nullptr)
-      name = _T("");
+      name = "";
 
   size_t s_idx = 0; //!< Source name index
   size_t d_idx = 0; //!< Destination name index
-  TCHAR c; //!< Character at source name index
+  char c; //!< Character at source name index
 
   while ((c = name[s_idx++])) {
     // KRT2 supports printable ASCII only
@@ -319,7 +327,13 @@ KRT2Device::HandleSTX(std::span<const std::byte> src, NMEAInfo &info) noexcept
     return src.size() < 6 ? 0 : 6;
 
   case EXCHANGE_FREQUENCIES:
-    info.settings.swap_frequencies.Update(info.clock);
+    /**
+     * Optimistic update: KRT2 doesn't send frequencies back after
+     * exchange command, so we update state immediately. If the device
+     * sends an unsolicited EXCHANGE_FREQUENCIES message later, it will
+     * be handled by HandleSTX which also calls UpdateRadioFrequencies.
+     */
+    UpdateRadioFrequencies(info);
     return 2;
 
   case UNKNOWN1:
@@ -376,7 +390,7 @@ KRT2Device::HandleMessage(std::span<const std::byte> src,
 bool
 KRT2Device::PutFrequency(std::byte cmd,
                          RadioFrequency frequency,
-                         const TCHAR *name,
+                         const char *name,
                          OperationEnvironment &env)
 {
   stx_msg msg;
@@ -392,7 +406,7 @@ KRT2Device::PutFrequency(std::byte cmd,
 
 bool
 KRT2Device::PutActiveFrequency(RadioFrequency frequency,
-                               const TCHAR *name,
+                               const char *name,
                                OperationEnvironment &env)
 {
   return PutFrequency(ACTIVE_FREQUENCY, frequency, name, env);
@@ -400,10 +414,39 @@ KRT2Device::PutActiveFrequency(RadioFrequency frequency,
 
 bool
 KRT2Device::PutStandbyFrequency(RadioFrequency frequency,
-                                const TCHAR *name,
+                                const char *name,
                                 OperationEnvironment &env)
 {
   return PutFrequency(STANDBY_FREQUENCY, frequency, name, env);
+}
+
+bool
+KRT2Device::ExchangeRadioFrequencies(OperationEnvironment &env,
+                                     NMEAInfo &info)
+{
+  const std::byte msg[] = {STX, EXCHANGE_FREQUENCIES};
+  if (Send(msg, env)) {
+    UpdateRadioFrequencies(info);
+
+    return true;
+  }
+
+  return false;
+}
+
+void
+KRT2Device::UpdateRadioFrequencies(NMEAInfo &info)
+{
+  auto &settings = info.settings;
+  const auto old_freq = settings.active_frequency;
+  const auto old_freq_name = settings.active_freq_name;
+  settings.active_frequency = settings.standby_frequency;
+  settings.active_freq_name = settings.standby_freq_name;
+  settings.standby_frequency = old_freq;
+  settings.standby_freq_name = old_freq_name;
+  settings.has_active_frequency.Update(info.clock);
+  settings.has_standby_frequency.Update(info.clock);
+  settings.swap_frequencies.Update(info.clock);
 }
 
 static Device *
@@ -413,8 +456,8 @@ KRT2CreateOnPort([[maybe_unused]] const DeviceConfig &config, Port &comPort)
 }
 
 const DeviceRegister krt2_driver = {
-  _T("KRT2"),
-  _T("KRT2"),
+  "KRT2",
+  "KRT2",
   DeviceRegister::NO_TIMEOUT
    | DeviceRegister::RAW_GPS_DATA,
   KRT2CreateOnPort,

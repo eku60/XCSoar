@@ -4,93 +4,6 @@
 #include "DownloadManager.hpp"
 #include "system/Path.hpp"
 #include "LogFile.hpp"
-
-#ifdef ANDROID
-
-#include "Android/DownloadManager.hpp"
-#include "Android/Main.hpp"
-
-static AndroidDownloadManager *download_manager;
-
-bool
-Net::DownloadManager::Initialise() noexcept
-{
-  assert(download_manager == nullptr);
-
-  if (!AndroidDownloadManager::Initialise(Java::GetEnv()))
-    return false;
-
-  try {
-    download_manager = new AndroidDownloadManager(Java::GetEnv(), *context);
-    return true;
-  } catch (...) {
-    LogError(std::current_exception(),
-             "Failed to initialise the DownloadManager");
-    return false;
-  }
-}
-
-void
-Net::DownloadManager::BeginDeinitialise() noexcept
-{
-}
-
-void
-Net::DownloadManager::Deinitialise() noexcept
-{
-  delete download_manager;
-  download_manager = nullptr;
-  AndroidDownloadManager::Deinitialise(Java::GetEnv());
-}
-
-bool
-Net::DownloadManager::IsAvailable() noexcept
-{
-  return download_manager != nullptr;
-}
-
-void
-Net::DownloadManager::AddListener(DownloadListener &listener) noexcept
-{
-  assert(download_manager != nullptr);
-
-  download_manager->AddListener(listener);
-}
-
-void
-Net::DownloadManager::RemoveListener(DownloadListener &listener) noexcept
-{
-  assert(download_manager != nullptr);
-
-  download_manager->RemoveListener(listener);
-}
-
-void
-Net::DownloadManager::Enumerate(DownloadListener &listener) noexcept
-{
-  assert(download_manager != nullptr);
-
-  download_manager->Enumerate(Java::GetEnv(), listener);
-}
-
-void
-Net::DownloadManager::Enqueue(const char *uri, Path relative_path) noexcept
-{
-  assert(download_manager != nullptr);
-
-  download_manager->Enqueue(Java::GetEnv(), uri, relative_path);
-}
-
-void
-Net::DownloadManager::Cancel(Path relative_path) noexcept
-{
-  assert(download_manager != nullptr);
-
-  download_manager->Cancel(Java::GetEnv(), relative_path);
-}
-
-#else /* !ANDROID */
-
 #include "Init.hpp"
 #include "CoDownloadToFile.hpp"
 #include "lib/curl/Global.hxx"
@@ -144,7 +57,10 @@ class DownloadManagerThread final
 
   ThreadSafeList<Net::DownloadListener *> listeners;
 
+  bool shutting_down = false;
+
 public:
+  void BeginShutdown() noexcept;
   void AddListener(Net::DownloadListener &listener) noexcept {
     listeners.Add(&listener);
   }
@@ -169,6 +85,9 @@ public:
   }
 
   void Enqueue(const char *uri, Path path_relative) noexcept {
+    if (shutting_down)
+      return;
+
     queue.emplace_back(uri, path_relative);
 
     listeners.ForEach([path_relative](auto *listener){
@@ -232,8 +151,22 @@ DownloadToFile(CurlGlobal &curl,
 }
 
 void
+DownloadManagerThread::BeginShutdown() noexcept
+{
+  if (shutting_down)
+    return;
+
+  shutting_down = true;
+  task.Cancel();
+  queue.clear();
+  current_size = current_position = -1;
+}
+
+void
 DownloadManagerThread::Start() noexcept
 {
+  if (shutting_down)
+    return;
   assert(!queue.empty());
   assert(!task);
   assert(current_size == -1);
@@ -288,6 +221,8 @@ Net::DownloadManager::Initialise() noexcept
 void
 Net::DownloadManager::BeginDeinitialise() noexcept
 {
+  if (thread != nullptr)
+    thread->BeginShutdown();
 }
 
 void
@@ -345,5 +280,3 @@ Net::DownloadManager::Cancel(Path relative_path) noexcept
 
   thread->Cancel(relative_path);
 }
-
-#endif

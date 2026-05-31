@@ -21,12 +21,20 @@ FindHomeId(Waypoints &waypoints,
 
   auto wp = waypoints.LookupId(settings.home_waypoint);
   if (wp == nullptr) {
-    settings.home_waypoint = -1;
+    LogFmt("FindHomeId: id={} not found in {} waypoints",
+           settings.home_waypoint, waypoints.size());
     return nullptr;
   }
 
   settings.home_location = wp->location;
   settings.home_location_available = true;
+
+  if (wp->has_elevation) {
+    settings.home_elevation = wp->elevation;
+    settings.home_elevation_available = true;
+  } else
+    settings.home_elevation_available = false;
+
   waypoints.SetHome(wp->id);
   return wp;
 }
@@ -35,14 +43,23 @@ WaypointPtr
 FindHomeLocation(Waypoints &waypoints,
                  PlacesOfInterestSettings &settings) noexcept
 {
-  if (!settings.home_location_available)
-    return nullptr;
-
-  auto wp = waypoints.LookupLocation(settings.home_location, 100);
-  if (wp == nullptr || !wp->IsAirport()) {
-    settings.home_location_available = false;
+  if (!settings.home_location_available) {
+    settings.home_elevation_available = false;
     return nullptr;
   }
+
+  auto wp = waypoints.LookupLocation(settings.home_location, 100);
+  if (wp == nullptr) {
+    settings.home_location_available = false;
+    settings.home_elevation_available = false;
+    return nullptr;
+  }
+
+  if (wp->has_elevation) {
+    settings.home_elevation = wp->elevation;
+    settings.home_elevation_available = true;
+  } else
+    settings.home_elevation_available = false;
 
   settings.home_waypoint = wp->id;
   waypoints.SetHome(wp->id);

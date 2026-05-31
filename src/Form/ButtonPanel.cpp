@@ -49,6 +49,7 @@ ButtonPanel::Add(std::unique_ptr<ButtonRenderer> &&renderer,
 {
   auto *button = new Button(parent, dummy_rc, style,
                             std::move(renderer), std::move(callback));
+  button->SetCursorKeyGroup(this);
   keys[buttons.size()] = 0;
   buttons.append(button);
 
@@ -56,14 +57,14 @@ ButtonPanel::Add(std::unique_ptr<ButtonRenderer> &&renderer,
 }
 
 Button *
-ButtonPanel::Add(const TCHAR *caption, Button::Callback callback) noexcept
+ButtonPanel::Add(const char *caption, Button::Callback callback) noexcept
 {
   return Add(std::make_unique<TextButtonRenderer>(look, caption),
              std::move(callback));
 }
 
 Button *
-ButtonPanel::AddSymbol(const TCHAR *caption,
+ButtonPanel::AddSymbol(const char *caption,
                        Button::Callback callback) noexcept
 {
   return Add(std::make_unique<SymbolButtonRenderer>(look, caption),
@@ -108,7 +109,8 @@ ButtonPanel::VerticalRange(PixelRect rc, unsigned start, unsigned end) noexcept
   const unsigned width = RangeMaxWidth(start, end);
   const unsigned total_height = rc.GetHeight();
   const unsigned max_height = n * Layout::GetMaximumControlHeight();
-  const unsigned row_height = std::min(total_height, max_height) / n;
+  const unsigned row_height =
+    std::max(1u, std::min(total_height, max_height) / n);
 
   auto button_rc = rc.CutLeftSafe(width).TopAligned(row_height);
 
@@ -132,12 +134,12 @@ ButtonPanel::HorizontalRange(PixelRect rc,
   const unsigned total_width = rc.GetWidth();
   const unsigned total_height = rc.GetHeight();
   const unsigned max_row_height = Layout::GetMaximumControlHeight();
-  const unsigned row_height = max_row_height < total_height / 2
-    ? max_row_height
-    : std::max(Layout::GetMinimumControlHeight(),
-               total_height / 2);
-  const unsigned width = total_width / n;
-  assert(width > 0);
+  const unsigned row_height = std::max(1u,
+    max_row_height < total_height / 2
+      ? max_row_height
+      : std::max(Layout::GetMinimumControlHeight(),
+                 total_height / 2));
+  const unsigned width = std::max(1u, total_width / n);
 
   auto button_rc = rc.CutBottomSafe(row_height).LeftAligned(width);
 
@@ -262,6 +264,53 @@ PixelRect
 ButtonPanel::BottomLayout() noexcept
 {
   return BottomLayout(parent.GetClientRect());
+}
+
+void
+ButtonPanel::ReselectToFirstEnabled() noexcept
+{
+  if (selected_index < 0)
+    return;
+
+  const auto is_usable = [this](unsigned i) {
+    return buttons[i]->IsVisible() && buttons[i]->IsEnabled();
+  };
+
+  if (selected_index < (int)buttons.size() &&
+      is_usable((unsigned)selected_index))
+    return;
+
+  if (selected_index < (int)buttons.size() && selected_index >= 0)
+    buttons[selected_index]->SetSelected(false);
+
+  for (unsigned i = 0; i < buttons.size(); ++i) {
+    if (is_usable(i)) {
+      selected_index = (int)i;
+      buttons[selected_index]->SetSelected(true);
+      return;
+    }
+  }
+}
+
+void
+ButtonPanel::OnButtonGainedFocus(Button &b) noexcept
+{
+  if (selected_index < 0)
+    return;
+
+  unsigned i;
+  for (i = 0; i < buttons.size(); ++i) {
+    if (buttons[i] == &b)
+      break;
+  }
+  if (i >= buttons.size() || (int)i == selected_index)
+    return;
+
+  if (selected_index >= 0 && (unsigned)selected_index < buttons.size())
+    buttons[selected_index]->SetSelected(false);
+
+  selected_index = (int)i;
+  b.SetSelected(true);
 }
 
 void

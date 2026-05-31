@@ -2,6 +2,8 @@
 // Copyright The XCSoar Project
 
 #include "ProgressWindow.hpp"
+#include "GlobalSettings.hpp"
+#include "Look/Colors.hpp"
 #include "Screen/Layout.hpp"
 #include "Look/FontDescription.hpp"
 #include "Resources.hpp"
@@ -13,7 +15,9 @@
 #endif
 
 ProgressWindow::ProgressWindow(ContainerWindow &parent) noexcept
-  :background_color(COLOR_WHITE)
+  :background_color(GlobalSettings::dark_mode
+                    ? COLOR_DARK_THEME_BACKGROUND : COLOR_WHITE),
+   dark_mode(GlobalSettings::dark_mode)
 {
   message.clear();
 
@@ -32,11 +36,10 @@ ProgressWindow::ProgressWindow(ContainerWindow &parent) noexcept
 #else
   {
     AnyCanvas canvas;
-    text_height = canvas.GetFontHeight();
-  }
+    text_height = canvas.GetFontHeight();  }
 #endif
 
-  UpdateLayout(rc);
+  UpdateLayout(GetClientRect());
 
   // Initialize progress bar
   progress_bar.Create(*this, progress_bar_position);
@@ -76,12 +79,12 @@ ProgressWindow::UpdateLayout(PixelRect rc) noexcept
 }
 
 void
-ProgressWindow::SetMessage(const TCHAR *text) noexcept
+ProgressWindow::SetMessage(const char *text) noexcept
 {
   AssertThread();
 
   if (text == nullptr)
-    text = _T("");
+    text = "";
 
   message = text;
   Invalidate(message_position);
@@ -131,7 +134,7 @@ ProgressWindow::OnPaint(Canvas &canvas) noexcept
 {
   canvas.Clear(background_color);
 
-  logo.draw(canvas, logo_position);
+  logo.draw(canvas, logo_position, dark_mode);
 
   // Draw progress bar background
   canvas.Stretch(bottom_position.GetTopLeft(), bottom_position.GetSize(),
@@ -141,7 +144,7 @@ ProgressWindow::OnPaint(Canvas &canvas) noexcept
   canvas.Select(font);
 #endif
   canvas.SetBackgroundTransparent();
-  canvas.SetTextColor(COLOR_BLACK);
+  canvas.SetTextColor(dark_mode ? COLOR_WHITE : COLOR_BLACK);
   canvas.DrawText({(message_position.left + message_position.right
                     - (int)canvas.CalcTextWidth(message.c_str())) / 2,
       message_position.top},

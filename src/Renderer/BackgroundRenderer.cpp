@@ -32,11 +32,17 @@ BackgroundRenderer::Draw(Canvas& canvas,
   canvas.ClearWhite();
 
   if (terrain_settings.enable && terrain != nullptr) {
-    if (!renderer)
+    if (!renderer) {
       // defer creation until first draw because
       // the buffer size, smoothing etc is set by the
       // loaded terrain properties
       renderer.reset(new TerrainRenderer(*terrain));
+
+#ifdef ENABLE_OPENGL
+      if (full_resolution)
+        renderer->SetQuantisationPixels(1);
+#endif
+    }
 
     renderer->SetSettings(terrain_settings);
     if (renderer->Generate(proj, shading_angle))
@@ -51,7 +57,10 @@ BackgroundRenderer::SetShadingAngle(const WindowProjection& projection,
 {
   Angle angle;
 
-  if (settings.slope_shading == SlopeShading::WIND &&
+  if (settings.slope_shading == SlopeShading::TOP_LEFT)
+    angle = DEFAULT_SHADING_ANGLE + projection.GetScreenAngle();
+
+  else if (settings.slope_shading == SlopeShading::WIND &&
       calculated.wind_available &&
       calculated.wind.norm >= 0.5)
     angle = calculated.wind.bearing;

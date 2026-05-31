@@ -45,6 +45,23 @@ public:
     buttons[selected_index]->SetSelected(true);
   }
 
+  /**
+   * After the enabled/visible state of a button has changed, move
+   * #selected_index to the first enabled one if the current
+   * selection is no longer operable.  (Otherwise KEY_RETURN on the
+   * panel and the "armed" #ButtonState::SELECTED can target a
+   * disabled #Button while the keyboard #FocusNextControl is on
+   * another action.)
+   */
+  void ReselectToFirstEnabled() noexcept;
+
+  /**
+   * Called from #Button::OnSetFocus: move #selected_index to the
+   * focused #Button so only one of #ButtonState::SELECTED / FOCUSED
+   * is visible when cursor key mode is on.
+   */
+  void OnButtonGainedFocus(Button &b) noexcept;
+
   const ButtonLook &GetLook() const noexcept {
     return look;
   }
@@ -56,13 +73,13 @@ public:
   Button *Add(std::unique_ptr<ButtonRenderer> &&renderer,
               Button::Callback callback) noexcept;
 
-  Button *Add(const TCHAR *caption, Button::Callback callback) noexcept;
+  Button *Add(const char *caption, Button::Callback callback) noexcept;
 
   /**
    * Add a symbol button.  The caption is one of the "special"
    * #WndSymbolButton strings.
    */
-  Button *AddSymbol(const TCHAR *caption, Button::Callback callback) noexcept;
+  Button *AddSymbol(const char *caption, Button::Callback callback) noexcept;
 
   /**
    * Assign a hot key to the most recently added button.

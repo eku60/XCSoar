@@ -2,39 +2,42 @@
 // Copyright The XCSoar Project
 
 #include "InfoBoxes/Content/Team.hpp"
-#include "InfoBoxes/Panel/Panel.hpp"
 #include "InfoBoxes/Data.hpp"
 #include "Interface.hpp"
 #include "TeamActions.hpp"
 #include "Dialogs/Traffic/TrafficDialogs.hpp"
-#include "Widget/CallbackWidget.hpp"
 #include "Language/Language.hpp"
 #include "util/StringCompare.hxx"
 
-#include <tchar.h>
 #include <stdio.h>
 
-static void
-ShowTeamCodeDialog() noexcept
+
+bool
+InfoBoxContentTeamCode::HandleClick() noexcept
 {
   dlgTeamCodeShowModal();
+  return true;
 }
 
-static std::unique_ptr<Widget>
-LoadTeamCodeDialog([[maybe_unused]] unsigned id) noexcept
+bool
+InfoBoxContentTeamBearing::HandleClick() noexcept
 {
-  return std::make_unique<CallbackWidget>(ShowTeamCodeDialog);
+  dlgTeamCodeShowModal();
+  return true;
 }
 
-static constexpr InfoBoxPanel team_code_infobox_panels[] = {
-  { N_("Team Code"), LoadTeamCodeDialog },
-  { nullptr, nullptr }
-};
-
-const InfoBoxPanel *
-InfoBoxContentTeamCode::GetDialogContent() noexcept
+bool
+InfoBoxContentTeamBearingDiff::HandleClick() noexcept
 {
-  return team_code_infobox_panels;
+  dlgTeamCodeShowModal();
+  return true;
+}
+
+bool
+InfoBoxContentTeamDistance::HandleClick() noexcept
+{
+  dlgTeamCodeShowModal();
+  return true;
 }
 
 void
@@ -115,12 +118,18 @@ UpdateInfoBoxTeamBearing(InfoBoxData &data) noexcept
   else if (!settings.team_flarm_callsign.empty())
     data.SetComment(settings.team_flarm_callsign.c_str());
   else
-    data.SetComment(_T("???"));
+    data.SetComment("???");
 
   if (flarm.FindTraffic(settings.team_flarm_id) != NULL)
     data.SetCommentColor(2);
   else
     data.SetCommentColor(1);
+}
+
+void
+InfoBoxContentTeamBearing::Update(InfoBoxData &data) noexcept
+{
+  UpdateInfoBoxTeamBearing(data);
 }
 
 void
@@ -145,12 +154,18 @@ UpdateInfoBoxTeamBearingDiff(InfoBoxData &data) noexcept
   else if (!StringIsEmpty(settings.team_flarm_callsign))
     data.SetComment(settings.team_flarm_callsign);
   else
-    data.SetComment(_T("???"));
+    data.SetComment("???");
 
   if (flarm.FindTraffic(settings.team_flarm_id) != NULL)
     data.SetCommentColor(2);
   else
     data.SetCommentColor(1);
+}
+
+void
+InfoBoxContentTeamBearingDiff::Update(InfoBoxData &data) noexcept
+{
+  UpdateInfoBoxTeamBearingDiff(data);
 }
 
 void
@@ -172,7 +187,13 @@ UpdateInfoBoxTeamDistance(InfoBoxData &data) noexcept
   else if (!StringIsEmpty(settings.team_flarm_callsign))
     data.SetComment(settings.team_flarm_callsign);
   else
-    data.SetComment(_T("???"));
+    data.SetComment("???");
 
   data.SetCommentColor(teamcode_info.flarm_teammate_code_current ? 2 : 1);
+}
+
+void
+InfoBoxContentTeamDistance::Update(InfoBoxData &data) noexcept
+{
+  UpdateInfoBoxTeamDistance(data);
 }

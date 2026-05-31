@@ -17,7 +17,7 @@ my @named;
 while (<>) {
     next if /^\s*(?:#.*)?$/;
 
-    if (/^(?:bitmap_bitmap|bitmap_graphic|hatch_bitmap|bitmap_icon_scaled)\s+([\w_]+)\s+"([^"]+)"\s*$/) {
+    if (/^(?:app_icon|bitmap_bitmap|bitmap_graphic|hatch_bitmap|bitmap_icon_scaled)\s+([\w_]+)\s+"([^"]+)"\s*$/) {
         # only sounds used here
     } elsif (/^sound\s+([\w_]+)\s+"([^"]+)"\s*$/) {
         push @named, [ $1, -s "output/data/sound/$2.raw" ];
@@ -29,17 +29,15 @@ while (<>) {
     }
 }
 
-print "#include <tchar.h>\n";
-
 print "static constexpr struct {\n";
-print "  const TCHAR *name;\n";
+print "  const char *name;\n";
 print "  std::span<const std::byte> data;\n";
 print "} named_resources[] = {";
 foreach my $i (@named) {
     my ($name, $size) = @$i;
     my $variable = "resource_${name}";
     $variable =~ s,\.,_,g;
-    print "  { _T(\"${name}\"), { ${variable}, ${size} } },\n";
+    print "  { \"${name}\", { ${variable}, ${size} } },\n";
 }
 print "  { 0, {} }\n";
 print "};\n";

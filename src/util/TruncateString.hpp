@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <tchar.h>
 #include <cstddef>
 
 /**
@@ -17,11 +16,6 @@
 char *
 CopyTruncateString(char *dest, size_t dest_size, const char *src);
 
-#ifdef _UNICODE
-TCHAR *
-CopyTruncateString(TCHAR *dest, size_t dest_size, const TCHAR *src);
-#endif
-
 /**
  * Copy a string to a buffer, truncating it if the buffer is not large
  * enough.  At most #truncate characters will be copied.  No partial
@@ -33,6 +27,6 @@ CopyTruncateString(TCHAR *dest, size_t dest_size, const TCHAR *src);
  * copy
  * @return a pointer to the end of the destination string
  */
-TCHAR *
-CopyTruncateString(TCHAR *dest, size_t dest_size,
-                   const TCHAR *src, size_t truncate);
+char *
+CopyTruncateString(char *dest, size_t dest_size,
+                   const char *src, size_t truncate);

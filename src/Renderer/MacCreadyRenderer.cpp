@@ -10,27 +10,33 @@
 #include "Language/Language.hpp"
 #include "Formatter/UserUnits.hpp"
 #include "util/StaticString.hxx"
+#include "util/UTF8.hpp"
 #include "GlidePolarInfoRenderer.hpp"
 
 static constexpr double MAX_MACCREADY = 5.2;
 static constexpr unsigned STEPS_MACCREADY = 25;
 
 void
-MacCreadyCaption(TCHAR *sTmp, const GlidePolar &glide_polar)
+MacCreadyCaption(char *sTmp, size_t buffer_size,
+                 const GlidePolar &glide_polar)
 {
+  if (sTmp == nullptr || buffer_size == 0)
+    return;
+
   if (!glide_polar.IsValid()) {
-    *sTmp = _T('\0');
+    *sTmp = '\0';
     return;
   }
 
-  _stprintf(sTmp,
-            _T("%s: %d %s\r\n%s: %d %s"),
-            _("Vopt"),
-            (int)Units::ToUserSpeed(glide_polar.GetVBestLD()),
-            Units::GetSpeedName(),
-            _("Vave"),
-            (int)Units::ToUserTaskSpeed(glide_polar.GetAverageSpeed()),
-            Units::GetTaskSpeedName());
+  StringFormat(sTmp, buffer_size,
+               "%s: %d %s\r\n%s: %d %s",
+               _("Vopt"),
+               (int)Units::ToUserSpeed(glide_polar.GetVBestLD()),
+               Units::GetSpeedName(),
+               C_("Average velocity abbreviation", "Vave"),
+               (int)Units::ToUserTaskSpeed(glide_polar.GetAverageSpeed()),
+               Units::GetTaskSpeedName());
+  CropIncompleteUTF8(sTmp);
 }
 
 
@@ -40,8 +46,8 @@ RenderMacCready(Canvas &canvas, const PixelRect rc,
                  const GlidePolar &glide_polar)
 {
   ChartRenderer chart(chart_look, canvas, rc);
-  chart.SetYLabel(_T("V"), Units::GetSpeedName());
-  chart.SetXLabel(_T("MC"), Units::GetVerticalSpeedName());
+  chart.SetYLabel("V", Units::GetSpeedName());
+  chart.SetXLabel("MC", Units::GetVerticalSpeedName());
   chart.Begin();
 
   if (!glide_polar.IsValid()) {
@@ -83,9 +89,9 @@ RenderMacCready(Canvas &canvas, const PixelRect rc,
   // draw labels and other overlays
 
   gp.SetMC(0.9*MAX_MACCREADY);
-  chart.DrawLabel({0.9*MAX_MACCREADY, gp.GetVBestLD()}, _T("Vopt"));
+  chart.DrawLabel({0.9*MAX_MACCREADY, gp.GetVBestLD()}, "Vopt");
   gp.SetMC(0.9*MAX_MACCREADY);
-  chart.DrawLabel({0.9*MAX_MACCREADY, gp.GetAverageSpeed()}, _T("Vave"));
+  chart.DrawLabel({0.9*MAX_MACCREADY, gp.GetAverageSpeed()}, "Vave");
 
   chart.Finish();
 

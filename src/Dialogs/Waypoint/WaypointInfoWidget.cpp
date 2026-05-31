@@ -19,8 +19,8 @@
 #include "Formatter/AngleFormatter.hpp"
 #include "Formatter/UserGeoPointFormatter.hpp"
 
-static const TCHAR *
-FormatGlideResult(TCHAR *buffer, size_t size,
+static const char *
+FormatGlideResult(char *buffer, size_t size,
                   const GlideResult &result,
                   const GlideSettings &settings) noexcept
 {
@@ -41,13 +41,62 @@ FormatGlideResult(TCHAR *buffer, size_t size,
   return nullptr;
 }
 
+static const char *
+GetWaypointTypeName(Waypoint::Type type) noexcept
+{
+  switch (type) {
+  case Waypoint::Type::NORMAL:
+    return _("Turnpoint");
+  case Waypoint::Type::AIRFIELD:
+    return _("Airport");
+  case Waypoint::Type::OUTLANDING:
+    return _("Landable");
+  case Waypoint::Type::MOUNTAIN_PASS:
+    return _("Mountain Pass");
+  case Waypoint::Type::MOUNTAIN_TOP:
+    return _("Mountain Top");
+  case Waypoint::Type::OBSTACLE:
+    return _("Transmitter Mast");
+  case Waypoint::Type::TOWER:
+    return _("Tower");
+  case Waypoint::Type::TUNNEL:
+    return _("Tunnel");
+  case Waypoint::Type::BRIDGE:
+    return _("Bridge");
+  case Waypoint::Type::POWERPLANT:
+    return _("Power Plant");
+  case Waypoint::Type::VOR:
+    return _("VOR");
+  case Waypoint::Type::NDB:
+    return _("NDB");
+  case Waypoint::Type::DAM:
+    return _("Dam");
+  case Waypoint::Type::CASTLE:
+    return _("Castle");
+  case Waypoint::Type::INTERSECTION:
+    return _("Intersection");
+  case Waypoint::Type::MARKER:
+    return _("Marker");
+  case Waypoint::Type::REPORTING_POINT:
+    return _("Control Point");
+  case Waypoint::Type::PGTAKEOFF:
+    return _("PG Take Off");
+  case Waypoint::Type::PGLANDING:
+    return _("PG Landing Zone");
+  case Waypoint::Type::THERMAL_HOTSPOT:
+    return _("Thermal hotspot");
+  }
+
+  return _("Unknown");
+}
+
 void
-WaypointInfoWidget::AddGlideResult(const TCHAR *label,
+WaypointInfoWidget::AddGlideResult(const char *label,
                                    const GlideResult &result) noexcept
 {
   const ComputerSettings &settings = CommonInterface::GetComputerSettings();
 
-  TCHAR buffer[64];
+  char buffer[64];
   AddReadOnly(label, nullptr,
               FormatGlideResult(buffer, ARRAY_SIZE(buffer),
                                 result, settings.task.glide));
@@ -88,28 +137,7 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
   if (!waypoint->comment.empty())
     AddMultiLine(waypoint->comment.c_str());
 
-  if (waypoint->radio_frequency.Format(buffer.buffer(),
-                                      buffer.capacity()) != nullptr) {
-    buffer += _T(" MHz");
-    AddReadOnly(_("Radio frequency"), nullptr, buffer);
-  }
-
-  if (waypoint->runway.IsDirectionDefined())
-    buffer.UnsafeFormat(_T("%02u"), waypoint->runway.GetDirectionName());
-  else
-    buffer.clear();
-
-  if (waypoint->runway.IsLengthDefined()) {
-    if (!buffer.empty())
-      buffer += _T("; ");
-
-    TCHAR length_buffer[16];
-    FormatSmallUserDistance(length_buffer, waypoint->runway.GetLength());
-    buffer += length_buffer;
-  }
-
-  if (!buffer.empty())
-    AddReadOnly(_("Runway"), nullptr, buffer);
+  AddReadOnly(_("Type"), nullptr, GetWaypointTypeName(waypoint->type));
 
   if (!waypoint->shortname.empty())
     AddReadOnly(_("Short Name"), nullptr, waypoint->shortname.c_str());
@@ -121,7 +149,40 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
   if (waypoint->has_elevation)
     AddReadOnly(_("Elevation"), nullptr, FormatUserAltitude(waypoint->elevation));
   else
-    AddReadOnly(_("Elevation"), nullptr, _T("?"));
+    AddReadOnly(_("Elevation"), nullptr, "?");
+
+  if (waypoint->radio_frequency.Format(buffer.buffer(),
+                                      buffer.capacity()) != nullptr) {
+    buffer += " MHz";
+    AddReadOnly(_("Radio frequency"), nullptr, buffer);
+  }
+
+  if (waypoint->runway.IsDirectionDefined())
+    buffer.UnsafeFormat("%02u", waypoint->runway.GetDirectionName());
+  else
+    buffer.clear();
+
+  if (waypoint->runway.IsLengthDefined()) {
+    if (!buffer.empty())
+      buffer += "; ";
+
+    char length_buffer[16];
+    FormatSmallUserDistance(length_buffer, waypoint->runway.GetLength());
+
+    if (waypoint->runway.IsWidthDefined()) {
+      char width_buffer[16];
+      FormatSmallUserDistance(width_buffer, waypoint->runway.GetWidth());
+
+      StaticString<64> runway_size;
+      runway_size.UnsafeFormat("%s x %s", length_buffer, width_buffer);
+      buffer += runway_size;
+    } else {
+      buffer += length_buffer;
+    }
+  }
+
+  if (!buffer.empty())
+    AddReadOnly(_("Runway"), nullptr, buffer);
 
   if (basic.time_available && basic.date_time_utc.IsDatePlausible()) {
     const SunEphemeris::Result sun =
@@ -131,7 +192,7 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
     const BrokenTime sunrise = BreakHourOfDay(sun.time_of_sunrise);
     const BrokenTime sunset = BreakHourOfDay(sun.time_of_sunset);
 
-    buffer.UnsafeFormat(_T("%02u:%02u - %02u:%02u"),
+    buffer.UnsafeFormat("%02u:%02u - %02u:%02u",
                         sunrise.hour, sunrise.minute,
                         sunset.hour, sunset.minute);
     AddReadOnly(_("Daylight time"), nullptr, buffer);
@@ -183,7 +244,7 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
       const auto distance = basic.location.Distance(waypoint->location);
       const auto gr = distance / delta_h;
       if (GradientValid(gr)) {
-        buffer.UnsafeFormat(_T("%.1f"), (double)gr);
+        buffer.UnsafeFormat("%.1f", (double)gr);
         AddReadOnly(_("Required glide ratio"), nullptr, buffer);
       }
     }

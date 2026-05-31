@@ -46,11 +46,12 @@ ManageLXNAVVarioWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[mayb
     AddReadOnly(_("Serial"), NULL, buffer.c_str());
   }
 
-  if (!info.hardware_version.empty()) {
-    buffer.clear();
+  buffer.clear();
+  if (!info.hardware_version.empty())
     buffer.UnsafeAppendASCII(info.hardware_version.c_str());
-    AddReadOnly(_("Hardware version"), NULL, buffer.c_str());
-  }
+  else
+    buffer.SetASCII(_("unknown"));
+  AddReadOnly(_("Hardware version"), NULL, buffer.c_str());
 
   if (!info.software_version.empty()) {
     buffer.clear();
@@ -58,14 +59,19 @@ ManageLXNAVVarioWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[mayb
     AddReadOnly(_("Firmware version"), NULL, buffer.c_str());
   }
 
+  if (!info.license.empty()) {
+    buffer.SetASCII(info.license.c_str());
+    AddReadOnly(_("License"), NULL, buffer.c_str());
+  }
+
   AddButton(_("Setup"), [this](){
     LXNAVVarioConfigWidget widget(GetLook(), device);
     DefaultWidgetDialog(UIGlobals::GetMainWindow(), GetLook(),
-                        _T("LXNAV Vario"), widget);
+                        "LXNAV Vario", widget);
   });
 
   if (device.IsNano())
-    AddButton(_T("LXNAV Nano"), [this](){
+    AddButton("LXNAV Nano", [this](){
       MessageOperationEnvironment env;
       if (device.EnablePassThrough(env)) {
         ManageNanoDialog(device, secondary_info);
@@ -80,7 +86,7 @@ ManageLXNAVVarioDialog(Device &device, const DeviceInfo &info,
 {
   WidgetDialog dialog(WidgetDialog::Auto{}, UIGlobals::GetMainWindow(),
                       UIGlobals::GetDialogLook(),
-                      _T("LXNAV Vario"),
+                      "LXNAV Vario",
                       new ManageLXNAVVarioWidget(UIGlobals::GetDialogLook(),
                                          (LXDevice &)device, info,
                                          secondary_info));

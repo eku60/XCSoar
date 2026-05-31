@@ -78,15 +78,15 @@ extern "C"
 }
 
 #ifdef _WIN32
-#define L(number, locale, code_name, display_name) { number, code_name ## _mo, code_name ## _mo_size, _T( #code_name ".mo"), _T(display_name) }
+#define L(number, locale, code_name, display_name) { number, code_name ## _mo, code_name ## _mo_size,  #code_name ".mo", display_name }
 #else
-#define L(number, locale, code_name, display_name) { code_name ## _mo, code_name ## _mo_size, _T( #code_name ".mo"), _T(display_name) }
+#define L(number, locale, code_name, display_name) { code_name ## _mo, code_name ## _mo_size,  #code_name ".mo", display_name }
 #endif
 
 #endif // HAVE_BUILTIN_LANGUAGES
 
 #ifdef USE_LIBINTL
-#define L(number, locale, code_name, display_name) { #locale ".UTF-8", _T( #code_name ".mo"), _T(display_name) }
+#define L(number, locale, code_name, display_name) { #locale ".UTF-8",  #code_name ".mo", display_name }
 #endif // USE_LIBINTL
 
 #ifdef _WIN32
@@ -98,7 +98,7 @@ const BuiltinLanguage language_table[] = {
   L(LANG_BULGARIAN, bg_BG, bg, "Bulgarian"),
   L(LANG_CATALAN, ca_ES, ca, "Catalan"),
   L(LANG_CHINESE, zh_CN, zh_CN, "Simplified Chinese"),
-  L(LANG_CHINESE_TRADITIONAL, zh_HK, zh_Hant, "Traditional Chinese"),
+  L(LANG_CHINESE_TRADITIONAL, zh_Hant, zh_Hant, "Traditional Chinese"),
   L(LANG_CZECH, cs_CZ, cs, "Czech"),
   L(LANG_DANISH, da_DK, da, "Danish"),
   L(LANG_GERMAN, de_DE, de, "German"),
@@ -110,7 +110,7 @@ const BuiltinLanguage language_table[] = {
   L(LANG_CROATIAN, hr_HR, hr, "Croatian"),
   L(LANG_HUNGARIAN, hu_HU, hu, "Hungarian"),
   L(LANG_ITALIAN, it_IT, it, "Italian"),
-  L(LANG_JAPANESE, ja_HP, ja, "Japanese"),
+  L(LANG_JAPANESE, ja_JP, ja, "Japanese"),
   L(LANG_KOREAN, ko_KR, ko, "Korean"),
   L(LANG_LITHUANIAN, lt_LT, lt, "Lithuanian"),
   L(LANG_NORWEGIAN, nb_NO, nb, "Norwegian"),

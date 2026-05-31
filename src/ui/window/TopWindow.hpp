@@ -11,6 +11,7 @@
 
 #ifdef ENABLE_OPENGL
 #include "ui/opengl/Features.hpp"
+#include <cstdint>
 #endif
 
 #include "ui/canvas/Features.hpp" // for DRAW_MOUSE_CURSOR
@@ -27,8 +28,6 @@ namespace UI { struct Event; }
 union SDL_Event;
 struct SDL_Window;
 #endif
-
-#include <tchar.h>
 
 #ifdef SOFTWARE_ROTATE_DISPLAY
 #include "DisplayOrientation.hpp"
@@ -53,6 +52,18 @@ class TopCanvas;
 
 #ifdef USE_WAYLAND
 struct wl_egl_window;
+struct wl_surface;
+struct xdg_surface;
+struct xdg_toplevel;
+struct zxdg_toplevel_decoration_v1;
+#endif
+
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
 #endif
 
 namespace UI {
@@ -60,7 +71,7 @@ namespace UI {
 class Display;
 
 class TopWindowStyle : public WindowStyle {
-#if defined(ENABLE_SDL) || defined(USE_X11)
+#if defined(ENABLE_SDL) || defined(USE_X11) || defined(USE_WAYLAND)
   bool full_screen = false;
 #endif
 #ifdef ENABLE_SDL
@@ -83,13 +94,13 @@ public:
   }
 
   void FullScreen() {
-#if defined(ENABLE_SDL) || defined(USE_X11)
+#if defined(ENABLE_SDL) || defined(USE_X11) || defined(USE_WAYLAND)
     full_screen = true;
 #endif
   }
 
   bool GetFullScreen() const {
-#if defined(ENABLE_SDL) || defined(USE_X11)
+#if defined(ENABLE_SDL) || defined(USE_X11) || defined(USE_WAYLAND)
     return full_screen;
 #else
     return false;
@@ -132,7 +143,23 @@ class TopWindow : public ContainerWindow {
 #ifdef USE_X11
   X11Window x_window;
 #elif defined(USE_WAYLAND)
+  struct wl_surface *wl_surface = nullptr;
   struct wl_egl_window *native_window;
+  struct xdg_surface *xdg_surface = nullptr;
+  struct xdg_toplevel *xdg_toplevel = nullptr;
+  struct zxdg_toplevel_decoration_v1 *xdg_decoration = nullptr;
+  PixelSize initial_requested_size{0, 0};
+  std::chrono::steady_clock::time_point last_resize_flush_time;
+
+private:
+  bool received_first_configure = false;
+
+public:
+  void MarkFirstConfigureReceived() noexcept {
+    received_first_configure = true;
+  }
+
+  void OnNativeConfigure(PixelSize new_native_size) noexcept;
 #elif defined(ENABLE_SDL)
   SDL_Window *window;
 #endif
@@ -146,6 +173,10 @@ class TopWindow : public ContainerWindow {
   TopCanvas *screen = nullptr;
 
   bool invalidated;
+
+#ifdef ENABLE_OPENGL
+  uint32_t render_state_token = 0;
+#endif
 
 #ifdef ANDROID
   Mutex paused_mutex;
@@ -213,6 +244,13 @@ class TopWindow : public ContainerWindow {
 #endif
 
 public:
+#ifdef ENABLE_OPENGL
+  [[gnu::pure]]
+  uint32_t GetRenderStateToken() const noexcept {
+    return render_state_token;
+  }
+#endif
+
 #ifdef ANDROID
   explicit TopWindow(UI::Display &_display) noexcept;
 #else
@@ -232,10 +270,10 @@ public:
    * Throws on error.
    */
 #ifdef USE_WINUSER
-  void Create(const TCHAR *cls, const TCHAR *text, PixelSize size,
+  void Create(const char *cls, const char *text, PixelSize size,
               TopWindowStyle style=TopWindowStyle());
 #else
-  void Create(const TCHAR *text, PixelSize size,
+  void Create(const char *text, PixelSize size,
               TopWindowStyle style=TopWindowStyle());
 #endif
 
@@ -244,7 +282,7 @@ private:
   /**
    * Throws on error.
    */
-  void CreateNative(const TCHAR *text, PixelSize size,
+  void CreateNative(const char *text, PixelSize size,
                     TopWindowStyle style);
 
 public:
@@ -261,9 +299,9 @@ public:
 
 #if !defined(USE_WINUSER) && !defined(ENABLE_SDL)
 #if defined(ANDROID) || defined(USE_FB) || defined(USE_EGL) || defined(USE_GLX) || defined(USE_VFB)
-  void SetCaption(const TCHAR *) noexcept {}
+  void SetCaption(const char *) noexcept {}
 #else
-  void SetCaption(const TCHAR *caption) noexcept;
+  void SetCaption(const char *caption) noexcept;
 #endif
 #endif
 
@@ -297,6 +335,49 @@ public:
        Window::GetClientRect() (method is not virtual) */
     PixelRect rc = GetClientRect();
     return {rc.right, rc.bottom};
+  }
+
+#endif
+    
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  [[gnu::pure]]
+  const PixelSize GetSize() const noexcept {
+    PixelRect rc = GetClientRect();
+    return {rc.right-rc.left, rc.bottom-rc.top};
+  }
+
+  [[gnu::pure]]
+  const PixelRect GetClientRect() const noexcept override {
+    assert(IsDefined());
+    
+    // Get screen bounds
+    CGRect screenBounds = [UIScreen mainScreen].bounds;
+    // Get screen scale factor. We need to use nativeScale instead of scale
+    // to correctly account for downsampling on mini and Plus devices.
+    CGFloat scale = [UIScreen mainScreen].nativeScale;
+    int width = (int)(screenBounds.size.width * scale);
+    int height = (int)(screenBounds.size.height * scale);
+    
+    UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
+    if (window == nullptr) {
+      // Fallback to full screen if window is not available
+      return PixelRect(0, 0, width, height);
+    }
+    
+    UIEdgeInsets insets = window.safeAreaInsets;
+    insets.top *= scale;
+    insets.left *= scale;
+    insets.bottom *= scale;
+    insets.right *= scale;
+
+    PixelRect result(
+        static_cast<int>(insets.left),
+        static_cast<int>(insets.top),
+        static_cast<int>(width - insets.right),
+        static_cast<int>(height - insets.bottom)
+    );
+
+    return result;
   }
 #endif
 
@@ -388,6 +469,12 @@ private:
 #endif
 
 protected:
+#ifdef ENABLE_OPENGL
+  void BumpRenderStateToken() noexcept {
+    ++render_state_token;
+  }
+#endif
+
   PixelPoint PointToReal(PixelPoint p) const noexcept {
 #ifdef HAVE_HIGHDPI_SUPPORT
     p.x = int(static_cast<float>(p.x) * point_to_real_x);

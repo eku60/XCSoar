@@ -31,7 +31,9 @@
 class FlarmTrafficControl : public FlarmTrafficWindow {
 protected:
   bool enable_auto_zoom = true, dragging = false;
+  bool init_defaults = false;
   unsigned zoom = 3;
+  unsigned last_zoom;
   static constexpr unsigned num_zoom_options = 5;
   Angle task_direction = Angle::Degrees(-1);
   GestureManager gestures;
@@ -39,7 +41,7 @@ protected:
 public:
   FlarmTrafficControl(const FlarmTrafficLook &look)
     :FlarmTrafficWindow(look, Layout::Scale(10),
-                        Layout::GetMinimumControlHeight() + Layout::Scale(2)) {}
+                        Layout::GetMinimumControlHeight() + Layout::Scale(10)) {}
 
 protected:
   void CalcAutoZoom();
@@ -71,6 +73,8 @@ public:
   }
 
   void SetAutoZoom(bool enabled);
+
+  void SaveZoom(unsigned value);
 
   void ToggleAutoZoom() {
     SetAutoZoom(!GetAutoZoom());
@@ -108,7 +112,7 @@ protected:
   }
 
 protected:
-  bool OnMouseGesture(const TCHAR* gesture);
+  bool OnMouseGesture(const char* gesture);
 
   /* virtual methods from class Window */
   void OnCreate() noexcept override;
@@ -133,6 +137,9 @@ FlarmTrafficControl::OnCreate() noexcept
   Profile::GetEnum(ProfileKeys::FlarmSideData, side_display_type);
   enable_auto_zoom = settings.auto_zoom;
   enable_north_up = settings.north_up;
+  last_zoom = settings.radar_zoom;
+
+  SetZoom(last_zoom);
 }
 
 unsigned
@@ -173,6 +180,17 @@ FlarmTrafficControl::SetAutoZoom(bool enabled)
   //auto_zoom->SetState(enabled);
 }
 
+/**
+ * save the zoom range in TrafficSettings and profile
+ */
+void
+FlarmTrafficControl::SaveZoom(unsigned zoom_value)
+{
+  TrafficSettings &settings = CommonInterface::SetUISettings().traffic;
+  settings.radar_zoom = zoom_value;
+  Profile::Set(ProfileKeys::FlarmRadarZoom, zoom_value);
+}
+
 void
 FlarmTrafficControl::CalcAutoZoom()
 {
@@ -202,8 +220,17 @@ FlarmTrafficControl::Update(Angle new_direction, const TrafficList &new_data,
 {
   FlarmTrafficWindow::Update(new_direction, new_data, new_settings);
 
-  if (enable_auto_zoom || WarningMode())
+  if (enable_auto_zoom || WarningMode()) {
+    if (!init_defaults)
+      SaveZoom(zoom);
     CalcAutoZoom();
+    init_defaults = true;
+  } else {
+    if (init_defaults) {
+      OnCreate();
+      init_defaults = false;
+    }
+  }
 }
 
 void
@@ -227,6 +254,8 @@ FlarmTrafficControl::ZoomOut()
   if (zoom < num_zoom_options)
     SetZoom(zoom + 1);
 
+  SaveZoom(zoom);
+  init_defaults = false;
   SetAutoZoom(false);
 }
 
@@ -242,6 +271,8 @@ FlarmTrafficControl::ZoomIn()
   if (zoom > 0)
     SetZoom(zoom - 1);
 
+  SaveZoom(zoom);
+  init_defaults = false;
   SetAutoZoom(false);
 }
 
@@ -325,7 +356,7 @@ FlarmTrafficControl::PaintDistance(Canvas &canvas, PixelRect rc,
                                    double distance) const
 {
   // Format distance
-  TCHAR buffer[20];
+  char buffer[20];
   Unit unit = FormatUserDistanceSmart(distance, buffer, false, 1000);
 
   // Calculate unit size
@@ -368,7 +399,7 @@ FlarmTrafficControl::PaintRelativeAltitude(Canvas &canvas, PixelRect rc,
                                            double relative_altitude) const
 {
   // Format relative altitude
-  TCHAR buffer[20];
+  char buffer[20];
   Unit unit = Units::GetUserAltitudeUnit();
   FormatRelativeUserAltitude(relative_altitude, buffer, false);
 
@@ -413,14 +444,14 @@ void
 FlarmTrafficControl::PaintID(Canvas &canvas, PixelRect rc,
                              const FlarmTraffic &traffic) const
 {
-  TCHAR buffer[20];
+  char buffer[20];
 
   unsigned font_size;
   if (traffic.HasName()) {
     canvas.Select(look.call_sign_font);
     font_size = look.call_sign_font.GetHeight();
 
-    _tcscpy(buffer, traffic.name);
+    strcpy(buffer, traffic.name);
   } else {
     canvas.Select(look.info_labels_font);
     font_size = look.info_labels_font.GetHeight();
@@ -521,7 +552,7 @@ FlarmTrafficControl::PaintTrafficInfo(Canvas &canvas) const
 void
 FlarmTrafficControl::OnPaint(Canvas &canvas) noexcept
 {
-  canvas.ClearWhite();
+  canvas.Clear(look.background_color);
 
   PaintTaskDirection(canvas);
   FlarmTrafficWindow::Paint(canvas);
@@ -541,12 +572,12 @@ FlarmTrafficControl::OpenDetails()
     return;
 
   // Show the details dialog
-  dlgFlarmTrafficDetailsShowModal(traffic->id);
+  (void)dlgFlarmTrafficDetailsShowModal(traffic->id);
 }
 
 static Button
 MakeSymbolButton(ContainerWindow &parent, const ButtonLook &look,
-                const TCHAR *caption,
+                const char *caption,
                 const PixelRect &rc,
                 Button::Callback callback) noexcept
 {
@@ -565,16 +596,16 @@ struct TrafficWidget::Windows {
 
   Windows(TrafficWidget &widget, ContainerWindow &parent, const PixelRect &r,
           const ButtonLook &button_look, const FlarmTrafficLook &flarm_look)
-    :zoom_in_button(MakeSymbolButton(parent, button_look, _T("+"), r,
+    :zoom_in_button(MakeSymbolButton(parent, button_look, "+", r,
                                      [&widget](){ widget.ZoomIn(); })),
      zoom_out_button(MakeSymbolButton(parent, button_look,
-                                    _T("-"), r,
+                                    "-", r,
                                       [&widget](){ widget.ZoomOut(); })),
      previous_item_button(MakeSymbolButton(parent, button_look,
-                                           _T("<"), r,
+                                           "<", r,
                                            [&widget](){ widget.PreviousTarget(); })),
      next_item_button(MakeSymbolButton(parent, button_look,
-                                       _T(">"), r,
+                                       ">", r,
                                        [&widget](){ widget.NextTarget(); })),
      details_button(parent, button_look,
                     _("Details"), r, WindowStyle(),
@@ -597,13 +628,13 @@ TrafficWidget::Windows::UpdateLayout(const PixelRect &rc) noexcept
   view.Move(rc);
 
   const unsigned margin = Layout::Scale(1);
-  const unsigned button_height = Layout::GetMinimumControlHeight();
-  const unsigned button_width = std::max(unsigned(rc.right / 6),
-                                         button_height);
+  const unsigned button_height =
+    std::max(1u, Layout::GetMinimumControlHeight());
+  const unsigned button_width = std::max({unsigned(rc.right / 6),
+                                          button_height, margin + 1u});
 
   const int x1 = rc.right / 2;
   const int x0 = x1 - button_width;
-  const int x2 = x1 + button_width;
 
   const int y0 = margin;
   const int y1 = y0 + button_height;
@@ -612,24 +643,26 @@ TrafficWidget::Windows::UpdateLayout(const PixelRect &rc) noexcept
 
   PixelRect button_rc;
 
+  const int btn_w = std::max(1, int(button_width) - int(margin));
+
   button_rc.left = x0;
   button_rc.top = y0;
-  button_rc.right = x1 - margin;
+  button_rc.right = button_rc.left + btn_w;
   button_rc.bottom = y1;
   zoom_in_button.Move(button_rc);
 
   button_rc.left = x1;
-  button_rc.right = x2 - margin;
+  button_rc.right = button_rc.left + btn_w;
   zoom_out_button.Move(button_rc);
 
   button_rc.left = x0;
   button_rc.top = y2;
-  button_rc.right = x1 - margin;
+  button_rc.right = button_rc.left + btn_w;
   button_rc.bottom = y3;
   previous_item_button.Move(button_rc);
 
   button_rc.left = x1;
-  button_rc.right = x2 - margin;
+  button_rc.right = button_rc.left + btn_w;
   next_item_button.Move(button_rc);
 
   button_rc.left = margin;
@@ -789,7 +822,7 @@ FlarmTrafficControl::OnMouseUp(PixelPoint p) noexcept
   if (dragging) {
     StopDragging();
 
-    const TCHAR *gesture = gestures.Finish();
+    const char *gesture = gestures.Finish();
     if (gesture && OnMouseGesture(gesture))
       return true;
   }
@@ -809,25 +842,25 @@ FlarmTrafficControl::OnMouseDouble([[maybe_unused]] PixelPoint p) noexcept
 }
 
 bool
-FlarmTrafficControl::OnMouseGesture(const TCHAR* gesture)
+FlarmTrafficControl::OnMouseGesture(const char* gesture)
 {
-  if (StringIsEqual(gesture, _T("U"))) {
+  if (StringIsEqual(gesture, "U")) {
     ZoomIn();
     return true;
   }
-  if (StringIsEqual(gesture, _T("D"))) {
+  if (StringIsEqual(gesture, "D")) {
     ZoomOut();
     return true;
   }
-  if (StringIsEqual(gesture, _T("UD"))) {
+  if (StringIsEqual(gesture, "UD")) {
     SetAutoZoom(true);
     return true;
   }
-  if (StringIsEqual(gesture, _T("DR"))) {
+  if (StringIsEqual(gesture, "DR")) {
     OpenDetails();
     return true;
   }
-  if (StringIsEqual(gesture, _T("RL"))) {
+  if (StringIsEqual(gesture, "RL")) {
     SwitchData();
     return true;
   }
@@ -845,24 +878,11 @@ FlarmTrafficControl::OnCancelMode() noexcept
 bool
 FlarmTrafficControl::OnKeyDown(unsigned key_code) noexcept
 {
-  switch (key_code) {
-  case KEY_UP:
-    if (!HasPointer())
-      break;
-
-    ZoomIn();
+  /* D-pad zoom was hard-coded here; zoom and target cycling are
+     defined in the ``.xci`` ``Traffic`` mode (e.g. F2/F4, UP/DOWN). */
+  if (InputEvents::processKey(key_code))
     return true;
-
-  case KEY_DOWN:
-    if (!HasPointer())
-      break;
-
-    ZoomOut();
-    return true;
-  }
-
-  return FlarmTrafficWindow::OnKeyDown(key_code) ||
-    InputEvents::processKey(key_code);
+  return FlarmTrafficWindow::OnKeyDown(key_code);
 }
 
 void

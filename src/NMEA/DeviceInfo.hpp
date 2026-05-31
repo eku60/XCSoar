@@ -23,29 +23,36 @@ struct DeviceInfo {
   /**
    * The name of the product.
    */
-  NarrowString<16> product;
+  StaticString<16> product;
 
   /**
    * The serial number.  This is a string because we're not sure if a
    * device sends non-numeric data here.
    */
-  NarrowString<16> serial;
+  StaticString<16> serial;
 
   /**
    * The hardware version number.
    */
-  NarrowString<16> hardware_version;
+  StaticString<16> hardware_version;
 
   /**
    * The software (or firmware) version number.
    */
-  NarrowString<16> software_version;
+  StaticString<16> software_version;
+
+  /**
+   * The license string reported by the device (e.g. LXWP1 field 5
+   * in LXNav protocol >= 1.05).
+   */
+  StaticString<32> license;
 
   void Clear() {
     product.clear();
     serial.clear();
     hardware_version.clear();
     software_version.clear();
+    license.clear();
   }
 };
 

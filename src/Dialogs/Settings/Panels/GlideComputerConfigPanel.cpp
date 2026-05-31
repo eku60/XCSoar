@@ -45,7 +45,7 @@ GlideComputerConfigPanel::Prepare(ContainerWindow &parent,
 
   static constexpr StaticEnumChoice auto_mc_list[] = {
     { TaskBehaviour::AutoMCMode::FINALGLIDE, N_("Final glide"),
-      N_("Adjusts MC for fastest arrival.  For contest sprint tasks, the MacCready is adjusted in "
+      N_("Adjusts MC for the fastest arrival. For contest sprint tasks, the MacCready is adjusted in "
           "order to cover the greatest distance in the remaining time and reach the finish height.") },
     { TaskBehaviour::AutoMCMode::CLIMBAVERAGE, N_("Trending average climb"),
       N_("Sets MC to the trending average climb rate based on all climbs.") },
@@ -79,12 +79,12 @@ GlideComputerConfigPanel::Prepare(ContainerWindow &parent,
   SetExpertRow(EnableExternalTriggerCruise);
 
   static constexpr StaticEnumChoice aver_eff_list[] = {
-    { ae15seconds, _T("15 s"), N_("Preferred period for paragliders.") },
-    { ae30seconds, _T("30 s") },
-    { ae60seconds, _T("60 s") },
-    { ae90seconds, _T("90 s"), N_("Preferred period for gliders.") },
-    { ae2minutes, _T("2 min") },
-    { ae3minutes, _T("3 min") },
+    { ae15seconds, "15 s", N_("Preferred period for paragliders.") },
+    { ae30seconds, "30 s" },
+    { ae60seconds, "60 s" },
+    { ae90seconds, "90 s", N_("Preferred period for gliders.") },
+    { ae2minutes, "2 min" },
+    { ae3minutes, "3 min" },
     nullptr
   };
 
@@ -99,7 +99,9 @@ GlideComputerConfigPanel::Prepare(ContainerWindow &parent,
              task_behaviour.glide.predict_wind_drift);
   SetExpertRow(PredictWindDrift);
 
-  AddBoolean(_("Wave assistant"), nullptr,
+  AddBoolean(_("Wave assistant"),
+             _("Enable detection and display of wave lift. "
+               "When enabled, wave sources are identified and shown on the map."),
              settings_computer.wave.enabled);
 
   AddDuration(_("Cruise/Circling period"),

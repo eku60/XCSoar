@@ -5,6 +5,7 @@
 #include "Profile/Keys.hpp"
 #include "Profile/Profile.hpp"
 #include "Weather/Settings.hpp"
+#include "Weather/Features.hpp"
 #include "Widget/RowFormWidget.hpp"
 #include "net/http/Features.hpp"
 #include "Interface.hpp"
@@ -43,27 +44,29 @@ void
 WeatherConfigPanel::Prepare(ContainerWindow &parent,
                             const PixelRect &rc) noexcept
 {
+#if defined(HAVE_PCMET) || defined(HAVE_HTTP)
   const auto &settings = CommonInterface::GetComputerSettings().weather;
+#endif
 
   RowFormWidget::Prepare(parent, rc);
 
 #ifdef HAVE_PCMET
-  AddText(_T("pc_met Username"), _T(""),
+  AddText("pc_met Username", "",
           settings.pcmet.www_credentials.username);
-  AddPassword(_T("pc_met Password"), _T(""),
+  AddPassword("pc_met Password", "",
               settings.pcmet.www_credentials.password);
 
 #if 0
   // code disabled because DWD has terminated our access */
-  AddText(_T("pc_met FTP Username"), _T(""),
+  AddText("pc_met FTP Username", "",
           settings.pcmet.ftp_credentials.username);
-  AddPassword(_T("pc_met FTP Password"), _T(""),
+  AddPassword("pc_met FTP Password", "",
               settings.pcmet.ftp_credentials.password);
 #endif
 #endif
 
 #ifdef HAVE_HTTP
-  AddBoolean(_T("Thermal Information Map"),
+  AddBoolean("Thermal Information Map",
              _("Show thermal locations downloaded from Thermal Information Map (thermalmap.info)."),
              settings.enable_tim);
 #endif
@@ -74,7 +77,9 @@ WeatherConfigPanel::Save(bool &_changed) noexcept
 {
   bool changed = false;
 
+#if defined(HAVE_PCMET) || defined(HAVE_HTTP)
   auto &settings = CommonInterface::SetComputerSettings().weather;
+#endif
 
 #ifdef HAVE_PCMET
   changed |= SaveValue(PCMET_USER, ProfileKeys::PCMetUsername,

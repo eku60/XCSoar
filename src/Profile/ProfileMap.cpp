@@ -24,7 +24,13 @@ Profile::Get(std::string_view key, const char *default_value) noexcept
 }
 
 bool
-Profile::Get(std::string_view key, std::span<TCHAR> value) noexcept
+Profile::Get(std::string_view key, std::span<char> value) noexcept
+{
+  return map.Get(key, value);
+}
+
+bool
+Profile::Get(std::string_view key, std::string &value) noexcept
 {
   return map.Get(key, value);
 }
@@ -77,15 +83,11 @@ Profile::Set(std::string_view key, const char *value) noexcept
   map.Set(key, value);
 }
 
-#ifdef _UNICODE
-
 void
-Profile::Set(std::string_view key, const TCHAR *value) noexcept
+Profile::Set(std::string_view key, const std::string &value) noexcept
 {
   map.Set(key, value);
 }
-
-#endif
 
 void
 Profile::Set(std::string_view key, int value) noexcept

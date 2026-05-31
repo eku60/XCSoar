@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "NMEA/Info.hpp"
+#include "Asset.hpp"
 #include "Atmosphere/AirDensity.hpp"
 #include "time/Cast.hxx"
 
@@ -95,6 +96,7 @@ NMEAInfo::Reset() noexcept
 
   gps.Reset();
   acceleration.Reset();
+  gyroscope.Reset();
   attitude.Reset();
 
   location_available.Clear();
@@ -122,6 +124,9 @@ NMEAInfo::Reset() noexcept
   pressure_altitude_available.Clear();
   pressure_altitude = 0;
 
+  igc_pressure_altitude_available.Clear();
+  igc_pressure_altitude = 0;
+
   time_available.Clear();
   time = {};
 
@@ -135,8 +140,8 @@ NMEAInfo::Reset() noexcept
 
   external_wind_available.Clear();
 
-  temperature_available = false;
-  humidity_available = false;
+  temperature_available.Clear();
+  humidity_available.Clear();
 
   heart_rate_available.Clear();
 
@@ -170,11 +175,9 @@ NMEAInfo::ExpireWallClock() noexcept
 
   UpdateClock();
 
-#if defined(ANDROID) || defined(__APPLE__)
-  if (gps.nonexpiring_internal_gps)
+  if ((IsAndroid() || IsIOS()) && gps.nonexpiring_internal_gps)
     /* the internal GPS does not expire */
     return;
-#endif
 
   alive.Expire(clock, std::chrono::seconds(10));
   if (!alive) {
@@ -214,12 +217,15 @@ NMEAInfo::Expire() noexcept
   sensor_calibration_available.Expire(clock, std::chrono::hours(1));
   baro_altitude_available.Expire(clock, std::chrono::seconds(30));
   pressure_altitude_available.Expire(clock, std::chrono::seconds(30));
+  igc_pressure_altitude_available.Expire(clock, std::chrono::seconds(30));
   noncomp_vario_available.Expire(clock, std::chrono::seconds(5));
   total_energy_vario_available.Expire(clock, std::chrono::seconds(5));
   netto_vario_available.Expire(clock, std::chrono::seconds(5));
   settings.Expire(clock);
   external_wind_available.Expire(clock, std::chrono::minutes(10));
   heart_rate_available.Expire(clock, std::chrono::seconds(10));
+  temperature_available.Expire(clock, std::chrono::seconds(30));
+  humidity_available.Expire(clock, std::chrono::seconds(30));
   engine_noise_level_available.Expire(clock, std::chrono::seconds(30));
   voltage_available.Expire(clock, std::chrono::minutes(5));
   battery_level_available.Expire(clock, std::chrono::minutes(5));
@@ -251,6 +257,7 @@ NMEAInfo::Complement(const NMEAInfo &add) noexcept
   }
 
   acceleration.Complement(add.acceleration);
+  gyroscope.Complement(add.gyroscope);
   attitude.Complement(add.attitude);
 
   if (location_available.Complement(add.location_available)) {
@@ -296,6 +303,9 @@ NMEAInfo::Complement(const NMEAInfo &add) noexcept
   if (pressure_altitude_available.Complement(add.pressure_altitude_available))
     pressure_altitude = add.pressure_altitude;
 
+  if (igc_pressure_altitude_available.Complement(add.igc_pressure_altitude_available))
+    igc_pressure_altitude = add.igc_pressure_altitude;
+
   if (noncomp_vario_available.Complement(add.noncomp_vario_available))
     noncomp_vario = add.noncomp_vario;
 
@@ -310,20 +320,14 @@ NMEAInfo::Complement(const NMEAInfo &add) noexcept
   if (external_wind_available.Complement(add.external_wind_available))
     external_wind = add.external_wind;
 
-  if (!temperature_available && add.temperature_available) {
+  if (temperature_available.Complement(add.temperature_available))
     temperature = add.temperature;
-    temperature_available = add.temperature_available;
-  }
 
-   if (!variation_available && add.variation_available) {
+  if (variation_available.Complement(add.variation_available))
     variation = add.variation;
-    variation_available = add.variation_available;
-  }
 
-  if (!humidity_available && add.humidity_available) {
+  if (humidity_available.Complement(add.humidity_available))
     humidity = add.humidity;
-    humidity_available = add.humidity_available;
-  }
 
   if (heart_rate_available.Complement(add.heart_rate_available))
     heart_rate = add.heart_rate;
@@ -339,7 +343,7 @@ NMEAInfo::Complement(const NMEAInfo &add) noexcept
 
   switch_state.Complement(add.switch_state);
 
-  if (!stall_ratio_available && add.stall_ratio_available)
+  if (stall_ratio_available.Complement(add.stall_ratio_available))
     stall_ratio = add.stall_ratio;
 
   flarm.Complement(add.flarm);

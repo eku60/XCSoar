@@ -24,15 +24,21 @@ ToQuarterHours(BrokenTime t)
   return t.hour * 4u + t.minute / 15;
 }
 
-const TCHAR *
+const char *
 RaspCache::GetMapName() const
 {
+  if (parameter >= store.GetItemCount())
+    return "";
+
   return store.GetItemInfo(parameter).name;
 }
 
-const TCHAR *
+const char *
 RaspCache::GetMapLabel() const
 {
+  if (parameter >= store.GetItemCount())
+    return "";
+
   const auto &info = store.GetItemInfo(parameter);
   return info.label != nullptr
     ? gettext(info.label)
@@ -63,6 +69,9 @@ RaspCache::IsInside(GeoPoint p) const
 void
 RaspCache::Reload(BrokenTime time_local, OperationEnvironment &operation)
 {
+  if (parameter >= store.GetItemCount())
+    return;
+
   unsigned effective_time = time;
   if (effective_time == 0) {
     // "Now" time, so find time in half hours
@@ -79,21 +88,20 @@ RaspCache::Reload(BrokenTime time_local, OperationEnvironment &operation)
     // no change, quick exit.
     return;
 
-  last_time = effective_time;
+  const unsigned requested_time = effective_time;
 
   effective_time = store.GetNearestTime(parameter, effective_time);
   if (effective_time == RaspStore::MAX_WEATHER_TIMES)
     return;
-
-  map.reset();
 
   auto archive = store.OpenArchive();
   if (!archive)
     return;
 
   char new_name[MAX_PATH];
-  store.NarrowWeatherFilename(new_name, Path(store.GetItemInfo(parameter).name),
-                              effective_time);
+  if (!store.WeatherFilename(new_name, Path(store.GetItemInfo(parameter).name),
+                             effective_time))
+    return;
 
   auto new_map = std::make_unique<RasterMap>();
   try {
@@ -108,4 +116,5 @@ RaspCache::Reload(BrokenTime time_local, OperationEnvironment &operation)
   new_map->UpdateProjection();
 
   map = std::move(new_map);
+  last_time = requested_time;
 }

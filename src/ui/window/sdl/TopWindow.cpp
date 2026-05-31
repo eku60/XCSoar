@@ -7,17 +7,25 @@
 #include "lib/fmt/RuntimeError.hxx"
 #include "util/UTF8.hpp"
 
-#ifdef UNICODE
-#include "util/ConvertString.hpp"
-#endif
-
 #include <SDL_video.h>
 #include <SDL_events.h>
+
+#if defined(ENABLE_OPENGL) && defined(SOFTWARE_ROTATE_DISPLAY)
+#include "ui/event/shared/TransformCoordinates.hpp"
+#endif
+
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
 
 #if defined(__MACOSX__) && __MACOSX__
 #include <SDL_syswm.h>
 #import <AppKit/AppKit.h>
 #include <alloca.h>
+#endif
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+#include "UtilsSystem.hpp"
 #endif
 
 namespace UI {
@@ -41,11 +49,6 @@ MakeSDLFlags([[maybe_unused]] bool full_screen, bool resizable) noexcept
   if (resizable)
     flags |= SDL_WINDOW_RESIZABLE;
 
-#if defined(__IPHONEOS__) && __IPHONEOS__
-  /* Hide status bar on iOS devices */
-  flags |= SDL_WINDOW_BORDERLESS;
-#endif
-
 #ifdef HAVE_HIGHDPI_SUPPORT
   flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
@@ -54,14 +57,10 @@ MakeSDLFlags([[maybe_unused]] bool full_screen, bool resizable) noexcept
 }
 
 void
-TopWindow::CreateNative(const TCHAR *_text, PixelSize new_size,
+TopWindow::CreateNative(const char *_text, PixelSize new_size,
                         TopWindowStyle style)
 {
-#ifdef UNICODE
-  const WideToUTF8Converter text(_text);
-#else
   const char *text = _text;
-#endif
 
   const bool full_screen = style.GetFullScreen();
   const bool resizable = style.GetResizable();
@@ -156,12 +155,24 @@ TopWindow::OnEvent(const SDL_Event &event)
 
   case SDL_MOUSEMOTION:
     // XXX keys
-    return OnMouseMove(PointToReal(PixelPoint(event.motion.x, event.motion.y)),
-                       0);
+    {
+      auto p = PointToReal(PixelPoint(event.motion.x, event.motion.y));
+#if defined(ENABLE_OPENGL) && defined(SOFTWARE_ROTATE_DISPLAY)
+      if(OpenGL::window_size.x > 0 && OpenGL::window_size.y > 0)
+        p = TransformCoordinates(p, PixelSize{OpenGL::window_size.x,
+                                              OpenGL::window_size.y});
+#endif
+      return OnMouseMove(p, 0);
+    }
 
   case SDL_MOUSEBUTTONDOWN:
     {
-      const auto p = PointToReal(PixelPoint(event.button.x, event.button.y));
+      auto p = PointToReal(PixelPoint(event.button.x, event.button.y));
+#if defined(ENABLE_OPENGL) && defined(SOFTWARE_ROTATE_DISPLAY)
+      if(OpenGL::window_size.x > 0 && OpenGL::window_size.y > 0)
+        p = TransformCoordinates(p, PixelSize{OpenGL::window_size.x,
+                                              OpenGL::window_size.y});
+#endif
       return double_click.Check(p)
         ? OnMouseDouble(p)
         : OnMouseDown(p);
@@ -169,7 +180,12 @@ TopWindow::OnEvent(const SDL_Event &event)
 
   case SDL_MOUSEBUTTONUP:
     {
-      const auto p = PointToReal(PixelPoint(event.button.x, event.button.y));
+      auto p = PointToReal(PixelPoint(event.button.x, event.button.y));
+#if defined(ENABLE_OPENGL) && defined(SOFTWARE_ROTATE_DISPLAY)
+      if(OpenGL::window_size.x > 0 && OpenGL::window_size.y > 0)
+        p = TransformCoordinates(p, PixelSize{OpenGL::window_size.x,
+                                              OpenGL::window_size.y});
+#endif
       double_click.Moved(p);
       return OnMouseUp(p);
     }
@@ -219,8 +235,14 @@ TopWindow::OnEvent(const SDL_Event &event)
           h = real_h;
 #endif
 #ifdef ENABLE_OPENGL
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+          PixelSize size = SystemWindowSize();
+          if (screen->CheckResize(size))
+            Resize(size);
+#else
           if (screen->CheckResize(PixelSize(w, h)))
             Resize(screen->GetSize());
+#endif
 #else
           Resize({w, h});
 #endif
@@ -257,7 +279,9 @@ TopWindow::OnResize(PixelSize new_size) noexcept
   ContainerWindow::OnResize(new_size);
 
 #ifdef USE_MEMORY_CANVAS
-  screen->OnResize(new_size);
+  // Request resize instead of doing it immediately
+  // The actual resize will happen in the draw thread (Expose)
+  screen->RequestResize(new_size);
 #endif
 }
 

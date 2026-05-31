@@ -1,8 +1,12 @@
 ######## tools
 
-CCACHE := 
+CCACHE :=
 ifeq ($(USE_CCACHE),y)
   CCACHE := ccache$(EXE)
+  # ccache will not use the optimisation of avoiding the 2nd call to the
+  # pre-processor by compiling the pre-processed output that was used for
+  # finding the hash in the case of a cache miss.
+  export CCACHE_CPP2 = yes
 endif
 
 EXE := $(findstring .exe,$(MAKE))
@@ -64,7 +68,7 @@ SRC_TO_OBJ = $(subst /./,/,$(patsubst %.cpp,%$(OBJ_SUFFIX),$(patsubst %.cxx,%$(O
 ####### dependency handling
 
 DEPFILE = $(@:$(OBJ_SUFFIX)=.d)
-DEPFLAGS = -Wp,-MD,$(DEPFILE),-MT,$@
+DEPFLAGS = -MD -MP -MF $(DEPFILE) -MT $@
 cc-flags = $(DEPFLAGS) $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(TARGET_ARCH) $(FLAGS_COVERAGE)  $(EXTRA_CPPFLAGS)  $(EXTRA_CFLAGS)
 cxx-flags = $(DEPFLAGS) $(ALL_CXXFLAGS) $(ALL_CPPFLAGS) $(TARGET_ARCH) $(FLAGS_COVERAGE)  $(EXTRA_CPPFLAGS)  $(EXTRA_CXXFLAGS)
 

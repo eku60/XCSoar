@@ -20,19 +20,19 @@ static void
 FormatWaypointDetails(Buffer &buffer, const Waypoint &waypoint)
 {
   if (waypoint.has_elevation)
-    buffer.Format(_T("%s: %s"), _("Elevation"),
+    buffer.Format("%s: %s", _("Elevation"),
                   FormatUserAltitude(waypoint.elevation).c_str());
   else
-    buffer.Format(_T("%s: %s"), _("Elevation"), _T("?"));
+    buffer.Format("%s: %s", _("Elevation"), "?");
 
   if (waypoint.radio_frequency.IsDefined()) {
-    TCHAR radio[16];
+    char radio[16];
     waypoint.radio_frequency.Format(radio, 16);
-    buffer.AppendFormat(_T(" - %s MHz"), radio);
+    buffer.AppendFormat(" - %s MHz", radio);
   }
 
   if (!waypoint.comment.empty()) {
-    buffer.AppendFormat(_T(" - %s"), waypoint.comment.c_str());
+    buffer.AppendFormat(" - %s", waypoint.comment.c_str());
   }
 }
 
@@ -46,9 +46,13 @@ Draw(Canvas &canvas, PixelRect rc,
   const unsigned padding = Layout::GetTextPadding();
   const unsigned line_height = rc.GetHeight();
 
+  const unsigned icon_size =
+    line_height > 4 * padding ? line_height - 4 * padding : 0;
+
   // Draw icon
   const PixelPoint pt(rc.left + line_height / 2, rc.top + line_height / 2);
   WaypointIconRenderer wir(settings, look, canvas);
+  wir.SetIconSize(icon_size);
   wir.Draw(waypoint, pt);
 
   rc.left += line_height + padding;
@@ -74,7 +78,7 @@ Draw(Canvas &canvas, PixelRect rc,
   // Draw waypoint name
   if (!waypoint.shortname.empty()) {
     const auto waypoint_title = waypoint.name +
-      _T(" (") + waypoint.shortname + _T(")");
+      " (" + waypoint.shortname + ")";
     row_renderer.DrawFirstRow(canvas, rc, waypoint_title.c_str());
   }
   else {
@@ -113,6 +117,9 @@ WaypointListRenderer::Draw(Canvas &canvas, PixelRect rc,
   const unsigned padding = Layout::GetTextPadding();
   const unsigned line_height = rc.GetHeight();
 
+  const unsigned icon_size =
+    line_height > 4 * padding ? line_height - 4 * padding : 0;
+
   // Draw icon
   const PixelPoint pt(rc.left + line_height / 2,
                       rc.top + line_height / 2);
@@ -122,22 +129,23 @@ WaypointListRenderer::Draw(Canvas &canvas, PixelRect rc,
     : WaypointReachability::UNREACHABLE;
 
   WaypointIconRenderer wir(settings, look, canvas);
+  wir.SetIconSize(icon_size);
   wir.Draw(waypoint, pt, reachable);
 
   rc.left += line_height + padding;
 
   // Draw distance and arrival altitude
   StaticString<256> buffer;
-  TCHAR alt[20], radio[20];
+  char alt[20], radio[20];
   
   FormatRelativeUserAltitude(arrival_altitude, alt, true);
-  buffer.Format(_T("%s: %s - %s: %s"), _("Distance"),
+  buffer.Format("%s: %s - %s: %s", _("Distance"),
                 FormatUserDistanceSmart(distance).c_str(),
                 _("Arrival Alt"), alt);
 
   if (waypoint.radio_frequency.IsDefined()) {
     waypoint.radio_frequency.Format(radio, ARRAY_SIZE(radio));
-    buffer.AppendFormat(_T(" - %s MHz"), radio);
+    buffer.AppendFormat(" - %s MHz", radio);
   }
 
   row_renderer.DrawSecondRow(canvas, rc, buffer);
@@ -145,7 +153,7 @@ WaypointListRenderer::Draw(Canvas &canvas, PixelRect rc,
   // Draw waypoint name
   if (!waypoint.shortname.empty()) {
     const auto waypoint_title = waypoint.name +
-      _(" (") + waypoint.shortname + _T(")");
+      _(" (") + waypoint.shortname + ")";
     row_renderer.DrawFirstRow(canvas, rc, waypoint_title.c_str());
   }
   else {

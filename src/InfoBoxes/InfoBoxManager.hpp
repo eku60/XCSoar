@@ -16,8 +16,19 @@ extern InfoBoxLayout::Layout layout;
 void
 ProcessTimer() noexcept;
 
+[[nodiscard]] bool
+IsReady() noexcept;
+
 void
 SetDirty() noexcept;
+
+/**
+ * Call after the UI language was switched (#ReadLanguageFile) so
+ * captions and content use the new gettext catalogue on the next draw
+ * (#2314).
+ */
+void
+InvalidateAfterLanguageChange() noexcept;
 
 void
 ScheduleRedraw() noexcept;
@@ -43,5 +54,13 @@ Hide() noexcept;
  */
 void
 ShowInfoBoxPicker(const int id = -1) noexcept;
+
+/**
+ * Clear focus from all InfoBoxes except the one with the specified ID.
+ * This ensures only one InfoBox is selected at any time.
+ * @param except_id The InfoBox ID to keep focused (or MAX_CONTENTS to clear all)
+ */
+void
+ClearFocusExcept(unsigned except_id) noexcept;
 
 } // namespace InfoBoxManager

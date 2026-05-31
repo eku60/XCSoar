@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "util/UTF8.hpp"
+#include "util/StringUtil.hpp"
 #include "util/Macros.hpp"
 #include "TestUtil.hpp"
 
@@ -89,8 +90,6 @@ MyValidateUTF8(const char *p)
   }
 }
 
-#ifndef _UNICODE
-
 static constexpr struct {
   const char *src;
   size_t truncate, dest_size;
@@ -125,19 +124,75 @@ TestTruncateString()
   }
 }
 
-#endif
+/**
+ * Test that CopyString() never produces invalid UTF-8 when
+ * truncating.  Each test case specifies a source string, a
+ * destination buffer size, and the expected result after
+ * UTF-8-safe truncation.
+ */
+static constexpr struct {
+  const char *src;
+  size_t dest_size;
+  const char *expected_result;
+} copy_string_tests[] = {
+  /* no truncation needed */
+  { "", 10, "" },
+  { "abc", 10, "abc" },
+  { "abc", 4, "abc" },
+  { "\xc3\xbc", 3, "\xc3\xbc" },
+
+  /* ASCII truncation (no UTF-8 issue) */
+  { "abcd", 4, "abc" },
+  { "abcd", 2, "a" },
+  { "abcd", 1, "" },
+
+  /* 2-byte sequence: ü = \xc3\xbc */
+  { "foo\xc3\xbc", 6, "foo\xc3\xbc" }, /* fits exactly */
+  { "foo\xc3\xbc", 5, "foo" },          /* would cut after \xc3 → crop */
+  { "foo\xc3\xbc", 4, "foo" },          /* only room for "foo" */
+
+  /* 3-byte sequence: 目 = \xe7\x9b\xae */
+  { "foo\xe7\x9b\xae", 7, "foo\xe7\x9b\xae" }, /* fits exactly */
+  { "foo\xe7\x9b\xae", 6, "foo" },               /* cut after 2 of 3 → crop */
+  { "foo\xe7\x9b\xae", 5, "foo" },               /* cut after 1 of 3 → crop */
+  { "foo\xe7\x9b\xae", 4, "foo" },               /* only room for "foo" */
+
+  /* 4-byte emoji: 😀 = \xf0\x9f\x98\x80 */
+  { "a\xf0\x9f\x98\x80", 6, "a\xf0\x9f\x98\x80" }, /* fits */
+  { "a\xf0\x9f\x98\x80", 5, "a" },                   /* cut after 3 of 4 */
+  { "a\xf0\x9f\x98\x80", 4, "a" },                   /* cut after 2 of 4 */
+  { "a\xf0\x9f\x98\x80", 3, "a" },                   /* cut after 1 of 4 */
+
+  /* multiple multi-byte characters */
+  { "\xc3\xa4\xc3\xb6\xc3\xbc", 7, "\xc3\xa4\xc3\xb6\xc3\xbc" },
+  { "\xc3\xa4\xc3\xb6\xc3\xbc", 6, "\xc3\xa4\xc3\xb6" },  /* cut in 3rd ü */
+  { "\xc3\xa4\xc3\xb6\xc3\xbc", 4, "\xc3\xa4" },            /* cut in 2nd ö */
+};
+
+static void
+TestCopyString()
+{
+  for (const auto &t : copy_string_tests) {
+    char buffer[64];
+    CopyString(buffer, t.dest_size, t.src);
+    if (!ok1(strcmp(buffer, t.expected_result) == 0))
+      diag("CopyString(\"%s\", %zu) = \"%s\", expected \"%s\"",
+           t.src, t.dest_size, buffer, t.expected_result);
+    /* result must always be valid UTF-8 */
+    ok1(ValidateUTF8(buffer));
+  }
+}
 
 int main()
 {
   plan_tests(2 * ARRAY_SIZE(valid) +
              2 * ARRAY_SIZE(invalid) +
              2 * ARRAY_SIZE(length) +
-             4 * ARRAY_SIZE(crop) +
              ARRAY_SIZE(latin1_chars) +
-#ifndef _UNICODE
+             4 * ARRAY_SIZE(crop) +
              ARRAY_SIZE(truncate_string_tests) +
-#endif
-             9 + 27);
+             2 * ARRAY_SIZE(copy_string_tests) +
+             10 + 27);
 
   for (auto i : valid) {
     ok1(ValidateUTF8(i));
@@ -170,10 +225,10 @@ int main()
     ok1(end == buffer + strlen(buffer));
   }
 
-#ifndef _UNICODE
   TestTruncateString();
-#endif
+  TestCopyString();
 
+  /* test NextUTF8() */
   {
     const char *p = "foo\xe7\x9b\xae";
     auto n = NextUTF8(p);
@@ -194,45 +249,47 @@ int main()
 
     n = NextUTF8(p + 6);
     ok1(n.first == 0);
+    ok1(n.second == nullptr);
   }
 
   /* test UnicodeToUTF8() */
+  {
+    buffer[0] = 1;
+    ok1(UnicodeToUTF8(0, buffer) == buffer + 1);
+    ok1(buffer[0] == 0);
 
-  buffer[0] = 1;
-  ok1(UnicodeToUTF8(0, buffer) == buffer + 1);
-  ok1(buffer[0] == 0);
+    ok1(UnicodeToUTF8(' ', buffer) == buffer + 1);
+    ok1(buffer[0] == ' ');
 
-  ok1(UnicodeToUTF8(' ', buffer) == buffer + 1);
-  ok1(buffer[0] == ' ');
+    ok1(UnicodeToUTF8(0x7f, buffer) == buffer + 1);
+    ok1(buffer[0] == 0x7f);
 
-  ok1(UnicodeToUTF8(0x7f, buffer) == buffer + 1);
-  ok1(buffer[0] == 0x7f);
+    ok1(UnicodeToUTF8(0xa2, buffer) == buffer + 2);
+    ok1(buffer[0] == char(0xc2));
+    ok1(buffer[1] == char(0xa2));
 
-  ok1(UnicodeToUTF8(0xa2, buffer) == buffer + 2);
-  ok1(buffer[0] == char(0xc2));
-  ok1(buffer[1] == char(0xa2));
+    ok1(UnicodeToUTF8(0x6fb3, buffer) == buffer + 3);
+    ok1(buffer[0] == char(0xe6));
+    ok1(buffer[1] == char(0xbe));
+    ok1(buffer[2] == char(0xb3));
 
-  ok1(UnicodeToUTF8(0x6fb3, buffer) == buffer + 3);
-  ok1(buffer[0] == char(0xe6));
-  ok1(buffer[1] == char(0xbe));
-  ok1(buffer[2] == char(0xb3));
+    ok1(UnicodeToUTF8(0xffff, buffer) == buffer + 3);
+    ok1(buffer[0] == char(0xef));
+    ok1(buffer[1] == char(0xbf));
+    ok1(buffer[2] == char(0xbf));
 
-  ok1(UnicodeToUTF8(0xffff, buffer) == buffer + 3);
-  ok1(buffer[0] == char(0xef));
-  ok1(buffer[1] == char(0xbf));
-  ok1(buffer[2] == char(0xbf));
+    ok1(UnicodeToUTF8(0x10000, buffer) == buffer + 4);
+    ok1(buffer[0] == char(0xf0));
+    ok1(buffer[1] == char(0x90));
+    ok1(buffer[2] == char(0x80));
+    ok1(buffer[3] == char(0x80));
 
-  ok1(UnicodeToUTF8(0x10000, buffer) == buffer + 4);
-  ok1(buffer[0] == char(0xf0));
-  ok1(buffer[1] == char(0x90));
-  ok1(buffer[2] == char(0x80));
-  ok1(buffer[3] == char(0x80));
-
-  ok1(UnicodeToUTF8(0x10ffff, buffer) == buffer + 4);
-  ok1(buffer[0] == char(0xf4));
-  ok1(buffer[1] == char(0x8f));
-  ok1(buffer[2] == char(0xbf));
-  ok1(buffer[3] == char(0xbf));
+    ok1(UnicodeToUTF8(0x10ffff, buffer) == buffer + 4);
+    ok1(buffer[0] == char(0xf4));
+    ok1(buffer[1] == char(0x8f));
+    ok1(buffer[2] == char(0xbf));
+    ok1(buffer[3] == char(0xbf));
+  }
 
   return exit_status();
 }

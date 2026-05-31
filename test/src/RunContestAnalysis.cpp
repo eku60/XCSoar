@@ -18,11 +18,11 @@ using namespace std::chrono;
 #ifdef BENCHMARK_LK8000
 static Trace full_trace({}, Trace::null_time, 100);
 static Trace triangle_trace({}, Trace::null_time, 100);
-static Trace sprint_trace({}, minutes{150}, 50);
+static Trace sprint_trace({}, minutes{120}, 50);
 #else
 static Trace full_trace({}, Trace::null_time, 512);
 static Trace triangle_trace({}, Trace::null_time, 1024);
-static Trace sprint_trace({}, minutes{150}, 128);
+static Trace sprint_trace({}, minutes{120}, 128);
 #endif
 
 static ContestManager olc_classic(Contest::OLC_CLASSIC,
@@ -114,7 +114,14 @@ TestContest(DebugReplay &replay)
   PrintHelper::print(olc_plus.GetStats().GetResult(2));
 
   std::cout << "dmst\n";
-  PrintHelper::print(dmst.GetStats().GetResult());
+  std::cout << "# quadrilateral\n";
+  PrintHelper::print(dmst.GetStats().GetResult(0));
+  std::cout << "# triangle\n";
+  PrintHelper::print(dmst.GetStats().GetResult(1));
+  std::cout << "# out and return\n";
+  PrintHelper::print(dmst.GetStats().GetResult(2));
+  std::cout << "# free (best)\n";
+  PrintHelper::print(dmst.GetStats().GetResult(3));
 
   std::cout << "xcontest\n";
   std::cout << "# free\n";

@@ -8,8 +8,6 @@
 #include <chrono>
 #include <cstdint>
 
-#include <tchar.h>
-
 #ifdef HAVE_POSIX
 #include <unistd.h>
 #include <stdio.h>
@@ -73,7 +71,7 @@ VisitFiles(Path path, File::Visitor &visitor,
  * @param recursive If true all subfolders will be visited too
  */
 void
-VisitSpecificFiles(Path path, const TCHAR *filter,
+VisitSpecificFiles(Path path, const char *filter,
                    File::Visitor &visitor, bool recursive = false);
 
 } // namespace Directory
@@ -109,12 +107,6 @@ bool
 IsCharDev(Path path) noexcept;
 
 #endif // HAVE_POSIX
-
-#if defined(_WIN32) && defined(UNICODE)
-[[gnu::pure]]
-bool
-Exists(const char *path) noexcept;
-#endif
 
 /**
  * Deletes the given file

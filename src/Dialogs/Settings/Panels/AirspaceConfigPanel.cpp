@@ -22,6 +22,9 @@ using namespace std::chrono;
 enum ControlIndex {
   AirspaceDisplay,
   AirspaceLabelSelection,
+#ifdef HAVE_HTTP
+  ShowNotamLabels,
+#endif
   ClipAltitude,
   AltWarningMargin,
   AirspaceWarnings,
@@ -31,7 +34,9 @@ enum ControlIndex {
   AcknowledgeTime,
   UseBlackOutline,
   AirspaceFillMode,
-  AirspaceTransparency
+#if defined(HAVE_HATCHED_BRUSH) && defined(HAVE_ALPHA_BLEND)
+  AirspaceTransparency,
+#endif
 };
 
 static constexpr StaticEnumChoice as_display_list[] = {
@@ -156,7 +161,7 @@ AirspaceConfigPanel::Prepare(ContainerWindow &parent,
   RowFormWidget::Prepare(parent, rc);
 
   AddEnum(_("Airspace display"),
-          _("Controls filtering of airspace for display and warnings.  The airspace filter button also allows filtering of display and warnings independently for each airspace class."),
+          _("Controls filtering of airspace for display and warnings. The airspace filter button also allows filtering of display and warnings independently for each airspace class."),
           as_display_list, (unsigned)renderer.altitude_mode, this);
 
   AddEnum(_("Label visibility"),
@@ -164,14 +169,21 @@ AirspaceConfigPanel::Prepare(ContainerWindow &parent,
           as_label_selection_list, (unsigned)renderer.label_selection);
   SetExpertRow(AirspaceLabelSelection);
 
+#ifdef HAVE_HTTP
+  AddBoolean(_("Show NOTAM labels"),
+             _("Show brief NOTAM text labels on the map when zoomed in sufficiently."),
+             renderer.show_notam_labels);
+  SetExpertRow(ShowNotamLabels);
+#endif
+
   AddFloat(_("Clip altitude"),
            _("For clip airspace mode, this is the altitude below which airspace is displayed."),
-           _T("%.0f %s"), _T("%.0f"), 0, 20000, 100, false,
+           "%.0f %s", "%.0f", 0, 20000, 100, false,
            UnitGroup::ALTITUDE, renderer.clip_altitude);
 
   AddFloat(_("Margin"),
            _("For auto and all below airspace mode, this is the altitude above/below which airspace is included."),
-           _T("%.0f %s"), _T("%.0f"), 0, 10000, 100, false,
+           "%.0f %s", "%.0f", 0, 10000, 100, false,
            UnitGroup::ALTITUDE, computer.warnings.altitude_warning_margin);
 
   AddBoolean(_("Warnings"), _("Enable/disable all airspace warnings."),
@@ -235,6 +247,11 @@ AirspaceConfigPanel::Save(bool &_changed) noexcept
 
   changed |= SaveValueEnum(AirspaceLabelSelection, ProfileKeys::AirspaceLabelSelection, renderer.label_selection);
 
+#ifdef HAVE_HTTP
+  changed |= SaveValue(ShowNotamLabels, ProfileKeys::AirspaceShowNOTAMLabels,
+                       renderer.show_notam_labels);
+#endif
+
   changed |= SaveValue(ClipAltitude, UnitGroup::ALTITUDE, ProfileKeys::ClipAlt, renderer.clip_altitude);
 
   changed |= SaveValue(AltWarningMargin, UnitGroup::ALTITUDE, ProfileKeys::AltMargin, computer.warnings.altitude_warning_margin);
@@ -277,4 +294,3 @@ CreateAirspaceConfigPanel()
 {
   return std::make_unique<AirspaceConfigPanel>();
 }
-
