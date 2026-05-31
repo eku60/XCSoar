@@ -335,6 +335,13 @@ ActionInterface::SendUIState() noexcept
 }
 
 void
+ActionInterface::ScheduleSendUIState() noexcept
+{
+  if (main_window != nullptr)
+    main_window->ScheduleRefreshInfoBoxes();
+}
+
+void
 ActionInterface::SetActiveFrequency(const RadioFrequency freq,
                                     const char *freq_name,
                                     bool to_devices) noexcept
