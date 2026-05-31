@@ -1,25 +1,5 @@
-/*
-Copyright_License {
-
-  XCSoar Glide Computer - http://www.xcsoar.org/
-  Copyright (C) 2000-2016 The XCSoar Project
-  A detailed list of copyright holders can be found in the file "AUTHORS".
-
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the GNU General Public License
-  as published by the Free Software Foundation; either version 2
-  of the License, or (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-}
-*/
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright The XCSoar Project
 
 /**
  * The driver is derived from the KRT2-driver. 
@@ -119,7 +99,7 @@ public:
    *
    * @param _port Port the radio is connected to.
    */
-  explicit AR62xxDevice(Port &_port);
+  AR62xxDevice(Port &_port);
 
 private:
 	IntConvertStruct crc;
@@ -152,7 +132,7 @@ private:
    */
   int 
   SetAR620xStation(uint8_t *command, int active_passive,
-                   double f_frequency, const TCHAR* station) noexcept;
+                   double f_frequency, const char *station) noexcept;
 
   /*
    * Parses the messages which XCSoar receives from the radio.
@@ -191,14 +171,14 @@ public:
    * Sets the active frequency on the radio.
    */
   virtual bool PutActiveFrequency(RadioFrequency frequency,
-                                  const TCHAR *name, 
+                                  const char *name,
                                   OperationEnvironment &env) override;
   
   /**
    * Sets the standby frequency on the radio.
    */
   virtual bool PutStandbyFrequency(RadioFrequency frequency,
-                                   const TCHAR *name, 
+                                   const char *name,
                                    OperationEnvironment &env) override;
   
   /**
@@ -434,7 +414,7 @@ int
 AR62xxDevice::SetAR620xStation(uint8_t *command,
                                int active_passive, 
                                double f_frequency,
-                               [[maybe_unused]] const TCHAR* station) noexcept
+                               [[maybe_unused]] const char* station) noexcept
 {
   unsigned int len = 0;
 
@@ -586,7 +566,7 @@ AR62xxDevice::AR620xConvertAnswer(uint8_t *sz_command,
  */
 bool 
 AR62xxDevice::PutActiveFrequency(RadioFrequency frequency,
-                                 const TCHAR* name, 
+                                 const char *name,
                                  OperationEnvironment &env)
 {
   unsigned int ufreq = frequency.GetKiloHertz();
@@ -605,7 +585,7 @@ AR62xxDevice::PutActiveFrequency(RadioFrequency frequency,
  */
 bool 
 AR62xxDevice::PutStandbyFrequency(RadioFrequency frequency,
-                                  const TCHAR *name, 
+                                  const char *name,
                                   OperationEnvironment &env)
 {
   unsigned int ufreq = frequency.GetKiloHertz();
@@ -624,11 +604,9 @@ AR62xxDevice::PutStandbyFrequency(RadioFrequency frequency,
  * currently unused
  */
 static Device *
-AR62xxCreateOnPort([[maybe_unused]] const DeviceConfig &config, 
-                                  Port &comPort)
+AR62xxCreateOnPort([[maybe_unused]] const DeviceConfig &config, Port &comPort)
 {
-  Device *dev = new AR62xxDevice(comPort);
-  return dev;
+  return new AR62xxDevice(comPort);
 }
 
 /*
@@ -636,8 +614,8 @@ AR62xxCreateOnPort([[maybe_unused]] const DeviceConfig &config,
  * same as in KRT2.cpp
  */
 const struct DeviceRegister ar62xx_driver = {
-  _T("AR62xx"),
-  _T("Becker AR62xx"),
+  "AR62xx",
+  "Becker AR62xx",
 //eku  _T("AR62xx"),
   DeviceRegister::NO_TIMEOUT | DeviceRegister::RAW_GPS_DATA,
   AR62xxCreateOnPort,
