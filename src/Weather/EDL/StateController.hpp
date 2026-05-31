@@ -10,7 +10,8 @@
 namespace EDL {
 
 /**
- * Reset the shared EDL selection for entering the dedicated EDL page.
+ * Initialise EDL state when entering an EDL page after leaving it.
+ * Resyncs forecast time and level only while auto advance is enabled.
  */
 void
 ResetForDedicatedPage() noexcept;
@@ -101,6 +102,10 @@ ClearGpsUiRefreshPending() noexcept;
 void
 ClearOverlay() noexcept;
 
+/**
+ * Return true when EDL should be active: the current page overlay is EDL,
+ * a temporary dedicated EDL layout is active, or an EDL overlay is on the map.
+ */
 bool
 OverlayEnabled() noexcept;
 

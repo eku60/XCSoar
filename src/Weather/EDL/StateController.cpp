@@ -11,8 +11,6 @@
 #include "Language/Language.hpp"
 #include "MapWindow/GlueMapWindow.hpp"
 #include "PageSettings.hpp"
-#include "Profile/Keys.hpp"
-#include "Profile/Profile.hpp"
 #include "UIState.hpp"
 #include "UIGlobals.hpp"
 #include "system/FileUtil.hpp"
@@ -31,6 +29,35 @@ HasDedicatedPageOverlayOwnership() noexcept
 {
   const auto &state = CommonInterface::GetUIState().weather.edl;
   return state.dedicated_page_entered || state.dedicated_page_suspended_for_pan;
+}
+
+static const PageLayout &
+GetActivePageLayout() noexcept
+{
+  const PagesState &pages = CommonInterface::GetUIState().pages;
+  return pages.special_page.IsDefined()
+    ? pages.special_page
+    : CommonInterface::GetUISettings().pages.pages[pages.current_index];
+}
+
+bool
+OverlayVisible() noexcept
+{
+  const auto *map = UIGlobals::GetMap();
+  return map != nullptr &&
+    dynamic_cast<const MbTilesOverlay *>(map->GetOverlay()) != nullptr;
+}
+
+bool
+OverlayEnabled() noexcept
+{
+  if (OverlayVisible())
+    return true;
+
+  if (HasDedicatedPageOverlayOwnership())
+    return true;
+
+  return GetActivePageLayout().UsesEdlOverlay();
 }
 
 void
@@ -59,7 +86,7 @@ EnsureInitialised() noexcept
       ? ResolveLevelBelow()
       : ResolveCurrentLevel();
 
-  if (CommonInterface::GetComputerSettings().weather.edl.enabled &&
+  if (OverlayEnabled() &&
       state.status == EDLWeatherUIState::Status::DISABLED)
     state.status = EDLWeatherUIState::Status::IDLE;
 }
@@ -67,24 +94,7 @@ EnsureInitialised() noexcept
 bool
 ShouldMaintainOverlay() noexcept
 {
-  if (!OverlayEnabled())
-    return false;
-
-  if (OverlayVisible())
-    return true;
-
-  if (HasDedicatedPageOverlayOwnership())
-    return true;
-
-  const PagesState &pages = CommonInterface::GetUIState().pages;
-  const PageLayout &layout = pages.special_page.IsDefined()
-    ? pages.special_page
-    : CommonInterface::GetUISettings().pages.pages[pages.current_index];
-
-  if (layout.UsesEdlOverlay())
-    return true;
-
-  return false;
+  return OverlayEnabled();
 }
 
 bool
@@ -168,17 +178,16 @@ void
 ResetForDedicatedPage() noexcept
 {
   auto &state = CommonInterface::SetUIState().weather.edl;
-  /* Dedicated EDL pages always start from the next UTC forecast hour
-     and current aircraft altitude instead of preserving a stale view. */
-  state.forecast_datetime =
-    GetTrackedForecastTime(BrokenDateTime::NowUTC());
-  state.forecast_auto_advance = true;
-  UpdateCurrentLevel();
 
-  if (CommonInterface::GetComputerSettings().weather.edl.enabled)
-    state.status = EDLWeatherUIState::Status::IDLE;
-  else
-    state.status = EDLWeatherUIState::Status::DISABLED;
+  /* On first entry after leaving an EDL page, resync only when auto
+     advance is enabled; manual forecast/level choices are kept. */
+  if (state.forecast_auto_advance) {
+    state.forecast_datetime =
+      GetTrackedForecastTime(BrokenDateTime::NowUTC());
+    UpdateCurrentLevel();
+  }
+
+  state.status = EDLWeatherUIState::Status::IDLE;
 }
 
 void
@@ -230,20 +239,6 @@ ClearOverlay() noexcept
   map->SetOverlay(nullptr);
 }
 
-bool
-OverlayEnabled() noexcept
-{
-  return CommonInterface::GetComputerSettings().weather.edl.enabled;
-}
-
-bool
-OverlayVisible() noexcept
-{
-  const auto *map = UIGlobals::GetMap();
-  return map != nullptr &&
-    dynamic_cast<const MbTilesOverlay *>(map->GetOverlay()) != nullptr;
-}
-
 void
 SetLoadingStatus() noexcept
 {
@@ -292,12 +287,7 @@ ApplyOverlay(Path path)
 void
 RefreshOverlayVisibility() noexcept
 {
-  const PagesState &pages = CommonInterface::GetUIState().pages;
-  const PageLayout &layout = pages.special_page.IsDefined()
-    ? pages.special_page
-    : CommonInterface::GetUISettings().pages.pages[pages.current_index];
-
-  if (layout.UsesEdlOverlay() || HasDedicatedPageOverlayOwnership())
+  if (OverlayEnabled())
     return;
 
   ClearOverlay();

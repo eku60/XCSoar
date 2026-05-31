@@ -776,6 +776,9 @@ protected:
   void NextControlRect(PixelRect &rc, unsigned height) noexcept {
     assert(IsDefined());
 
+    if (height == 0)
+      height = 1;
+
     rc.top = rc.bottom;
     rc.bottom = rc.top + height;
   }

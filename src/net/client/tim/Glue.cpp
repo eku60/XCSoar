@@ -13,15 +13,27 @@ namespace TIM {
 
 Glue::Glue(CurlGlobal &_curl) noexcept
   :curl(_curl),
-   inject_task(curl.GetEventLoop())
+   task(curl.GetEventLoop())
 {
 }
 
-Glue::~Glue() noexcept = default;
+Glue::~Glue() noexcept
+{
+  BeginShutdown();
+}
+
+void
+Glue::BeginShutdown() noexcept
+{
+  task.BeginShutdown();
+}
 
 void
 Glue::OnTimer(const NMEAInfo &basic) noexcept
 {
+  if (task.IsShuttingDown())
+    return;
+
   if (!basic.gps.real || !basic.location_available)
     /* we need a real GPS location */
     return;
@@ -30,7 +42,7 @@ Glue::OnTimer(const NMEAInfo &basic) noexcept
     /* no link; do not start ThermalInfoMap request (see SkyLines Glue) */
     return;
 
-  if (inject_task)
+  if (task.IsRunning())
     /* still running */
     return;
 
@@ -39,7 +51,7 @@ Glue::OnTimer(const NMEAInfo &basic) noexcept
     return;
 
   // TODO for some privacy, don't transmit exact location
-  inject_task.Start(Start(basic.location), BIND_THIS_METHOD(OnCompletion));
+  task.Start(Start(basic.location), BIND_THIS_METHOD(OnCompletion));
 }
 
 Co::InvokeTask
