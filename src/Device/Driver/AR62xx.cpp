@@ -39,9 +39,15 @@ constexpr uint8_t HEADER_ID = 0xA5;
 
 /* Some defines */
 #define PROTID  0x14;
+#define BIT(n) (1 << (n))
+#define QUERY   BIT(7)
+#define DUAL    BIT(8)
+#define SQUELCH BIT(7)
+#define NAME_SIZE 30
 #define MAX_CMD_LEN 128
 #define ACTIVE_STATION  1
 #define PASSIVE_STATION 0
+#define SWAP_STATION 2
 
 union IntConvertStruct {
   uint16_t int_val16;
@@ -59,6 +65,21 @@ struct Radio {
      MHz are represented as floating point and the channel too is shown
      as floating point on the display 
    */
+  const char *passive_name[NAME_SIZE] ; // passive (or standby) station name
+  const char *active_name[NAME_SIZE] ;  //active station name
+  int volume ;            // Radio Volume
+  int squelch ;           // Radio Squelch
+  int vox ;               // Radio Intercom Volume
+  bool changed;           // Parameter Changed Flag  (TRUE = parameter changed)
+  bool enabled;           // Radio Installed d Flag  (TRUE = Radio found)
+  bool dual;              // Dual Channel mode active flag     (TRUE = on)
+  bool enabled_8_33;      // 8,33kHz Radio enabled   (TRUE = 8,33kHz)
+  bool rx;                // Radio reception active  (TRUE = reception)
+  bool tx;                // Radio transmission active (TRUE = transmission)
+  bool rx_active;         // Radio reception on active station (TRUE = reception)
+  bool rx_standy;         // Radio reception on passive        (standby) station
+  bool low_bat;           // low Battery flag                  (TRUE = Batt low)
+  bool tx_timeout;        // Timeout while transmission (2Min)
 };
 
 /**
@@ -105,7 +126,7 @@ private:
 	IntConvertStruct crc;
 	IntConvertStruct s_frequency;
 	bool b_sending = false;
-
+    IntConvertStruct s_status;
   /**
    * Sends a message to the radio.
    *
@@ -197,6 +218,18 @@ public:
    */
   virtual bool DataReceived(std::span<const std::byte> s,
                             struct NMEAInfo &info) noexcept override;
+
+  /*
+   * Sets the chosen volumelevel
+   */
+  virtual bool PutVolume(unsigned volume, OperationEnvironment &env) override;
+
+  /*
+   * Changes the active freuquecy to passive and passive frequency to active
+   */
+  virtual bool ExchangeRadioFrequencies(
+              [[maybe_unused]] OperationEnvironment &env,
+              [[maybe_unused]] NMEAInfo &info) override;
 };
 
 /*
@@ -206,6 +239,7 @@ public:
 AR62xxDevice::AR62xxDevice(Port &_port) : port(_port)
 {
   AR62xxDevice::response = ACK;
+  radio_para.enabled_8_33 = true;
 }
 
 /**
@@ -398,6 +432,8 @@ AR62xxDevice::CRCBitwise(uint8_t *data,
   return (crc);
 }
 
+//Methods dealing with messages going to the radio
+
 /**
  * This function sets the station name and frequency on the AR62xx
  *
@@ -425,23 +461,29 @@ AR62xxDevice::SetAR620xStation(uint8_t *command,
     return false;
   }
 
-  /* converting both actual frequencies active and passive */
-  IntConvertStruct active_freq_idx;  
-  active_freq_idx.int_val16  = Freq2Idx(radio_para.active_frequency);
-  IntConvertStruct passive_freq_idx; 
-  passive_freq_idx.int_val16 = Freq2Idx(radio_para.passive_frequency);
-  command [len++] = HEADER_ID ;
-  command [len++] = PROTID ;
+  command [len++] = HEADER_ID;
+  command [len++] = PROTID;
   command [len++] = 5;
 
+  /* converting both actual frequencies active and passive */
+  IntConvertStruct active_freq_idx;
+  IntConvertStruct passive_freq_idx;
+
   /* converting the frequency to be changed */
-  switch (active_passive) { 
+  switch (active_passive) {
+    case SWAP_STATION:
+      active_freq_idx.int_val16  = Freq2Idx(radio_para.passive_frequency);
+      passive_freq_idx.int_val16 = Freq2Idx(radio_para.active_frequency);
+      break;
     case ACTIVE_STATION:
       active_freq_idx.int_val16 = Freq2Idx(f_frequency);
+      passive_freq_idx.int_val16 = Freq2Idx(radio_para.passive_frequency);
+      break;
+    case PASSIVE_STATION:
+      active_freq_idx.int_val16  = Freq2Idx(radio_para.active_frequency);
+      passive_freq_idx.int_val16 = Freq2Idx(f_frequency);
       break;
     default:
-    case PASSIVE_STATION:
-      passive_freq_idx.int_val16 = Freq2Idx(f_frequency);
       break;
   }
 
@@ -456,11 +498,91 @@ AR62xxDevice::SetAR620xStation(uint8_t *command,
   return len;
 }
 
+/**
+ * Exchanges the active with the passive frequency
+ * return true when successful
+ */
+bool
+AR62xxDevice::ExchangeRadioFrequencies(
+              [[maybe_unused]] OperationEnvironment &env,
+              [[maybe_unused]] NMEAInfo &info)
+{
+  double active_freq = radio_para.active_frequency;
+  //double passive_freq = radio_para.passive_frequency; not used here
+  uint8_t sz_tmp[MAX_CMD_LEN] = {};
+  int len = SetAR620xStation(sz_tmp, SWAP_STATION, active_freq, NULL);
+  bool is_sent = Send((uint8_t *) &sz_tmp, len, env);
+  return is_sent;
+}
+
+/**
+ * Sets the active frequency on the radio.
+ * same as in KRT2.cpp
+ */
+bool 
+AR62xxDevice::PutActiveFrequency(RadioFrequency frequency,
+                                 const char *name,
+                                 OperationEnvironment &env)
+{
+  unsigned int ufreq = frequency.GetKiloHertz();
+  double freq = ufreq / 1000.0;
+  int len;
+  uint8_t sz_tmp[MAX_CMD_LEN] = {};
+  len = SetAR620xStation(sz_tmp ,ACTIVE_STATION, freq, name);
+  /* len seems to be the same as sizeof(szTmp)*/
+  bool is_sent = Send((uint8_t *) &sz_tmp, len, env);
+  return is_sent;
+}
+
+/**
+ * Sets the standby (passive) frequency on the radio.
+ * same as in KRT2.cpp
+ */
+bool 
+AR62xxDevice::PutStandbyFrequency(RadioFrequency frequency,
+                                  const char *name,
+                                  OperationEnvironment &env)
+{
+  unsigned int ufreq = frequency.GetKiloHertz();
+  double freq = ufreq / 1000.0;
+  int len;
+  uint8_t sz_tmp[MAX_CMD_LEN] = {};
+  len = SetAR620xStation(sz_tmp ,PASSIVE_STATION, freq, name);
+  bool is_sent = Send((uint8_t *) &sz_tmp, len, env);
+  return is_sent;
+}
+
+/**
+ * Puts the volume to the given value volume
+ * returns tru when successful
+ */
+bool
+AR62xxDevice::PutVolume(unsigned volume, OperationEnvironment &env)
+{
+  assert(volume == NULL);
+
+  uint8_t sz_tmp[MAX_CMD_LEN] = {};
+  unsigned int len = 0;
+  sz_tmp[len++] = HEADER_ID ;
+  sz_tmp [len++] = PROTID ;
+  sz_tmp [len++] = 5;
+  sz_tmp [len++] = 3; /* setting frequencies-command byte in the protocol */
+  radio_para.volume = (int)volume*5 + 50;
+  sz_tmp [len++] = radio_para.volume;
+  crc.int_val16 =  CRCBitwise(sz_tmp, len); /* Creating the binary value */
+  sz_tmp [len++] = crc.int_val8[1];
+  sz_tmp [len++] = crc.int_val8[0];
+  bool is_sent = Send((uint8_t *) &sz_tmp, len, env);
+  return is_sent;
+}
+
+//Methods dealing with messages coming from the radio
+
 /*
  * Parses the messages which XCSoar receives from the radio.
  */
-bool 
-AR62xxDevice::AR620xParseString(const char *msg_string, 
+bool
+AR62xxDevice::AR620xParseString(const char *msg_string,
                                 size_t len)
 {
   size_t cnt = 0;
@@ -510,17 +632,23 @@ AR62xxDevice::AR620xParseString(const char *msg_string,
  *                of a function (act. freq., pass. freq.)
  * len            length of the AR620x binary code to be converted
  */
-int 
-AR62xxDevice::AR620xConvertAnswer(uint8_t *sz_command, 
-                                  int len, 
+int
+AR62xxDevice::AR620xConvertAnswer(uint8_t *sz_command,
+                                  int len,
                                   uint16_t crc)
 {
-  
+
   if(sz_command == NULL) return 0;
   if(len == 0) return 0;
 
   static uint16_t ui_last_channel_crc = 0;
   static uint16_t ui_version_crc = 0;
+  static uint16_t ui_volume_crc  = 0;
+  static uint16_t ui_status_crc  = 0;
+  static uint16_t ui_squelch_crc = 0;
+  static uint16_t ui_rx_status_crc = 0;
+  uint32_t ul_state;
+  //int processed = 0;
 
 #ifdef RADIO_VOLTAGE
   static uint16_t ui_voltage_crc = 0;
@@ -553,48 +681,48 @@ AR62xxDevice::AR620xConvertAnswer(uint8_t *sz_command,
         s_frequency.int_val8[0] = sz_command[7] ;
         radio_para.passive_frequency = Idx2Freq(s_frequency.int_val16);
       }
-    break;
+      break;
+    case 3: //Volume settings
+       if(ui_volume_crc != crc){
+        ui_volume_crc = crc;
+        radio_para.changed = true;
+        radio_para.volume = (50-(int)sz_command[4])/5;
+      }
+      break;
+    case 4: //Squelsh settings
+      if(ui_squelch_crc!= crc){
+        ui_squelch_crc = crc;
+        radio_para.changed = true;
+        radio_para.squelch = (int)(sz_command[4]-6)/2+1;  // 6 + (Squelch-1)*2
+      }
+      break;
+    case 12: //Dual scan
+      if(ui_status_crc != crc){
+        ui_status_crc = crc;
+        radio_para.changed = true;
+        s_status.int_val8[1] = sz_command[4] ;
+        s_status.int_val8[0] = sz_command[5] ;
+        if(s_status.int_val16 & DUAL)
+          radio_para.dual = true;
+        else
+          radio_para.dual = false;
+      }
+      break;
+    case 64://Status information
+      if(ui_rx_status_crc != crc) {
+        ui_rx_status_crc = crc;
+        ul_state = sz_command[4] << 24 | sz_command[5] << 16 | sz_command[6] << 8 | sz_command[7];
+        radio_para.tx        = ((ul_state & (BIT(5)| BIT(6))) > 0) ? true : false;
+        radio_para.rx_active = ((ul_state & BIT(7)) > 0)  ? true : false;
+        radio_para.rx_standy = ((ul_state & BIT(8)) > 0)  ? true : false;
+        radio_para.rx        = (radio_para.rx_active || radio_para.rx_standy );
+        radio_para.changed = true;
+      }
+      break;
     default:
-    break;
+      break;
   }
   return 0;  /* return the number of converted characters */
-}
-
-/**
- * Sets the active frequency on the radio.
- * same as in KRT2.cpp
- */
-bool 
-AR62xxDevice::PutActiveFrequency(RadioFrequency frequency,
-                                 const char *name,
-                                 OperationEnvironment &env)
-{
-  unsigned int ufreq = frequency.GetKiloHertz();
-  double freq = ufreq / 1000.0;
-  int len;
-  uint8_t sz_tmp[MAX_CMD_LEN] = {};
-  len = SetAR620xStation(sz_tmp ,ACTIVE_STATION, freq, name);
-  /* len seems to be the same as sizeof(szTmp)*/
-  bool is_sent = Send((uint8_t *) &sz_tmp, len, env);
-  return is_sent;
-}
-
-/**
- * Sets the standby (passive) frequency on the radio.
- * same as in KRT2.cpp
- */
-bool 
-AR62xxDevice::PutStandbyFrequency(RadioFrequency frequency,
-                                  const char *name,
-                                  OperationEnvironment &env)
-{
-  unsigned int ufreq = frequency.GetKiloHertz();
-  double freq = ufreq / 1000.0;
-  int len;
-  uint8_t sz_tmp[MAX_CMD_LEN] = {};
-  len = SetAR620xStation(sz_tmp ,PASSIVE_STATION, freq, name);
-  bool is_sent = Send((uint8_t *) &sz_tmp, len, env);
-  return is_sent;
 }
 
 /*
