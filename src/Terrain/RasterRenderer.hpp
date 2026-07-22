@@ -18,6 +18,7 @@ class WindowProjection;
 class RawBitmap;
 struct RawColor;
 struct ColorRamp;
+struct ColumnContourPending;
 
 #ifdef ENABLE_OPENGL
 class GLTexture;
@@ -43,7 +44,7 @@ class RasterRenderer {
    * Step size used for slope calculations.  Slope shading is disabled
    * when this attribute is 0.
    */
-  unsigned quantisation_effective;
+  unsigned quantisation_effective = 0;
 
 #ifdef ENABLE_OPENGL
   /**
@@ -59,7 +60,19 @@ class RasterRenderer {
 
   unsigned char *contour_column_base = nullptr;
 
-  double pixel_size;
+  /**
+   * Contour line thickness in pixels, computed from display DPI.
+   */
+  unsigned contour_thickness = 1;
+
+  /**
+   * Per-column deferred contour expansion. For contour lines thicker than 1,
+   * this array tracks upcoming pixels that are part of a contour line 
+   * from higher up and do not need to be rendered as terrain.
+   */
+  ColumnContourPending *contour_pending = nullptr;
+
+  double pixel_size = 0;
 
   RawColor *color_table = nullptr;
 
@@ -78,6 +91,28 @@ public:
     return height_matrix.GetSize();
   }
 
+  /**
+   * Geographic size of one rendered pixel in meters, computed
+   * by the ScanMap() call.
+   */
+  [[gnu::pure]]
+  double GetPixelSize() const noexcept {
+    return pixel_size;
+  }
+
+  unsigned GetQuantisationPixels() const noexcept {
+    return quantisation_pixels;
+  }
+
+  /**
+   * Returns true if contour lines are currently rendered (i.e. not
+   * suppressed due to extreme zoom-out).
+   */
+  [[gnu::pure]]
+  bool AreContoursVisible() const noexcept {
+    return quantisation_effective > 0;
+  }
+
 #ifdef ENABLE_OPENGL
   void Invalidate() noexcept {
     bounds.SetInvalid();
@@ -89,7 +124,7 @@ public:
    * regardless of user idle state.
    */
   void SetQuantisationPixels(unsigned q) noexcept {
-    quantisation_pixels = q;
+    quantisation_pixels = q < 1 ? 1u : q;
 #ifdef ENABLE_OPENGL
     fixed_quantisation = true;
 #endif
@@ -126,11 +161,14 @@ public:
 
   /**
    * Convert the height matrix into the image.
+   *
+   * @param contour_spacing draw contour lines every N height-domain units;
+   * 0 disables contours.  Useful values are powers of two.
    */
   void GenerateImage(bool do_shading,
                      unsigned height_scale, int contrast, int brightness,
                      const Angle sunazimuth,
-                     bool do_contour) noexcept;
+                     unsigned contour_spacing) noexcept;
 
   const RawBitmap &GetImage() const noexcept {
     return *image;

@@ -11,10 +11,25 @@
 
 /**
  * This class keeps track of the traffic objects received from a
- * FLARM.
+ * FLARM device and injected online traffic merged into the same list.
  */
 struct TrafficList {
-  static constexpr size_t MAX_COUNT = 25;
+  /**
+   * Typical maximum simultaneous PFLAA targets from one FLARM device.
+   */
+  static constexpr size_t DEVICE_MAX_COUNT = 25;
+  static constexpr size_t ONLINE_MAX_COUNT = 64;
+
+  /**
+   * Maximum traffic entries in this list.  Matches the largest online
+   * traffic batch the XCSoar Cloud server may send plus the local
+   * device FLARM traffic that may be merged into it.
+   */
+  static constexpr size_t MAX_COUNT =
+    DEVICE_MAX_COUNT + ONLINE_MAX_COUNT;
+
+  static_assert(MAX_COUNT >= DEVICE_MAX_COUNT + ONLINE_MAX_COUNT,
+                "combined list must hold device and online traffic");
 
   /**
    * Time stamp of the latest modification to this object.
@@ -28,6 +43,11 @@ struct TrafficList {
 
   /** Flarm traffic information */
   TrivialArray<FlarmTraffic, MAX_COUNT> list;
+
+  constexpr void ClampListSize() noexcept {
+    if (list.size() > MAX_COUNT)
+      list.resize(MAX_COUNT);
+  }
 
   constexpr void Clear() noexcept {
     modified.Clear();
@@ -44,6 +64,8 @@ struct TrafficList {
    * this one.
    */
   constexpr void Complement(const TrafficList &add) noexcept {
+    ClampListSize();
+
     if (add.modified.Modified(modified))
       modified = add.modified;
 
@@ -54,11 +76,14 @@ struct TrafficList {
       /* don't bother merging the two lists, we can simply memcpy()
          it */
       list = add.list;
+      ClampListSize();
       return;
     }
 
-    // Add unique traffic from 'add' list
-    for (auto &traffic : add.list) {
+    const unsigned add_count =
+      add.list.size() > MAX_COUNT ? MAX_COUNT : add.list.size();
+    for (unsigned i = 0; i < add_count; ++i) {
+      const FlarmTraffic &traffic = add.list[i];
       if (FindTraffic(traffic.id) == nullptr) {
         FlarmTraffic * new_traffic = AllocateTraffic();
         if (new_traffic == nullptr)
@@ -72,9 +97,14 @@ struct TrafficList {
     modified.Expire(clock, std::chrono::minutes(5));
     new_traffic.Expire(clock, std::chrono::minutes(1));
 
-    for (unsigned i = list.size(); i-- > 0;)
+    ClampListSize();
+
+    for (unsigned i = 0; i < list.size(); ) {
       if (!list[i].Refresh(clock))
         list.quick_remove(i);
+      else
+        ++i;
+    }
   }
 
   constexpr unsigned GetActiveTrafficCount() const noexcept {
@@ -88,9 +118,11 @@ struct TrafficList {
    * @return the FLARM_TRAFFIC pointer, NULL if not found
    */
   constexpr FlarmTraffic *FindTraffic(FlarmId id) noexcept {
-    for (auto &traffic : list)
-      if (traffic.id == id)
-        return &traffic;
+    ClampListSize();
+
+    for (unsigned i = 0; i < list.size(); ++i)
+      if (list[i].id == id)
+        return &list[i];
 
     return NULL;
   }
@@ -102,9 +134,11 @@ struct TrafficList {
    * @return the FLARM_TRAFFIC pointer, NULL if not found
    */
   constexpr const FlarmTraffic *FindTraffic(FlarmId id) const noexcept {
-    for (const auto &traffic : list)
-      if (traffic.id == id)
-        return &traffic;
+    const unsigned n = list.size() > MAX_COUNT ? MAX_COUNT : list.size();
+
+    for (unsigned i = 0; i < n; ++i)
+      if (list[i].id == id)
+        return &list[i];
 
     return NULL;
   }
@@ -145,6 +179,8 @@ struct TrafficList {
    * @return the FLARM_TRAFFIC pointer, NULL if the array is full
    */
   constexpr FlarmTraffic *AllocateTraffic() noexcept {
+    ClampListSize();
+
     return list.full()
       ? NULL
       : &list.append();

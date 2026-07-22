@@ -90,11 +90,12 @@ TEST_NAMES = \
 	TestValidity TestUTM \
 	TestAllocatedGrid \
 	TestRadixTree TestGeoBounds TestGeoClip \
-	TestLogger TestGRecord TestClimbAvCalc \
+	TestLogger TestGRecord TestClimbAvCalc TestFilteredVarioComputer \
+	TestVarioSynthesiser TestAudioVario \
 	TestWaypointReader TestThermalBase \
 	TestFlarmNet TestFlarmMessaging \
-	TestColorRamp TestGeoPoint TestDiffFilter \
-	TestFileUtil TestPolars TestCSVLine TestGlidePolar \
+	TestColorRamp TestXCThermBandQuery TestGeoPoint TestDiffFilter \
+	TestFileUtil TestRepository TestFileType TestPath TestPolars TestCSVLine TestGlidePolar \
 	test_replay_task TestProjection TestFlatPoint TestFlatLine TestFlatGeoPoint \
 	TestMacCready TestOrderedTask TestAATPoint TestTaskSave \
 	TestTaskFileSeeYouParsing \
@@ -105,9 +106,10 @@ TEST_NAMES = \
 	TestZeroFinder \
 	TestAirspaceWarningManager \
 	TestAirspaceParser \
+	TestOGNAprsParser \
 	TestMETARParser \
 	TestIGCParser \
-	TestStrings TestUTF8 TestWrapText \
+	TestStrings TestUnescapeCString TestUTF8 TestWrapText \
 	TestInputConfig \
 	TestCRC16 TestCRC8 \
 	TestUnitsFormatter \
@@ -115,24 +117,33 @@ TEST_NAMES = \
 	TestHexColorFormatter \
 	TestByteSizeFormatter \
 	TestTimeFormatter \
+	TestFileMetadataFormatter \
 	TestIGCFilenameFormatter \
 	TestNMEAFormatter \
 	TestLXNToIGC \
 	TestLeastSquares \
 	TestHexString \
+	TestUriUtil \
 	TestThermalBand \
 	TestPackedFloat \
 	TestVersionNumber \
 	TestWeglideScoring \
 	TestNetCoupeScoring \
-	TestDMStScoring \
-	TestHttpsVerify
+	TestDMStScoring
+	# TestHttpsVerify — disabled: live HTTPS fetch to download.xcsoar.org
+	# is unreliable in CI (network/infrastructure flake)
 
 ifeq ($(TARGET_IS_ANDROID),n)
 # These programs are broken on Android because they require Java code
 TEST_NAMES += \
 	TestProfile \
 	TestDriver
+endif
+
+ifeq ($(HAVE_WIN32),n)
+TEST_NAMES += \
+	TestDataLayoutMigration \
+	TestLocalPathResolve
 endif
 
 ifeq ($(HAVE_WIN32),y)
@@ -149,6 +160,11 @@ TEST_HEX_STRING_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestHexString.cpp
 $(eval $(call link-program,TestHexString,TEST_HEX_STRING))
+
+TEST_URI_UTIL_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestUriUtil.cpp
+$(eval $(call link-program,TestUriUtil,TEST_URI_UTIL))
 
 TEST_CRC16_SOURCES = \
 	$(SRC)/util/CRC16CCITT.cpp \
@@ -198,6 +214,25 @@ TEST_METAR_PARSER_SOURCES = \
 TEST_METAR_PARSER_DEPENDS = MATH UTIL UNITS
 $(eval $(call link-program,TestMETARParser,TEST_METAR_PARSER))
 
+TEST_NAMES += TestWeatherUIState
+
+TEST_WEATHER_UI_STATE_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestWeatherUIState.cpp
+TEST_WEATHER_UI_STATE_DEPENDS = TIME UTIL
+$(eval $(call link-program,TestWeatherUIState,TEST_WEATHER_UI_STATE))
+
+TEST_NAMES += TestWeatherOverlayPagePlacement
+
+TEST_WEATHER_OVERLAY_PAGE_PLACEMENT_SOURCES = \
+	$(SRC)/PageSettings.cpp \
+	$(TEST_SRC_DIR)/PageOverlayTitleStub.cpp \
+	$(TEST_SRC_DIR)/FakeLanguage.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestWeatherOverlayPagePlacement.cpp
+TEST_WEATHER_OVERLAY_PAGE_PLACEMENT_DEPENDS = TIME UTIL
+$(eval $(call link-program,TestWeatherOverlayPagePlacement,TEST_WEATHER_OVERLAY_PAGE_PLACEMENT))
+
 ifeq ($(HAVE_HTTP),y)
 TEST_NAMES += TestEDL
 
@@ -205,6 +240,8 @@ TEST_EDL_SOURCES = \
 	$(SRC)/LocalPath.cpp \
 	$(SRC)/Version.cpp \
 	$(SRC)/Weather/EDL/TileStore.cpp \
+	$(SRC)/Weather/EDL/TileValue.cpp \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestEDL.cpp
 TEST_EDL_DEPENDS = LIBHTTP ASYNC LIBNET IO OS THREAD MATH TIME UTIL
@@ -212,12 +249,14 @@ $(eval $(call link-program,TestEDL,TEST_EDL))
 
 TEST_NOTAM_SOURCES = \
 	$(SRC)/Atmosphere/Pressure.cpp \
+	$(SRC)/DataFilePath.cpp \
 	$(SRC)/Formatter/TimeFormatter.cpp \
 	$(SRC)/Version.cpp \
 	$(SRC)/NOTAM/Client.cpp \
 	$(SRC)/NOTAM/Delta.cpp \
 	$(SRC)/NOTAM/NOTAMCache.cpp \
 	$(SRC)/NOTAM/Filter.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(TEST_SRC_DIR)/FakeLocalPath.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(TEST_SRC_DIR)/tap.c \
@@ -248,6 +287,14 @@ TEST_AIRSPACE_WARNING_MANAGER_SOURCES = \
 	$(TEST_SRC_DIR)/TestAirspaceWarningManager.cpp
 TEST_AIRSPACE_WARNING_MANAGER_DEPENDS = $(TEST1_DEPENDS) UNITS
 $(eval $(call link-program,TestAirspaceWarningManager,TEST_AIRSPACE_WARNING_MANAGER))
+
+TEST_OGN_APRS_PARSER_SOURCES = \
+	$(SRC)/Cloud/OGNAprs.cpp \
+	$(SRC)/Cloud/OGNTraffic.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestOGNAprsParser.cpp
+TEST_OGN_APRS_PARSER_DEPENDS = GEO MATH UTIL UNITS
+$(eval $(call link-program,TestOGNAprsParser,TEST_OGN_APRS_PARSER))
 
 TEST_DATE_TIME_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
@@ -342,6 +389,7 @@ TEST_TASKFILE_SEEYOU_PARSING_SOURCES = \
 	$(SRC)/IGC/IGCParser.cpp \
 	$(SRC)/Waypoint/Factory.cpp \
 	$(SRC)/RadioFrequency.cpp \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(TEST_SRC_DIR)/FakeTerrain.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestTaskFileSeeYouParsing.cpp
@@ -352,6 +400,7 @@ $(eval $(call link-program,TestTaskFileSeeYouParsing,TEST_TASKFILE_SEEYOU_PARSIN
 TEST_PLANES_SOURCES = \
 	$(SRC)/Polar/Parser.cpp \
 	$(SRC)/Plane/PlaneFileGlue.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(TEST_SRC_DIR)/FakeLocalPath.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -386,6 +435,7 @@ TEST_TEAM_CODE_DEPENDS = GEO MATH UTIL
 $(eval $(call link-program,TestTeamCode,TEST_TEAM_CODE))
 
 TEST_TROUTE_SOURCES = \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(TEST_SRC_DIR)/Printing.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/test_troute.cpp
@@ -393,6 +443,7 @@ TEST_TROUTE_DEPENDS = TERRAIN OPERATION IO ZZIP OS ROUTE GLIDE GEO MATH UTIL
 $(eval $(call link-program,test_troute,TEST_TROUTE))
 
 TEST_REACH_SOURCES = \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(TEST_SRC_DIR)/Printing.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/test_reach.cpp
@@ -406,6 +457,7 @@ TEST_ROUTE_SOURCES = \
 	$(SRC)/Formatter/AirspaceFormatter.cpp \
 	$(SRC)/TransponderCode.cpp \
 	$(SRC)/Atmosphere/Pressure.cpp \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(TEST_SRC_DIR)/Printing.cpp \
 	$(TEST_SRC_DIR)/AirspacePrinting.cpp \
 	$(TEST_SRC_DIR)/harness_airspace.cpp \
@@ -521,6 +573,15 @@ TEST_CLIMB_AV_CALC_SOURCES = \
 TEST_CLIMB_AV_CALC_DEPENDS = MATH
 $(eval $(call link-program,TestClimbAvCalc,TEST_CLIMB_AV_CALC))
 
+TEST_FILTERED_VARIO_COMPUTER_SOURCES = \
+	$(SRC)/Atmosphere/AirDensity.cpp \
+	$(SRC)/Computer/FilteredVarioComputer.cpp \
+	$(ENGINE_SRC_DIR)/Util/VarioOutputFilter.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestFilteredVarioComputer.cpp
+TEST_FILTERED_VARIO_COMPUTER_DEPENDS = LIBNMEA GEO MATH UTIL UNITS TIME
+$(eval $(call link-program,TestFilteredVarioComputer,TEST_FILTERED_VARIO_COMPUTER))
+
 TEST_PROJECTION_SOURCES = \
 	$(SRC)/Projection/Projection.cpp \
 	$(TEST_SRC_DIR)/tap.c \
@@ -566,6 +627,16 @@ TEST_BYTE_SIZE_FORMATTER_SOURCES = \
 TEST_BYTE_SIZE_FORMATTER_DEPENDS = MATH UTIL
 $(eval $(call link-program,TestByteSizeFormatter,TEST_BYTE_SIZE_FORMATTER))
 
+TEST_FILE_METADATA_FORMATTER_SOURCES = \
+	$(SRC)/Formatter/ByteSizeFormatter.cpp \
+	$(SRC)/Formatter/TimeFormatter.cpp \
+	$(SRC)/system/FileUtil.cpp \
+	$(SRC)/system/Path.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestFileMetadataFormatter.cpp
+TEST_FILE_METADATA_FORMATTER_DEPENDS = MATH UTIL TIME
+$(eval $(call link-program,TestFileMetadataFormatter,TEST_FILE_METADATA_FORMATTER))
+
 TEST_TIME_FORMATTER_SOURCES = \
 	$(SRC)/Formatter/TimeFormatter.cpp \
 	$(TEST_SRC_DIR)/tap.c \
@@ -602,6 +673,13 @@ TEST_STRINGS_SOURCES = \
 	$(TEST_SRC_DIR)/TestStrings.cpp
 TEST_STRINGS_DEPENDS = UTIL
 $(eval $(call link-program,TestStrings,TEST_STRINGS))
+
+TEST_UNESCAPE_CSTRING_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestUnescapeCString.cpp \
+	$(SRC)/util/UnescapeCString.cpp
+TEST_UNESCAPE_CSTRING_DEPENDS = UTIL
+$(eval $(call link-program,TestUnescapeCString,TEST_UNESCAPE_CSTRING))
 
 TEST_UTF8_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
@@ -675,6 +753,75 @@ TEST_FILE_UTIL_SOURCES = \
 TEST_FILE_UTIL_DEPENDS = UTIL
 $(eval $(call link-program,TestFileUtil,TEST_FILE_UTIL))
 
+TEST_PATH_SOURCES = \
+	$(SRC)/system/Path.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestPath.cpp
+TEST_PATH_DEPENDS = UTIL
+$(eval $(call link-program,TestPath,TEST_PATH))
+
+TEST_REPOSITORY_SOURCES = \
+	$(SRC)/Repository/Parser.cpp \
+	$(SRC)/Repository/FileRepository.cpp \
+	$(SRC)/Repository/FileType.cpp \
+	$(SRC)/system/Path.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestRepository.cpp
+TEST_REPOSITORY_DEPENDS = UTIL
+$(eval $(call link-program,TestRepository,TEST_REPOSITORY))
+
+TEST_FILE_TYPE_SOURCES = \
+	$(SRC)/Repository/FileType.cpp \
+	$(SRC)/system/Path.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestFileType.cpp
+TEST_FILE_TYPE_DEPENDS = UTIL
+$(eval $(call link-program,TestFileType,TEST_FILE_TYPE))
+
+TEST_DATA_LAYOUT_MIGRATION_SOURCES = \
+	$(SRC)/DataFileLayout.cpp \
+	$(SRC)/DataLayoutMigration.cpp \
+	$(SRC)/DataFilePath.cpp \
+	$(SRC)/LocalPath.cpp \
+	$(SRC)/Profile/Profile.cpp \
+	$(SRC)/Profile/PathValue.cpp \
+	$(SRC)/Repository/FileType.cpp \
+	$(SRC)/system/FileUtil.cpp \
+	$(SRC)/system/Path.cpp \
+	$(SRC)/io/FileOutputStream.cxx \
+	$(TEST_SRC_DIR)/FakeAsset.cpp \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(TEST_SRC_DIR)/FakeUtilsSettings.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestDataLayoutMigration.cpp
+TEST_DATA_LAYOUT_MIGRATION_DEPENDS = PROFILE IO OS UTIL
+$(eval $(call link-program,TestDataLayoutMigration,TEST_DATA_LAYOUT_MIGRATION))
+
+TEST_LOCAL_PATH_RESOLVE_SOURCES = \
+	$(SRC)/DataFileLayout.cpp \
+	$(SRC)/DataFilePath.cpp \
+	$(SRC)/Form/DataField/Base.cpp \
+	$(SRC)/Form/DataField/ComboList.cpp \
+	$(SRC)/Form/DataField/File.cpp \
+	$(SRC)/LocalPath.cpp \
+	$(SRC)/Repository/FileType.cpp \
+	$(SRC)/system/FileUtil.cpp \
+	$(SRC)/system/Path.cpp \
+	$(SRC)/io/FileOutputStream.cxx \
+	$(TEST_SRC_DIR)/FakeAsset.cpp \
+	$(TEST_SRC_DIR)/FakeLanguage.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestLocalPathResolve.cpp
+TEST_LOCAL_PATH_RESOLVE_DEPENDS = IO OS UTIL
+$(eval $(call link-program,TestLocalPathResolve,TEST_LOCAL_PATH_RESOLVE))
+
+TEST_TAR_ARCHIVE_SOURCES = \
+	$(SRC)/io/MemoryReader.cxx \
+	$(SRC)/io/TarArchive.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestTarArchive.cpp
+TEST_TAR_ARCHIVE_DEPENDS = IO UTIL
+$(eval $(call link-program,TestTarArchive,TEST_TAR_ARCHIVE))
 TEST_GEO_POINT_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestGeoPoint.cpp
@@ -726,6 +873,13 @@ TEST_COLOR_RAMP_SOURCES = \
 TEST_COLOR_RAMP_CPPFLAGS = $(SCREEN_CPPFLAGS)
 $(eval $(call link-program,TestColorRamp,TEST_COLOR_RAMP))
 
+TEST_XCTHERM_BAND_QUERY_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(SRC)/Weather/xctherm/XCThermGeoQuery.cpp \
+	$(TEST_SRC_DIR)/TestXCThermBandQuery.cpp
+TEST_XCTHERM_BAND_QUERY_DEPENDS = GEO MATH
+$(eval $(call link-program,TestXCThermBandQuery,TEST_XCTHERM_BAND_QUERY))
+
 TEST_SUN_EPHEMERIS_SOURCES = \
 	$(SRC)/Math/SunEphemeris.cpp \
 	$(TEST_SRC_DIR)/tap.c \
@@ -743,6 +897,27 @@ TEST_VALIDITY_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestValidity.cpp
 $(eval $(call link-program,TestValidity,TEST_VALIDITY))
+
+TEST_VARIO_SYNTHESISER_SOURCES = \
+	$(SRC)/Audio/ToneSynthesiser.cpp \
+	$(SRC)/Audio/VarioSynthesiser.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestVarioSynthesiser.cpp
+TEST_VARIO_SYNTHESISER_DEPENDS = MATH THREAD
+$(eval $(call link-program,TestVarioSynthesiser,TEST_VARIO_SYNTHESISER))
+
+TEST_AUDIO_VARIO_SOURCES = \
+	$(SRC)/Audio/ToneSynthesiser.cpp \
+	$(SRC)/Audio/VarioAudioValue.cpp \
+	$(SRC)/Audio/VarioSynthesiser.cpp \
+	$(SRC)/Atmosphere/AirDensity.cpp \
+	$(SRC)/Computer/STF.cpp \
+	$(SRC)/Engine/GlideSolvers/GlidePolar.cpp \
+	$(SRC)/NMEA/Aircraft.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestAudioVario.cpp
+TEST_AUDIO_VARIO_DEPENDS = GEO MATH THREAD UTIL
+$(eval $(call link-program,TestAudioVario,TEST_AUDIO_VARIO))
 
 TEST_ALLOCATED_GRID_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
@@ -789,6 +964,7 @@ TEST_DRIVER_SOURCES = \
 	$(SRC)/Device/Util/NMEAReader.cpp \
 	$(SRC)/Device/Declaration.cpp \
 	$(SRC)/Device/Config.cpp \
+	$(SRC)/DataFilePath.cpp \
 	$(SRC)/FLARM/Error.cpp \
 	$(SRC)/FLARM/Traffic.cpp \
 	$(SRC)/FLARM/TrafficDatabases.cpp \
@@ -811,6 +987,7 @@ TEST_DRIVER_SOURCES = \
 	$(SRC)/TransponderCode.cpp \
 	$(SRC)/TransponderMode.cpp \
 	$(SRC)/Formatter/NMEAFormatter.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(ENGINE_SRC_DIR)/Waypoint/Waypoint.cpp \
 	$(SRC)/Engine/GlideSolvers/GlidePolar.cpp \
@@ -819,6 +996,7 @@ TEST_DRIVER_SOURCES = \
 	$(TEST_SRC_DIR)/FakeGeoid.cpp \
 	$(TEST_SRC_DIR)/FakeLanguage.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(SRC)/Tracking/SkyLines/FlarmTrafficBuilder.cpp \
 	$(TEST_SRC_DIR)/TestDriver.cpp
 TEST_DRIVER_DEPENDS = DRIVER OPERATION LIBNMEA GEO MATH IO OS THREAD UTIL TIME GLIDE COMPUTER TASK LOGGER
 $(eval $(call link-program,TestDriver,TEST_DRIVER))
@@ -846,6 +1024,7 @@ $(eval $(call link-program,TestTrace,TEST_TRACE))
 
 FLIGHT_TABLE_SOURCES = \
 	$(SRC)/IGC/IGCParser.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(TEST_SRC_DIR)/FlightTable.cpp
 FLIGHT_TABLE_DEPENDS = GEO MATH IO OS UTIL
 $(eval $(call link-program,FlightTable,FLIGHT_TABLE))
@@ -912,7 +1091,7 @@ DEBUG_PROGRAM_NAMES += \
 	RunExternalWind \
 	RunTask \
 	LoadImage ViewImage \
-	RunCanvas RunMapWindow \
+	RunCanvas RunMapWindow RunRichTextRenderer \
 	RunListControl \
 	RunTextEntry RunNumberEntry RunDateEntry RunTimeEntry RunAngleEntry \
 	RunGeoPointEntry \
@@ -1007,8 +1186,10 @@ DEBUG_REPLAY_SOURCES = \
 	$(SRC)/FLARM/Traffic.cpp \
 	$(SRC)/FLARM/List.cpp \
 	$(SRC)/Computer/BasicComputer.cpp \
+	$(SRC)/Computer/FilteredVarioComputer.cpp \
 	$(SRC)/Computer/GroundSpeedComputer.cpp \
 	$(SRC)/Computer/FlyingComputer.cpp \
+	$(ENGINE_SRC_DIR)/Util/VarioOutputFilter.cpp \
 	$(SRC)/Atmosphere/AirDensity.cpp \
 	$(SRC)/Atmosphere/Pressure.cpp \
 	$(SRC)/Engine/Navigation/Aircraft.cpp \
@@ -1167,6 +1348,7 @@ $(eval $(call link-program,RunLiveTrack24,RUN_LIVETRACK24))
 
 RUN_REPOSITORY_PARSER_SOURCES = \
 	$(SRC)/Repository/FileRepository.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Repository/Parser.cpp \
 	$(TEST_SRC_DIR)/RunRepositoryParser.cpp
 RUN_REPOSITORY_PARSER_DEPENDS = LIBNET IO OS UTIL
@@ -1269,6 +1451,7 @@ LOAD_TOPOGRAPHY_CPPFLAGS = $(SCREEN_CPPFLAGS)
 $(eval $(call link-program,LoadTopography,LOAD_TOPOGRAPHY))
 
 LOAD_TERRAIN_SOURCES = \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/LoadTerrain.cpp
 LOAD_TERRAIN_CPPFLAGS = $(SCREEN_CPPFLAGS)
@@ -1276,6 +1459,7 @@ LOAD_TERRAIN_DEPENDS = TERRAIN OPERATION GEO MATH OS IO ZZIP UTIL
 $(eval $(call link-program,LoadTerrain,LOAD_TERRAIN))
 
 RUN_HEIGHT_MATRIX_SOURCES = \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(SRC)/Projection/Projection.cpp \
 	$(SRC)/Projection/WindowProjection.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
@@ -1804,8 +1988,43 @@ RUN_CANVAS_LDADD = $(FAKE_LIBS)
 RUN_CANVAS_DEPENDS = FORM SCREEN EVENT ASYNC OS IO THREAD MATH UTIL
 $(eval $(call link-program,RunCanvas,RUN_CANVAS))
 
+RUN_RICH_TEXT_RENDERER_SOURCES = \
+	$(SRC)/Dialogs/DialogSettings.cpp \
+	$(SRC)/Dialogs/WidgetDialog.cpp \
+	$(SRC)/Form/CheckBox.cpp \
+	$(SRC)/UIUtil/GestureManager.cpp \
+	$(SRC)/UIUtil/TrackingGestureManager.cpp \
+	$(SRC)/ui/event/Idle.cpp \
+	$(SRC)/Math/FastTrig.cpp \
+	$(SRC)/Math/Angle.cpp \
+	$(SRC)/util/MarkdownParser.cpp \
+	$(SRC)/ResourceLookup.cpp \
+	$(SRC)/system/OpenLink.cpp \
+	$(SRC)/RadioFrequency.cpp \
+	$(SRC)/Version.cpp \
+	$(SRC)/system/StandardVersion.cpp \
+	$(MORE_SCREEN_SOURCES) \
+	$(SRC)/Look/DialogLook.cpp \
+	$(SRC)/Look/ButtonLook.cpp \
+	$(SRC)/Look/CheckBoxLook.cpp \
+	$(SRC)/Formatter/HexColor.cpp \
+	$(TEST_SRC_DIR)/Fonts.cpp \
+	$(TEST_SRC_DIR)/FakeAsset.cpp \
+	$(TEST_SRC_DIR)/FakeLanguage.cpp \
+	$(TEST_SRC_DIR)/FakeHelpDialog.cpp \
+	$(TEST_SRC_DIR)/FakeDialogs.cpp \
+	$(TEST_SRC_DIR)/FakeInternalLink.cpp \
+	$(TEST_SRC_DIR)/FakeResourceLoader.cpp \
+	$(TEST_SRC_DIR)/RunRichTextRenderer.cpp
+RUN_RICH_TEXT_RENDERER_LDADD = $(FAKE_LIBS)
+RUN_RICH_TEXT_RENDERER_DEPENDS = GEO WIDGET DATA_FIELD SCREEN FORM EVENT RESOURCE ASYNC OS IO THREAD MATH UTIL ZLIB TIME LOOK
+$(eval $(call link-program,RunRichTextRenderer,RUN_RICH_TEXT_RENDERER))
+
+$(call SRC_TO_OBJ,$(TEST_SRC_DIR)/RunRichTextRenderer.cpp): $(OUT)/include/QuickGuideNEWS.hpp
+
 RUN_MAP_WINDOW_SOURCES = \
 	$(CONTEST_SRC_DIR)/Settings.cpp \
+	$(SRC)/DataFilePath.cpp \
 	$(SRC)/Engine/Util/Gradient.cpp \
 	$(SRC)/Engine/Trace/Point.cpp \
 	$(SRC)/Engine/Trace/Trace.cpp \
@@ -1816,6 +2035,7 @@ RUN_MAP_WINDOW_SOURCES = \
 	$(IO_SRC_DIR)/MapFile.cpp \
 	$(IO_SRC_DIR)/DataFile.cpp \
 	$(IO_SRC_DIR)/ConfiguredFile.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Engine/Navigation/TraceHistory.cpp \
 	$(SRC)/FLARM/Id.cpp \
 	$(SRC)/FLARM/Friends.cpp \
@@ -1853,6 +2073,7 @@ RUN_MAP_WINDOW_SOURCES = \
 	$(SRC)/Renderer/CompassRenderer.cpp \
 	$(SRC)/Renderer/FinalGlideBarRenderer.cpp \
 	$(SRC)/Renderer/TrackLineRenderer.cpp \
+	$(SRC)/Renderer/TurnBackMarkerRenderer.cpp \
 	$(SRC)/Renderer/TrafficRenderer.cpp \
 	$(SRC)/Renderer/TrailRenderer.cpp \
 	$(SRC)/Renderer/WaypointIconRenderer.cpp \
@@ -1861,6 +2082,7 @@ RUN_MAP_WINDOW_SOURCES = \
 	$(SRC)/Renderer/WaypointLabelList.cpp \
 	$(SRC)/Renderer/WindArrowRenderer.cpp \
 	$(SRC)/Renderer/WaveRenderer.cpp \
+	$(SRC)/Renderer/DistanceRingsRenderer.cpp \
 	$(SRC)/Math/Screen.cpp \
 	$(MORE_SCREEN_SOURCES) \
 	$(SRC)/Renderer/LabelBlock.cpp \
@@ -1870,6 +2092,7 @@ RUN_MAP_WINDOW_SOURCES = \
 	$(SRC)/Audio/VarioSettings.cpp \
 	$(SRC)/DisplaySettings.cpp \
 	$(SRC)/PageSettings.cpp \
+	$(TEST_SRC_DIR)/PageOverlayTitleStub.cpp \
 	$(SRC)/InfoBoxes/InfoBoxSettings.cpp \
 	$(SRC)/Dialogs/DialogSettings.cpp \
 	$(SRC)/Gauge/VarioSettings.cpp \
@@ -1889,6 +2112,7 @@ RUN_MAP_WINDOW_SOURCES = \
 	$(SRC)/Formatter/UserUnits.cpp \
 	$(SRC)/Formatter/AirspaceUserUnitsFormatter.cpp \
 	$(SRC)/Formatter/HexColor.cpp \
+	$(SRC)/DataFilePath.cpp \
 	$(SRC)/Profile/Profile.cpp \
 	$(SRC)/Profile/ComputerProfile.cpp \
 	$(SRC)/Profile/TaskProfile.cpp \
@@ -1901,6 +2125,7 @@ RUN_MAP_WINDOW_SOURCES = \
 	$(SRC)/Profile/TerrainConfig.cpp \
 	$(SRC)/Profile/Screen.cpp \
 	$(SRC)/Profile/FlarmProfile.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Waypoint/HomeGlue.cpp \
 	$(SRC)/Waypoint/LastUsed.cpp \
 	$(SRC)/Waypoint/WaypointGlue.cpp \
@@ -1927,6 +2152,7 @@ endif
 
 RUN_MAP_WINDOW_DEPENDS = \
 	LIBMAPWINDOW \
+	FLARM \
 	PROFILE TERRAIN TOPO \
 	FORM \
 	LOOK \
@@ -2300,6 +2526,7 @@ RUN_ANALYSIS_SOURCES = \
 	$(SRC)/UISettings.cpp \
 	$(SRC)/DisplaySettings.cpp \
 	$(SRC)/PageSettings.cpp \
+	$(TEST_SRC_DIR)/PageOverlayTitleStub.cpp \
 	$(SRC)/InfoBoxes/InfoBoxSettings.cpp \
 	$(SRC)/Gauge/VarioSettings.cpp \
 	$(SRC)/Gauge/TrafficSettings.cpp \
@@ -2310,6 +2537,8 @@ RUN_ANALYSIS_SOURCES = \
 	$(SRC)/MapSettings.cpp \
 	$(SRC)/Blackboard/InterfaceBlackboard.cpp \
 	$(SRC)/Engine/Navigation/TraceHistory.cpp \
+	$(SRC)/DataFilePath.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Airspace/ActivePredicate.cpp \
 	$(SRC)/Airspace/ProtectedAirspaceWarningManager.cpp \
 	$(SRC)/Airspace/AirspaceParser.cpp \
@@ -2369,6 +2598,7 @@ RUN_AIRSPACE_WARNING_DIALOG_SOURCES = \
 	$(SRC)/UISettings.cpp \
 	$(SRC)/DisplaySettings.cpp \
 	$(SRC)/PageSettings.cpp \
+	$(TEST_SRC_DIR)/PageOverlayTitleStub.cpp \
 	$(SRC)/InfoBoxes/InfoBoxSettings.cpp \
 	$(SRC)/Gauge/VarioSettings.cpp \
 	$(SRC)/Gauge/TrafficSettings.cpp \
@@ -2378,6 +2608,9 @@ RUN_AIRSPACE_WARNING_DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Airspace/dlgAirspaceWarnings.cpp \
 	$(SRC)/Dialogs/DialogSettings.cpp \
 	$(SRC)/Dialogs/WidgetDialog.cpp \
+	$(SRC)/DataFilePath.cpp \
+	$(SRC)/LocalPath.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Airspace/AirspaceParser.cpp \
 	$(SRC)/Airspace/AirspaceGlue.cpp \
 	$(SRC)/TransponderCode.cpp \
@@ -2419,6 +2652,7 @@ RUN_PROFILE_LIST_DIALOG_SOURCES = \
 	$(SRC)/Look/CheckBoxLook.cpp \
 	$(SRC)/LocalPath.cpp \
 	$(SRC)/Formatter/HexColor.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(MORE_SCREEN_SOURCES) \
 	$(TEST_SRC_DIR)/Fonts.cpp \
 	$(TEST_SRC_DIR)/FakeAsset.cpp \
@@ -2473,6 +2707,7 @@ RUN_TASK_EDITOR_DIALOG_SOURCES = \
 	$(SRC)/Units/Settings.cpp \
 	$(SRC)/Units/Descriptor.cpp \
 	$(SRC)/Formatter/Units.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Waypoint/WaypointGlue.cpp \
 	$(SRC)/Waypoint/Factory.cpp \
 	$(TEST_SRC_DIR)/FakeAsset.cpp \
@@ -2629,7 +2864,7 @@ $(eval $(call link-program,TestDMStScoring,TEST_DMST_SCORING))
 TEST_VERSION_NUMBER_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestVersionNumber.cpp
-TEST_VERSION_NUMBER_DEPENDS = MATH UTILS
+TEST_VERSION_NUMBER_DEPENDS = MATH UTIL
 $(eval $(call link-program,TestVersionNumber,TEST_VERSION_NUMBER))
 
 TEST_HTTPS_VERIFY_SOURCES = \

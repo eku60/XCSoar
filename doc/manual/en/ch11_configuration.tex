@@ -311,8 +311,19 @@ changed terrain settings are directly visible at the small preview below.
   the wind direction, with upwind slopes bright, and downwind slopes shaded.
 \item[Terrain contrast*]  Defines the amount of Phong shading in the terrain rendering. 
   Use large values to emphasise terrain slope, smaller values if flying in steep mountains.
-\item[Terrain brightness*]  Defines the brightness (whiteness) of the terrain rendering. 
+\item[Terrain brightness*]  Defines the brightness (whiteness) of the terrain rendering.
   This controls the average illumination of the terrain.
+\item[Contours*]  Draws contour lines on the terrain.  Two groups of
+  modes are available.
+  The adaptive modes ({\bf Mountains}, {\bf Highlands}, {\bf Lowlands},
+  {\bf Superfine}) set a base line density that is automatically scaled
+  with the zoom level to avoid over-cluttering at small scales.
+  {\bf Mountains} is for areas with steep slopes, with a 256\,m base
+  spacing; the other adaptive modes provide progressively smaller
+  spacing and higher line density.
+  The fixed modes ({\bf Fixed 256\,m}, {\bf Fixed 128\,m},
+  {\bf Fixed 64\,m}) use a constant contour spacing regardless of zoom
+  level.
 \end{description}
 
 
@@ -388,6 +399,41 @@ pattern you wish the selected airspace class to be drawn in.
 
 \subsection*{Filters}
 The filter function is described in Section~\ref{sec:airspace-filter}.
+
+\subsection*{NOTAM}
+
+This page configures downloading and display of NOTAM affected areas.
+NOTAMs are shown as airspaces on the map and are intended for
+situational awareness only; they do not replace a proper NOTAM briefing.
+See Section~\ref{sec:notam-airspace}.
+
+\begin{description}
+\item[NOTAM Support]  Enables downloading and display of NOTAMs from
+  aviation authorities.
+\item[API URL]  Base URL of the NOTAM proxy API.
+\item[Search Radius]  Radius around the current location for which NOTAMs
+  are downloaded.  If the aircraft moves outside the loaded area and
+  Internet access is available, XCSoar downloads NOTAMs for the new area.
+\item[Auto-Refresh (minutes)]  Time interval for automatic NOTAM updates.
+  Set this to 0 to disable automatic refresh and use manual refresh only.
+\item[Show IFR-Only NOTAMs]  Includes NOTAMs marked as IFR-only traffic.
+  This is disabled by default.
+\item[Show Only Currently Effective]  Hides NOTAMs which are not effective
+  at the current time.  This is enabled by default.
+\item[Maximum NOTAM Radius]  Hides NOTAMs whose affected radius is larger
+  than this value.  Set this to 0 to disable the radius filter.  The
+  default is 100~km.
+\item[Hidden Q-Codes]  Space-separated list of Q-code prefixes to hide.
+  Prefixes are matched case-insensitively.  The default list is
+  \texttt{QA QK QN QOL QOA QOBTT}, hiding administrative, checklist,
+  navigation-aid and obstacle-lighting or obstacle-administration notices.
+\end{description}
+
+The read-only rows below the filter settings show how many loaded NOTAMs
+are currently filtered by each filter.  The \button{Refresh} button saves
+the current settings and requests a new download for the current
+position.  The \button{List} button opens the current NOTAM list for
+review.
 
 
 %%%%%%%%%%%%%%%%%%

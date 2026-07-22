@@ -333,7 +333,8 @@ Event list
      Use ``reset`` to erase all user markers.
  * - ``Mode M``
    - Sets the current input event mode. The argument is the label
-     of the mode to activate (e.g. ``default``, ``Menu``).
+     of the mode to activate (e.g. ``default``, ``Menu``, ``mc``,
+     ``weather``).
  * - ``NearestAirspaceDetails``
    - If airspace warnings are active, opens the airspace warnings
      dialog. Otherwise, finds the nearest airspace (within 30
@@ -456,6 +457,22 @@ Event list
  * - ``UserDisplayModeForce M``
    - Forces a display mode. Possible arguments: ``unforce``,
      ``forceclimb``, ``forcecruise``, ``forcefinal``.
+ * - ``VarioAudioMode``
+   - Controls whether the internal audio vario uses Vario or STF
+     tones. Possible arguments: ``auto`` (switch automatically
+     between Vario in circling and STF in cruise), ``manual`` (keep
+     the current runtime manual mode; after a restart, manual mode
+     starts in Vario), ``vario`` (manual Vario), ``stf``
+     (manual speed-to-fly), ``toggle`` (toggle manual Vario/STF),
+     ``show`` (display the current mode). STF audio needs valid
+     airspeed and total-energy vario input; in the built-in simulator,
+     manual STF stays silent and auto cruise falls back to vario unless
+     such input is provided.
+ * - ``VarioVolume``
+   - Adjusts the internal audio vario volume. Possible arguments:
+     ``mute`` (toggle mute and restore the previous level when hit
+     again), ``up`` / ``+`` (increase and unmute), ``down`` / ``-``
+     (decrease and unmute), ``show`` (display current value).
  * - ``WaypointDetails W``
    - Displays airfield/waypoint details.
 
@@ -477,6 +494,31 @@ Event list
    - Opens the waypoint editor/configuration dialog.
  * - ``Weather``
    - Opens the weather dialog.
+ * - ``WeatherOverlay``
+   - Adjusts the active map weather overlay cursor bar (EDL, RASP, or
+     XCTherm). Only has an effect on map pages that show weather overlay
+     controls. Arguments use a common ``<axis> …`` prefix:
+
+     **Time:** ``time +``, ``time -`` (step forecast time), ``time picker``
+     (open the time picker with Auto, Now, and manual selection)
+
+     **Time auto/manual:** ``time auto toggle``, ``time auto on``,
+     ``time auto off``, ``time auto show``
+
+     **Secondary axis:** ``field +``, ``field -`` (step layer, pressure
+     level, or altitude band). ``altitude +/-`` and EDL ``level +/-`` are
+     accepted as aliases.
+
+     **Secondary list:** ``field picker``, ``layer picker``, or
+     ``level picker`` (open the ComboPicker list for the active overlay).
+
+     **Secondary auto/manual:** ``field auto toggle`` (and ``altitude auto
+     …``, ``level auto …`` aliases). On RASP, secondary auto falls back
+     to time auto when no secondary axis exists.
+
+     RASP overlays support time and layer selection. EDL overlays support
+     time and pressure level. XCTherm overlays map the secondary axis to
+     altitude bands and time to forecast hours.
  * - ``Zoom Z``
    - Controls map zoom. Possible arguments: ``auto toggle``,
      ``auto on``, ``auto off``, ``auto show``, ``in``, ``out``,
@@ -503,6 +545,17 @@ Built-in modes
 - ``infobox`` -- an InfoBox has been selected.
 - ``pan`` -- pan mode is active.
 - ``Menu`` -- a menu level is open.
+- ``mc`` -- MacCready adjustment mode. Entered from ``mode=default`` via
+  the ``Mode mc`` event (default key ``3``). Stick UP/DOWN adjust MC;
+  RETURN toggles auto/manual MC; ESCAPE returns to ``default``.
+- ``weather`` -- weather overlay cursor bar mode. Enter from the quick
+  menu (**Forecast Controls** on RemoteStick) or via the ``Mode weather``
+  event. Stick UP/DOWN step the secondary axis (layer, level, or
+  altitude), LEFT/RIGHT step time, RETURN opens the time picker, ESCAPE
+  returns to ``default``. In ``mode=weather``, F2 opens the secondary
+  list and F3 toggles auto (secondary axis on EDL/XCTherm, time auto on
+  RASP). The map overlay **+** / **−** buttons always zoom the map.
+  See :ref:`weather-overlay-mode` below.
 - ``wptimg`` -- the waypoint details dialog is on an **image** page;
   key bindings in this map control zoom and pan of the image (the
   ``WaypointImage`` event) without inheriting the normal ``default``
@@ -510,6 +563,85 @@ Built-in modes
 
 You may define any additional mode names to build custom menu
 hierarchies.
+
+.. _weather-overlay-mode:
+
+Weather overlay mode (``mode=weather``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When a map page displays EDL, RASP, or XCTherm overlay controls in the
+bottom cursor bar, open the quick menu (F1 or the ULDR gesture) and choose
+**Forecast Controls** (RemoteStick), or bind ``Mode weather`` elsewhere,
+to enter ``mode=weather`` so stick and button bindings can adjust forecast
+time and the secondary axis without leaving the map. Pressing ESCAPE
+returns to ``default``.
+
+The built-in stick bindings in :file:`Data/Input/default.xci` are:
+
+.. list-table::
+ :widths: 20 50 30
+ :header-rows: 1
+
+ * - Input
+   - Event
+   - Action
+ * - UP / DOWN
+   - ``WeatherOverlay field +/-``
+   - Step layer (RASP), pressure level (EDL), or altitude band (XCTherm)
+ * - LEFT / RIGHT
+   - ``WeatherOverlay time -/+``
+   - Step forecast time
+ * - RETURN
+   - ``WeatherOverlay time picker``
+   - Open time picker (Auto, Now, manual)
+ * - F2
+   - ``WeatherOverlay field picker``
+   - Open secondary-axis list (layer, level, or altitude)
+ * - F3
+   - ``WeatherOverlay field auto toggle``
+   - Toggle secondary auto (EDL/XCTherm) or time auto (RASP)
+ * - ESCAPE
+   - ``Mode default``
+   - Exit weather input mode
+
+The map overlay **+** / **−** buttons always zoom the map (they are not
+remapped in weather mode). On-screen menubar buttons (locations 1--7)
+mirror the stick actions:
+
+.. list-table::
+ :widths: 15 35 50
+ :header-rows: 1
+
+ * - Location
+   - Action
+   - Label (overlay-specific)
+ * - 1
+   - Time step back
+   - ``Time- (LEFT)``
+ * - 2
+   - Secondary list
+   - Layer / Level / Altitude list (``F2``)
+ * - 3
+   - Auto toggle
+   - Time auto (RASP) or secondary auto (EDL/XCTherm) (``F3``)
+ * - 4
+   - Time step forward
+   - ``Time+ (RIGHT)``
+ * - 5
+   - Secondary step up
+   - ``Field+ / Level+ / Altitude+ (UP)``
+ * - 6
+   - Secondary step down
+   - ``Field- / Level- / Altitude- (DOWN)``
+ * - 7
+   - Time picker
+   - ``Time Picker (RETURN)``
+
+Tapping the secondary cursor-bar label also opens the list picker. The
+map title shows the active overlay layer when applicable.
+
+The same ``WeatherOverlay`` arguments can be bound in any mode (for
+example from ``mode=default``) if you prefer not to use ``mode=weather``.
 
 Labels
 ~~~~~~

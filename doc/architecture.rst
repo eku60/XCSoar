@@ -23,11 +23,11 @@ section tries to give a rough overview where you can find what.
 -  :file:`Units/`: conversion from SI units (“System” units) to configured
    user units
 
--  :FILE:`NMEA/`: data structures for values parsed from NMEA
+-  :file:`NMEA/`: data structures for values parsed from NMEA
 
 -  :file:`Profile/`: user profiles, loading from and saving to
 
--  :FILE:`IGC/`: support for the IGC file format
+-  :file:`IGC/`: support for the IGC file format
 
 -  :file:`Logger/`: all loggers (NMEA, IGC, flights)
 
@@ -51,7 +51,7 @@ section tries to give a rough overview where you can find what.
    operations
 
 -  :file:`Android/`: code specific to Android (the native part only; Java
-   code is in :file:`android/src/`
+   code is in :file:`android/src/`)
 
 -  :file:`Engine/PathSolvers/`: an implementation of Dijkstra’s path finding
    algorithm, for task and contest optimisation
@@ -68,6 +68,42 @@ section tries to give a rough overview where you can find what.
 
 -  :file:`Engine/Route/`: the route planner (airspace and terrain)
 
+-  :file:`io/`: stream and file I/O (readers, writers, archives). Keep this
+   layer free of UI and backend singletons; device-specific listing belongs
+   in :file:`Storage/`
+
+-  :file:`Repository/`: filename patterns and typed data directories
+   (:file:`FileType`); see :doc:`data_directory` for the on-disk layout
+
+-  :file:`Storage/`: removable storage enumeration, hotplug monitors, and
+   the :file:`StorageDevice` abstraction (platform code in
+   :file:`Storage/linux/`, :file:`Storage/win/`, :file:`Storage/android/`)
+
+-  :file:`Device/`, :file:`Computer/`, :file:`Blackboard/`: sensor drivers,
+   glide computer, and thread-specific data copies
+
+-  :file:`Dialogs/DataManagement/`: data management UI (import, export,
+   backup, file explorer)
+
+Layer dependencies
+~~~~~~~~~~~~~~~~~~
+
+Rough dependency direction (see also project rules in
+:file:`.cursor/rules/xcsoar-project-rules.mdc`):
+
+- **Foundation** (:file:`util/`, :file:`Math/`, :file:`Geo/`, :file:`io/`,
+  :file:`system/`) must not include Engine, Backend, or UI headers.
+
+- **Engine** uses Foundation only.
+
+- **Backend** (:file:`Device/`, :file:`Computer/`, :file:`Storage/`,
+  :file:`NOTAM/`, …) uses Foundation and Engine. Access UI only through
+  event queues (:file:`InputEvents`, :file:`UI::Notify`), not dialogs.
+
+- **UI** (:file:`Dialogs/`, :file:`Form/`, :file:`Interface.hpp`) may use all
+  layers below it. Helpers such as :file:`Storage/StorageUtil.cpp` that read
+  :file:`BackendComponents` are backend/UI glue, not Foundation.
+
 Threads and Locking
 -------------------
 
@@ -79,19 +115,19 @@ allow expensive background calculations.
 
 This is how it looks like on Windows and Linux/SDL (software rendering):
 
-.. blockdiag::
+.. graphviz::
 
-    blockdiag threads {
-      Devices [stacked];
-      Devices -> MergeThread [label = "sensors", fontsize=8];
-      MergeThread -> CalcThread [label = "sensors", fontsize=8];
+   digraph threads {
+     graph [fontsize=10];
+     node [fontsize=10];
+     edge [fontsize=8];
 
-      CalcThread -> UIThread [folded, label = "results", fontsize=8];
-
-      IOThread -> UIThread [label = "data", fontsize=8];
-
-      UIThread <-> DrawThread [label = "redraw", fontsize=8];
-    }
+     Devices -> MergeThread [label="sensors"];
+     MergeThread -> CalcThread [label="sensors"];
+     CalcThread -> UIThread [label="results"];
+     IOThread -> UIThread [label="data"];
+     UIThread -> DrawThread [dir=both, label="redraw"];
+   }
 
 The UI thread is the main thread.  It starts the other threads and is
 responsible for the UI event loop.  No other thread is allowed to
@@ -165,14 +201,19 @@ clients. Each client that uses :file:`Net::AsyncTask` should implement
 torn down. The global pointer is cleared later in :file:`Startup.cpp`
 (``DestroyNetComponents``).
 
-**Shutdown order** (see :file:`Startup.cpp`):
+**Shutdown order** (see :file:`Startup.cpp`; simplified):
 
 1. ``NetComponents::BeginShutdown()`` — cancel coroutines and queued
    downloads; clear map pointers to TIM / SkyLines data
-2. Stop merge and calculation threads; destroy UI
-3. ``delete net_components``
-4. On process exit, :file:`Net::Deinitialise` destroys :file:`CurlGlobal`
-   on the **asio** thread (:file:`DrainCurl` in :file:`net/http/Init.cpp`)
+2. ``MainWindow::BeginShutdown()``; stop merge and calculation threads;
+   join them; deinitialise map and devices
+3. ``MainWindow::DeinitialiseStorage()`` — unregister storage UI listeners
+4. ``StorageManager::StopMonitoring()`` — stop hotplug; destructor joins
+   the enumeration worker when ``delete backend_components`` runs
+5. ``delete backend_components`` and ``delete data_components``
+6. ``DestroyNetComponents()``; destroy :file:`MainWindow`
+7. On process exit, :file:`Net::Deinitialise` destroys :file:`CurlGlobal` on
+   the **asio** thread (:file:`DrainCurl` in :file:`net/http/Init.cpp`)
 
 **Deferred UI refresh:** callbacks such as async terrain load or
 blackboard updates must not call :file:`PageActions::Update` or
@@ -189,6 +230,62 @@ layout while InfoBoxes are being created. Use
 example :file:`Weather/EDL/DownloadGlue.cpp`). New providers (such as
 XCTherm) should follow the same split: listener on the UI thread,
 network I/O on the asio thread, UI updates via :file:`UI::Notify`.
+
+Background file jobs
+~~~~~~~~~~~~~~~~~~~~
+
+Not all background work uses the network thread. **Local file jobs**
+(tar backup/restore, import/export copies, device enumeration) use other
+mechanisms:
+
+- **Modal progress on the UI thread:** :file:`JobDialog` runs a
+  :file:`Job` subclass on a short-lived worker thread
+  (:file:`Job/Thread.cpp`) while showing :file:`ProgressDialog`. The UI
+  thread stays responsive; progress is reported through
+  :file:`OperationEnvironment`.
+
+- **Modal network work:** :file:`ShowCoDialog` runs a coroutine on the
+  asio thread (see above). Do not use :file:`JobDialog` for HTTP.
+
+- **Fire-and-forget helpers:** some UI actions start a detached
+  :file:`std::thread` for a single task (for example deleting a file on
+  removable media). Keep captured state alive (for example
+  :file:`std::shared_ptr<StorageDevice>`) and avoid UI calls from that
+  thread.
+
+When modifying shared backend data (waypoints, airspaces) during such
+jobs, use :file:`ScopeSuspendAllThreads` from :file:`Protection.hpp` where
+appropriate.
+
+Storage and removable media
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**BackendComponents** (:file:`BackendComponents.hpp`) owns backend
+singletons including :file:`storage_manager` (:file:`StorageManager`).
+:file:`NetComponents` is separate and holds long-lived HTTP clients only.
+
+:file:`StorageManager` (:file:`Storage/StorageManager.cpp`):
+
+- Owns the platform hotplug monitor and storage enumerator.
+- Receives topology events (from a platform worker or the UI event loop,
+  depending on the backend).
+- Runs device re-enumeration on a **dedicated worker thread** so sysfs,
+  Win32, or SAF walks do not block the UI.
+- Invokes a constructor-supplied ``NotifyCallback`` (wired in
+  :file:`Startup.cpp` to :file:`MainWindow::SendStorageNotification`) so
+  the UI thread calls :file:`ProcessPendingChanges()` and dispatches
+  :file:`StorageEvent` notifications to listeners.
+
+UI code registers :file:`StorageEventListener` instances on the main
+thread (for example :file:`StorageLocationPickerDialog`). Use
+:file:`StorageUtil` (:file:`FindDeviceByName`, :file:`FormatStorageCaption`,
+:file:`EnumerateTarFiles`) from UI or backend glue — not from Foundation
+:file:`io/` (stream-only tar create/restore lives in :file:`io/TarBackup`).
+
+**Thread lifetime:** when starting a new storage worker, join any
+**finished** previous :file:`std::thread` before move-assigning a new one;
+otherwise the C++ runtime calls ``std::terminate()``. The destructor
+joins the worker after :file:`StopMonitoring()`.
 
 Locking
 ~~~~~~~
@@ -230,21 +327,24 @@ of various data structures just for the main thread.
 
 This is how sensor data moves inside XCSoar:
 
-.. blockdiag::
+.. graphviz::
 
-    blockdiag threads {
-      Devices [stacked];
-      MergeThread [label="MergeThread\nBasicComputer\nDeviceBlackboard"];
-      CalcThread [label="CalcThread\nGlideComputer\nGlideComputerBlackboard"];
-      UIThread [label="UIThread\nInterfaceBlackboard\nBlackboardListener"];
-      DrawThread [label="DrawThread\nMapWindow\nMapWindowBlackboard"];
+   digraph threads {
+     graph [fontsize=10];
+     node [fontsize=10];
+     edge [fontsize=8];
 
-      Devices -> MergeThread [folded, label = "NMEAInfo", fontsize=8];
-      MergeThread -> CalcThread [folded, label = "MoreData", fontsize=8];
+     Devices [label="Devices"];
+     MergeThread [label="MergeThread\nBasicComputer\nDeviceBlackboard"];
+     CalcThread [label="CalcThread\nGlideComputer\nGlideComputerBlackboard"];
+     UIThread [label="UIThread\nInterfaceBlackboard\nBlackboardListener"];
+     DrawThread [label="DrawThread\nMapWindow\nMapWindowBlackboard"];
 
-      CalcThread -> UIThread [folded, label = "DerivedInfo", fontsize=8];
-      UIThread -> DrawThread [folded, label = "DerivedInfo", fontsize=8];
-    }
+     Devices -> MergeThread [label="NMEAInfo"];
+     MergeThread -> CalcThread [label="MoreData"];
+     CalcThread -> UIThread [label="DerivedInfo"];
+     UIThread -> DrawThread [label="DerivedInfo"];
+   }
 
 The device driver parses input received from its device into its own
 ``NMEAInfo`` instance inside ``DeviceBlackboard`` (i.e.
@@ -288,10 +388,12 @@ on who you are:
   it while using its data.
 
 Developing
-==========
+----------
 
 Debugging XCSoar
-----------------
+~~~~~~~~~~~~~~~~
+
+See also :doc:`debugging` for replay, simulator, and utility workflows.
 
 The XCSoar source repository contains a module for the GNU debugger
 (``gdb``). It contains pretty-printers for various XCSoar types,
@@ -317,10 +419,10 @@ radian angles to degrees and more. You can now do fancy stuff like::
   $5 = GeoVector(267.899420345 107957.109724)
 
 User interface guidelines
-=========================
+-------------------------
 
 General
--------
+~~~~~~~
 
 -  Minimise the number of colours, and re-use colour groups already
    defined.
@@ -355,12 +457,9 @@ where possible, in particular:
 -  ICAO Internation Standards and Recommended Practices, Annex 4 to the
    Convention on International Civil Aviation (Aeronautical Charts).
 
-- `NASA Colour Usage recommendations and design guidelines
-   <http://colorusage.arc.nasa.gov/>`__
+- `NASA Colour Usage recommendations and design guidelines <http://colorusage.arc.nasa.gov/>`__
 
-- `DOT/FAA/AR-03/67 Human Factors Considerations in the Design and
-   Evaluation of Electronic Flight Bags (EFBs)
-   <http://www.volpe.dot.gov/hf/aviation/efb/docs/efb_version2.pdf>`__
+- `DOT/FAA/AR-03/67 Human Factors Considerations in the Design and Evaluation of Electronic Flight Bags (EFBs) <http://www.volpe.dot.gov/hf/aviation/efb/docs/efb_version2.pdf>`__
 
 -  `FAA Human Factors Design Standards <http://hf.tc.faa.gov/hfds/>`__
 
@@ -379,7 +478,7 @@ require the user to stare at the screen continuously.**
 of producing unsafe results if misconfigured by the pilot.**
 
 General colour conventions
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Colour conventions generally in use throughout the program:
 
@@ -392,7 +491,7 @@ Colour conventions generally in use throughout the program:
 -  Blue for neutral indicator of safety
 
 Displayed data
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 -  Where data is invalid, indicate this by not presenting the data or
    showing dashes.
@@ -404,10 +503,10 @@ Displayed data
    whichever is lower.
 
 Dialogs and menu buttons
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Colors
-~~~~~~
+^^^^^^
 
 Colour conventions in use are:
 
@@ -426,7 +525,7 @@ Colour conventions in use are:
 -  Text is greyed out (but still visible) if the item is disabled
 
 dialogue types and navigation buttons
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There are four types of dialogs in XCSoar, and the navigation buttons
 for each are different. Navigation buttons are the Close, OK, Cancel and
@@ -454,7 +553,7 @@ Select buttons.
    These shall have a Close button
 
 dialogue button placement and size
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 -  The Close and Cancel buttons will never appear in the same dialogue
    and are always located in the same place. This location will be:
@@ -491,7 +590,7 @@ dialogue button placement and size
    to implementing and possibly documenting in the developers guide.
 
 Usability
-~~~~~~~~~
+^^^^^^^^^
 
 -  Minimum size of buttons should be X by Y mm
 
@@ -502,10 +601,10 @@ Usability
    ``Canvas``.
 
 Main graphics
--------------
+~~~~~~~~~~~~~
 
 Colors
-~~~~~~
+^^^^^^
 
 Colour conventions in use, in order of priority, are:
 
@@ -531,7 +630,7 @@ Nevertheless, the colour conventions are useful to adopt as they are
 likely to be intuitive and are designed for aviation use.
 
 Pen styles
-~~~~~~~~~~
+^^^^^^^^^^
 
 -  Map culture should be rendered with a thin pen
 
@@ -541,7 +640,7 @@ Pen styles
 -  Dashed lines are used to increase perceptual priority
 
 Map overlays
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 Elements on the map that are not part of the map layer, such as
 additional informational widgets (final glide bar, wind, north arrow)
@@ -567,10 +666,10 @@ order of priority, particularly with alert warning items above caution
 items above non-alert items.
 
 Terminology
------------
+~~~~~~~~~~~
 
 Glide Ratio
-~~~~~~~~~~~
+^^^^^^^^^^^
 
 ’Glide ratio’ is a non-specific term which can refer to the ratio of
 horizontal to vertical motion with reference to either the surrounding

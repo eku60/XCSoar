@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <cassert>
+#include <memory>
 
 #include "Menu/ShowButton.hpp"
 
@@ -30,6 +31,9 @@ class TopographyStore;
 class MapWindowProjection;
 class PopupMessage;
 class PluggableOperationEnvironment;
+class StorageEventListener;
+struct StorageEventInfo;
+
 namespace InfoBoxLayout { struct Layout; }
 
 /**
@@ -43,6 +47,7 @@ class MainWindow : public UI::SingleWindow {
   MenuBar *menu_bar = nullptr;
 
   ShowMenuButton *show_menu_button = nullptr;
+  ShowQuickMenuButton *show_quickmenu_button = nullptr;
   ShowZoomButton *show_zoom_out_button = nullptr;
   ShowZoomButton *show_zoom_in_button = nullptr;
 
@@ -96,6 +101,14 @@ public:
   PopupMessage *popup = nullptr;
 
 private:
+  std::unique_ptr<StorageEventListener> storage_event_adapter_;
+
+  /**
+   * Called by #StorageManager from a background thread when the
+   * device list may have changed.  Marshals to the UI thread.
+   */
+  UI::Notify storage_notify_{[this]{ OnStorageNotify(); }};
+
   UI::Notify terrain_loader_notify{[this]{ OnTerrainLoaded(); }};
 
   std::unique_ptr<PluggableOperationEnvironment> terrain_loader_env;
@@ -137,6 +150,7 @@ private:
   bool restore_page_pending = false;
   bool refresh_info_boxes_pending = false;
   bool page_actions_update_pending = false;
+  bool vario_bar_redraw_pending = false;
 
   /**
    * Has "late" initialization been done already?  Those are things
@@ -146,7 +160,7 @@ private:
   bool late_initialised = false;
 
 public:
-  using SingleWindow::SingleWindow;
+  explicit MainWindow(UI::Display &display) noexcept;
   ~MainWindow() noexcept override;
 
 protected:
@@ -192,12 +206,36 @@ protected:
   void KillBottomWidget() noexcept;
 
 public:
+  Widget *GetBottomWidget() const noexcept {
+    return bottom_widget;
+  }
   void Create(PixelSize size, UI::TopWindowStyle style={});
 
   void Destroy() noexcept;
 
   void Initialise();
   void InitialiseConfigured();
+
+  /**
+   * Wire up the StorageEventDispatcher to the StorageManager
+   * owned by BackendComponents.  Must be called after
+   * BackendComponents is initialised.
+   */
+  void InitialiseStorage() noexcept;
+
+  /**
+   * Tear down storage event wiring.
+   * Must be called before BackendComponents is destroyed.
+   */
+  void DeinitialiseStorage() noexcept;
+
+  /**
+   * Send a storage change notification to the UI thread.
+   * Safe to call from any thread.
+   */
+  void SendStorageNotification() noexcept {
+    storage_notify_.SendNotification();
+  }
 
   /**
    * Destroy the components of the main view (map, info boxes,
@@ -247,6 +285,12 @@ private:
                             const InfoBoxLayout::Layout &layout) noexcept;
 
 public:
+  /**
+   * Create or destroy map overlay buttons to match the current
+   * UISettings, then update their positions.
+   */
+  void ReinitialiseMapOverlayButtons() noexcept;
+
   /**
    * Called by XCSoarInterface::Startup() after startup has been
    * completed.
@@ -304,9 +348,7 @@ public:
 
   void SetFullScreen(bool _full_screen) noexcept;
 
-  void SendGPSUpdate() noexcept {
-    gps_notify.SendNotification();
-  }
+  void SendGPSUpdate(bool vario_bar_redraw=false) noexcept;
 
   void SendCalculatedUpdate() noexcept {
     calculated_notify.SendNotification();
@@ -449,6 +491,9 @@ private:
 
   void OnTerrainLoaded() noexcept;
 
+  void OnStorageNotify() noexcept;
+  void OnStorageEvent(const StorageEventInfo &info) noexcept;
+
 #ifdef ANDROID
   void OnRotationSuggestion() noexcept;
   void OnRotateButtonTimeout() noexcept;
@@ -460,6 +505,11 @@ protected:
   void OnResize(PixelSize new_size) noexcept override;
   void OnSetFocus() noexcept override;
   void OnCancelMode() noexcept override;
+
+#ifdef USE_WINUSER
+  LRESULT OnMessage(HWND hWnd, UINT message,
+                    WPARAM wParam, LPARAM lParam) noexcept override;
+#endif
   bool OnMouseDown(PixelPoint p) noexcept override;
   bool OnMouseUp(PixelPoint p) noexcept override;
   bool OnMouseMove(PixelPoint p, unsigned keys) noexcept override;
@@ -467,6 +517,7 @@ protected:
   bool OnKeyDown(unsigned key_code) noexcept override;
   void OnPaint(Canvas &canvas) noexcept override;
   PixelRect GetShowMenuButtonRect(const PixelRect rc) noexcept;
+  PixelRect GetShowQuickMenuButtonRect(const PixelRect rc) noexcept;
   PixelRect GetShowZoomButtonRect(const PixelRect rc,
                                   ShowZoomButton::Sign sign) noexcept;
 

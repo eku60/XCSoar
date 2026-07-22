@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "UISettings.hpp"
+#include "Asset.hpp"
 
 void
 UISettings::SetDefaults() noexcept
@@ -28,8 +29,13 @@ UISettings::SetDefaults() noexcept
   show_menu_button = false;
 #endif
   show_zoom_button = show_menu_button;
+  show_quickmenu_button = HasTouchScreen();
 
+#ifdef KOBO
+  dark_mode = DarkMode::OFF;
+#else
   dark_mode = DarkMode::AUTO;
+#endif
 
   format.SetDefaults();
   map.SetDefaults();

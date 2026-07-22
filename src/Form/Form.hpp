@@ -15,6 +15,10 @@ class PeriodClock;
 enum ModalResult {
   mrOK = 2,
   mrCancel = 3,
+  /** Extra dialog button (e.g. ListPicker download action). */
+  mrExtra = -2,
+  /** Second extra dialog button (e.g. ListPicker "Now" action). */
+  mrExtra2 = -3,
 };
 
 /**
@@ -168,7 +172,7 @@ public:
   bool OnMouseUp(PixelPoint p) noexcept override;
   void OnCancelMode() noexcept override;
 
-#ifdef _WIN32
+#ifdef USE_WINUSER
   bool OnCommand(unsigned id, unsigned code) noexcept override;
 #endif
 

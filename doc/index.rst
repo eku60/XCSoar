@@ -10,6 +10,8 @@ XCSoar
    rebranding
    policy
    architecture
+   weather_overlays
+   data_directory
    input_events
    lua
    mapfile
@@ -19,6 +21,8 @@ XCSoar
    git_tips
 
 Build system reference: :ref:`build-system-reference`
+
+Developer docs: :doc:`build` (:ref:`development-workflow`), :doc:`test_debug_utilities`
 
 
 Indices and tables

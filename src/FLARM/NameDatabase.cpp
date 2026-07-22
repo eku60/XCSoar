@@ -6,7 +6,8 @@
 int
 FlarmNameDatabase::Find(FlarmId id) const noexcept
 {
-  assert(id.IsDefined());
+  if (!id.IsDefined())
+    return -1;
 
   for (unsigned i = 0, size = data.size(); i != size; ++i)
     if (data[i].id == id)
@@ -70,14 +71,16 @@ FlarmNameDatabase::Set(FlarmId id, const char *name) noexcept
   assert(name != nullptr);
 
   int i = Find(id);
-  if (i >= 0) {
-    if (!StringIsEqual(name, ""))
-      /* update existing record */
-      data[i].name = name;
-    else
-      /* remove record if empty */
+  if (name[0] == '\0') {
+    if (i >= 0)
       Remove(id);
 
+    return true;
+  }
+
+  if (i >= 0) {
+    /* update existing record */
+    data[i].name = name;
     return true;
   } else if (!data.full()) {
     /* create new record */

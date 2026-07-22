@@ -288,6 +288,103 @@ event=MacCready down
 label=MC-\n(DOWN)
 location=8
 
+# ------------
+# mode=weather (weather overlay cursor bar)
+# Stick: UP/DOWN field, LEFT/RIGHT time, RETURN time picker, ESCAPE exit
+# Keys: F2 = list, F3 = auto (map overlay +/- always zoom)
+# Buttons: 1=Time-, 2=List (F2), 3=Auto (F3), 4=Time+,
+#          5=Field+, 6=Field-, 7=Time Picker
+# ------------
+
+mode=weather
+type=key
+data=UP
+event=WeatherOverlay field +
+
+mode=weather
+type=key
+data=DOWN
+event=WeatherOverlay field -
+
+mode=weather
+type=key
+data=LEFT
+event=WeatherOverlay time -
+
+mode=weather
+type=key
+data=RIGHT
+event=WeatherOverlay time +
+
+mode=weather
+type=key
+data=RETURN
+event=WeatherOverlay time picker
+
+mode=weather
+type=key
+data=F2
+event=WeatherOverlay field picker
+
+mode=weather
+type=key
+data=F3
+event=WeatherOverlay field auto toggle
+
+mode=weather
+type=key
+data=ESCAPE
+event=Mode default
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay time -
+label=Time-\n(LEFT)
+location=1
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay field picker
+label=$(WeatherSecondaryPickerLabel)
+location=2
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay field auto toggle
+label=$(WeatherSecondaryAutoLabel)
+location=3
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay time +
+label=Time+\n(RIGHT)
+location=4
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay field +
+label=$(WeatherSecondaryPlusLabel)
+location=5
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay field -
+label=$(WeatherSecondaryMinusLabel)
+location=6
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay time picker
+label=Time\nPicker\n(RETURN)
+location=7
+
 ###### main entry buttons
 
 mode=default
@@ -812,9 +909,9 @@ location=7
 mode=Config2
 type=key
 data=9
-event=FileManager
+event=DataManagement
 event=Mode default
-label=File Manager
+label=Data Management
 location=8
 
 mode=Config2
@@ -976,7 +1073,7 @@ type=key
 data=7
 event=Weather
 event=Mode default
-label=Weather
+label=Weather Setup
 location=6
 
 mode=Info1
@@ -1020,6 +1117,14 @@ event=Status all
 event=Mode default
 label=Status
 location=5
+
+mode=Info2
+type=key
+data=7
+event=NOTAMList
+event=Mode default
+label=NOTAMs
+location=6
 
 mode=Info2
 type=key
@@ -1396,7 +1501,7 @@ type=key
 data=0
 event=Weather
 event=Mode default
-label=Weather
+label=Weather Setup
 location=25
 
 mode=RemoteStick
@@ -1492,9 +1597,9 @@ location=36
 mode=RemoteStick
 type=key
 data=0
-event=FileManager
+event=DataManagement
 event=Mode default
-label=File Manager
+label=Data Management
 location=37
 
 mode=RemoteStick
@@ -1503,6 +1608,14 @@ data=0
 event=RepeatStatusMessage
 label=Message Repeat
 location=38
+
+mode=RemoteStick
+type=key
+data=0
+event=DistanceRings show
+event=DistanceRings toggle
+label=Dist. Rings\n$(DistanceRingsToggleActionName)
+location=39
 
 mode=RemoteStick
 type=key
@@ -1518,6 +1631,13 @@ data=0
 event=Exit
 label=Quit XCSoar
 location=41
+
+mode=RemoteStick
+type=key
+data=0
+event=Mode weather
+label=Forecast\nControls
+location=42
 
 # -------------
 # Define gesture to open Quickmenu without keyboard or remote

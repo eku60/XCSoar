@@ -10,6 +10,8 @@
 #include "Operation/ProgressListener.hpp"
 #include "Profile/Keys.hpp"
 #include "Profile/Profile.hpp"
+#include "Repository/FileType.hpp"
+#include "WaypointDetailsFormat.hpp"
 #include "io/BufferedReader.hxx"
 #include "io/ConfiguredFile.hpp"
 #include "io/FileReader.hxx"
@@ -71,14 +73,15 @@ ReadFile(BufferedReader &reader, Waypoints &way_points)
 {
   StringConverter string_converter;
   WaypointDetailsBuilder builder;
-  const char *filename;
 
   bool in_details = false;
   int i;
 
   char *line;
   while ((line = reader.ReadLine()) != nullptr) {
-    if (line[0] == '[') { // Look for start
+    const auto trimmed = Strip(std::string_view{line});
+
+    if (IsSectionHeader(line)) {
       if (in_details)
         builder.Commit(way_points);
 
@@ -94,11 +97,13 @@ ReadFile(BufferedReader &reader, Waypoints &way_points)
       builder.name[i - 1] = 0;
 
       in_details = true;
-    } else if ((filename =
-                StringAfterPrefixIgnoreCase(line, "image=")) != nullptr) {
+    } else if (const auto filename =
+               StringAfterPrefixIgnoreCase(trimmed, "image=");
+               !filename.empty()) {
       builder.files_embed.emplace_front(string_converter.Convert(filename));
-    } else if ((filename =
-                StringAfterPrefixIgnoreCase(line, "file=")) != nullptr) {
+    } else if (const auto filename =
+               StringAfterPrefixIgnoreCase(trimmed, "file=");
+               !filename.empty()) {
 #ifdef HAVE_RUN_FILE
       builder.files_external.emplace_front(string_converter.Convert(filename));
 #endif
@@ -120,7 +125,8 @@ ReadFileFromProfile(Waypoints &way_points,
                     ProgressListener &progress)
 {
   auto paths =
-      Profile::GetMultiplePaths(ProfileKeys::AirfieldFileList, "*.txt\0");
+      Profile::GetMultiplePaths(ProfileKeys::AirfieldFileList,
+                                GetFileTypePatterns(FileType::WAYPOINTDETAILS));
   for (const auto &path : paths) {
     try {
       auto reader = std::make_unique<FileReader>(Path(path));

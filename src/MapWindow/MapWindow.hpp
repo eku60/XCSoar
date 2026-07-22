@@ -16,6 +16,7 @@
 #include "Renderer/BackgroundRenderer.hpp"
 #include "Renderer/WaypointRenderer.hpp"
 #include "Renderer/TrailRenderer.hpp"
+#include "Renderer/TurnBackMarkerRenderer.hpp"
 #include "Weather/Features.hpp"
 #include "Tracking/SkyLines/Features.hpp"
 
@@ -88,6 +89,19 @@ protected:
    * the DrawThread has finished drawing the new projection.
    */
   MapWindowProjection buffer_projection;
+
+  /**
+   * Protects #published_projection.  Held only for a short copy into
+   * or out of that field; never across Render().
+   */
+  mutable Mutex frame_projection_mutex;
+
+  /**
+   * Coherent projection snapshot published by the UI thread after
+   * UpdateScreenBounds().  The DrawThread copies this into
+   * #render_projection at the start of each frame.
+   */
+  MapWindowProjection published_projection;
 #endif
 
   /**
@@ -125,6 +139,7 @@ protected:
   AirspaceLabelRenderer airspace_label_renderer;
 
   TrailRenderer trail_renderer;
+  TurnBackMarkerRenderer turn_back_marker_renderer;
 
   ProtectedTaskManager *task = nullptr;
   const ProtectedRoutePlanner *route_planner = nullptr;
@@ -265,9 +280,21 @@ public:
 
   void UpdateScreenBounds() noexcept {
     visible_projection.UpdateScreenBounds();
+#ifndef ENABLE_OPENGL
+    PublishFrameProjection();
+#endif
   }
 
 protected:
+#ifndef ENABLE_OPENGL
+  /**
+   * Publish a coherent copy of #visible_projection for the DrawThread.
+   * Call only after UpdateScreenBounds() (or equivalent) so bounds match
+   * location/scale/angle/origin.
+   */
+  void PublishFrameProjection() noexcept;
+#endif
+
   void DrawBestCruiseTrack(Canvas &canvas, PixelPoint aircraft_pos) const noexcept;
   void DrawTrackBearing(Canvas &canvas,
                         PixelPoint aircraft_pos, bool circling) const noexcept;
@@ -281,11 +308,9 @@ protected:
   virtual void RenderTrail(Canvas &canvas, PixelPoint aircraft_pos) noexcept;
   virtual void RenderTrackBearing(Canvas &canvas, PixelPoint aircraft_pos) noexcept;
 
-#ifdef HAVE_SKYLINES_TRACKING
-  void DrawSkyLinesTraffic(Canvas &canvas) const noexcept;
-#endif
 
   void DrawTeammate(Canvas &canvas) const noexcept;
+  void DrawDistanceRings(Canvas &canvas) const noexcept;
   void DrawContest(Canvas &canvas) noexcept;
   void DrawTask(Canvas &canvas) noexcept;
   void DrawRoute(Canvas &canvas) noexcept;
@@ -361,6 +386,12 @@ private:
    * @param canvas The drawing canvas
    */
   void RenderFinalGlideShading(Canvas &canvas) noexcept;
+
+  /**
+   * Draw the Turn Back Marker (TBM) on the track line
+   * @param canvas The drawing canvas
+   */
+  void DrawTurnBackMarker(Canvas &canvas) const noexcept;
 
   /**
    * Renders the airspace

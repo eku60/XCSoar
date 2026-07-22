@@ -4,11 +4,18 @@
 #include "MergeThread.hpp"
 #include "Blackboard/DeviceBlackboard.hpp"
 #include "Computer/TraceComputer.hpp"
+#include "Computer/STF.hpp"
 #include "Protection.hpp"
 #include "NMEA/MoreData.hpp"
 #include "NMEA/Derived.hpp"
 #include "Audio/VarioGlue.hpp"
 #include "Device/MultipleDevices.hpp"
+
+#ifdef HAVE_TRACKING
+#include "Components.hpp"
+#include "NetComponents.hpp"
+#include "Tracking/TrackingGlue.hpp"
+#endif
 
 MergeThread::MergeThread(DeviceBlackboard &_device_blackboard,
                          MultipleDevices *_devices,
@@ -37,6 +44,12 @@ MergeThread::Process() noexcept
 {
   assert(!IsDefined() || IsInside());
 
+  ProcessUnlocked();
+}
+
+void
+MergeThread::ProcessUnlocked() noexcept
+{
   device_blackboard.Merge();
 
   const MoreData &basic = device_blackboard.Basic();
@@ -45,22 +58,21 @@ MergeThread::Process() noexcept
 
   computer.Fill(device_blackboard.SetMoreData(), settings_computer);
   computer.Compute(device_blackboard.SetMoreData(), last_any, last_fix,
-                   device_blackboard.Calculated());
+                   device_blackboard.Calculated(), settings_computer);
+
+#ifdef HAVE_TRACKING
+  if (net_components != nullptr && net_components->tracking != nullptr)
+    net_components->tracking->MergeOnlineTraffic(
+      device_blackboard.SetBasic().flarm, basic);
+#endif
 
   flarm_computer.Process(device_blackboard.SetBasic().flarm,
                          last_fix.flarm, basic);
 }
 
 void
-MergeThread::Tick() noexcept
+MergeThread::ProcessReplayFix() noexcept
 {
-  bool gps_updated, calculated_updated;
-
-#ifdef HAVE_PCM_PLAYER
-  bool vario_available;
-  double vario;
-#endif
-
   TracePoint::Time trail_push_time{};
   float trail_push_vario = 0;
   bool do_trail_vario_push = false;
@@ -68,7 +80,7 @@ MergeThread::Tick() noexcept
   {
     const std::lock_guard lock{device_blackboard.mutex};
 
-    Process();
+    ProcessUnlocked();
 
     const MoreData &basic = device_blackboard.Basic();
     const DerivedInfo &calculated = device_blackboard.Calculated();
@@ -77,11 +89,83 @@ MergeThread::Tick() noexcept
         basic.time_available &&
         basic.location_available &&
         basic.NavAltitudeAvailable() &&
-        calculated.flight.flying &&
-        basic.netto_vario_available) {
-      do_trail_vario_push = true;
-      trail_push_time = basic.time.Cast<TracePoint::Time>();
-      trail_push_vario = (float)basic.netto_vario;
+        calculated.flight.flying) {
+      if (!computer.FilteredVarioActive()) {
+        if (basic.netto_vario_available) {
+          do_trail_vario_push = true;
+          trail_push_time = basic.time.Cast<TracePoint::Time>();
+          trail_push_vario = (float)basic.netto_vario;
+        }
+      } else if (basic.brutto_vario_available &&
+                 computer.FilteredVarioSampleUpdated()) {
+        do_trail_vario_push = true;
+        trail_push_time = basic.time.Cast<TracePoint::Time>();
+        trail_push_vario = (float)basic.FilteredNettoVario();
+      }
+    }
+
+    last_any = basic;
+
+    if ((basic.time_available &&
+         (!last_fix.time_available || basic.time != last_fix.time)) ||
+        basic.location_available != last_fix.location_available)
+      last_fix = basic;
+  }
+
+  if (do_trail_vario_push && trail_vario_sink != nullptr)
+    trail_vario_sink->PushMergeVarioSample(trail_push_time, trail_push_vario);
+}
+
+void
+MergeThread::Tick() noexcept
+{
+  bool gps_updated, calculated_updated;
+
+#ifdef HAVE_PCM_PLAYER
+  AudioVarioGlue::VarioAudioInput vario_audio_input;
+#endif
+
+  TracePoint::Time trail_push_time{};
+  float trail_push_vario = 0;
+  bool do_trail_vario_push = false;
+  bool vario_output_updated = false;
+
+  {
+    const std::lock_guard lock{device_blackboard.mutex};
+
+    Process();
+
+    const MoreData &basic = device_blackboard.Basic();
+    const DerivedInfo &calculated = device_blackboard.Calculated();
+    const ComputerSettings &settings_computer =
+      device_blackboard.GetComputerSettings();
+
+    const auto stf_speed_error =
+      ComputeSTFSpeedError(basic, calculated, settings_computer);
+    auto &more_data = device_blackboard.SetMoreData();
+    if (stf_speed_error) {
+      more_data.V_stf = basic.true_airspeed + *stf_speed_error;
+      more_data.V_stf_available.Update(basic.clock);
+    } else
+      more_data.V_stf_available.Clear();
+
+    if (trail_vario_sink != nullptr &&
+        basic.time_available &&
+        basic.location_available &&
+        basic.NavAltitudeAvailable() &&
+        calculated.flight.flying) {
+      if (!computer.FilteredVarioActive()) {
+        if (basic.netto_vario_available) {
+          do_trail_vario_push = true;
+          trail_push_time = basic.time.Cast<TracePoint::Time>();
+          trail_push_vario = (float)basic.netto_vario;
+        }
+      } else if (basic.brutto_vario_available &&
+                 computer.FilteredVarioSampleUpdated()) {
+        do_trail_vario_push = true;
+        trail_push_time = basic.time.Cast<TracePoint::Time>();
+        trail_push_vario = (float)basic.FilteredNettoVario();
+      }
     }
 
     /* call Driver::OnSensorUpdate() on all devices */
@@ -98,14 +182,25 @@ MergeThread::Tick() noexcept
       (bool)last_any.location_available != (bool)basic.location_available;
 
 #ifdef HAVE_PCM_PLAYER
-    vario_available = basic.brutto_vario_available;
-    vario = vario_available ? basic.brutto_vario : 0;
+    if (!computer.FilteredVarioActive()) {
+      if (basic.brutto_vario_available)
+        vario_audio_input.vario = basic.brutto_vario;
+    } else {
+      if (basic.filtered_brutto_vario_available)
+        vario_audio_input.vario = basic.FilteredBruttoVario();
+    }
+
+    vario_audio_input.stf_speed_error = stf_speed_error;
+
+    vario_audio_input.circling = calculated.circling;
 #endif
 
-    /* update last_any in every iteration */
+    /* Throttle map vario-bar redraws to ~1 Hz when the LX filter is active. */
+    vario_output_updated = !computer.FilteredVarioActive() ||
+      computer.FilteredVarioSampleUpdated();
+
     last_any = basic;
 
-    /* update last_fix only when a new GPS fix was received */
     if ((basic.time_available &&
          (!last_fix.time_available || basic.time != last_fix.time)) ||
         basic.location_available != last_fix.location_available)
@@ -116,10 +211,7 @@ MergeThread::Tick() noexcept
     trail_vario_sink->PushMergeVarioSample(trail_push_time, trail_push_vario);
 
 #ifdef HAVE_PCM_PLAYER
-  if (vario_available)
-    AudioVarioGlue::SetValue(vario);
-  else
-    AudioVarioGlue::NoValue();
+  AudioVarioGlue::SetValue(vario_audio_input);
 #endif
 
   if (gps_updated)
@@ -128,5 +220,5 @@ MergeThread::Tick() noexcept
   if (calculated_updated)
     TriggerCalculatedUpdate();
 
-  TriggerVarioUpdate();
+  TriggerVarioUpdate(vario_output_updated);
 }

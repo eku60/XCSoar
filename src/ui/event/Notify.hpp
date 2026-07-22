@@ -31,11 +31,9 @@ public:
 
   Notify(const Notify &) = delete;
 
-#ifndef USE_WINUSER
   ~Notify() noexcept {
     ClearNotification();
   }
-#endif
 
   /**
    * Send a notification to this object.  This method can be called
@@ -51,12 +49,10 @@ public:
 private:
   void RunNotification() noexcept;
 
-#ifndef USE_WINUSER
   /**
    * Called by the event loop when the "notify" message is received.
    */
   static void Callback(void *ctx) noexcept;
-#endif
 
 #ifdef USE_WINUSER
 private:

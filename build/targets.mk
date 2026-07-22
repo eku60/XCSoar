@@ -1,4 +1,5 @@
 TARGETS = PC WIN64 \
+  WIN64OPENGL WIN32OPENGL \
 	UNIX UNIX32 UNIX64 OPT \
 	WAYLAND \
 	FUZZER \
@@ -67,6 +68,23 @@ TARGET_ARCH :=
 ifeq ($(TARGET),WIN64)
   X64 := y
   override TARGET = PC
+endif
+
+ifeq ($(TARGET),WIN64OPENGL)
+  X64 := y
+  override TARGET = PC
+
+  OPENGL = y
+  ENABLE_SDL = y
+  USE_ANGLE = y
+endif
+
+ifeq ($(TARGET),WIN32OPENGL)
+  override TARGET = PC
+
+  OPENGL = y
+  ENABLE_SDL = y
+  USE_ANGLE = y
 endif
 
 ifeq ($(TARGET),ANDROID)
@@ -548,11 +566,16 @@ TARGET_LDLIBS =
 TARGET_LDADD =
 
 ifeq ($(TARGET),PC)
-  TARGET_LDFLAGS += -Wl,--major-subsystem-version=5
-  TARGET_LDFLAGS += -Wl,--minor-subsystem-version=00
+  TARGET_LDFLAGS += -Wl,--major-subsystem-version=6
+  TARGET_LDFLAGS += -Wl,--minor-subsystem-version=0
 
-  # default to "console"; see SCREEN_LDLIBS
+  # default to "console"; overridden to "windows" by
+  # GDI_LDLIBS (screen.mk) or SDL_LDLIBS (sdl.mk) for GUI programs
   TARGET_LDFLAGS += -Wl,-subsystem,console
+
+  ifeq ($(X64),y)
+    TARGET_LDFLAGS += -Wl,--high-entropy-va
+  endif
 endif
 
 ifeq ($(HAVE_WIN32),y)

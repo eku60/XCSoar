@@ -43,11 +43,12 @@ MapSettings::SetDefaults() noexcept
   show_flarm_alarm_level = true;
   fade_traffic = true;
   show_thermal_profile = true;
+  distance_rings_enabled = false;
   final_glide_bar_mc0_enabled = true;
   final_glide_bar_display_mode = FinalGlideBarDisplayMode::ON;
   vario_bar_enabled = false;
   show_fai_triangle_areas = false;
-  skylines_traffic_map_mode = DisplaySkyLinesTrafficMapMode::SYMBOL;
+  online_traffic_map_mode = DisplayOnlineTrafficMapMode::SYMBOL;
   show_95_percent_rule_helpers = false;
 
   trail.SetDefaults();

@@ -24,7 +24,8 @@ MapWindow::MapWindow(const MapLook &_look,
    waypoint_renderer(nullptr, look.waypoint),
    airspace_renderer(look.airspace),
    airspace_label_renderer(look.airspace),
-   trail_renderer(look.trail) {}
+   trail_renderer(look.trail),
+   turn_back_marker_renderer(look) {}
 
 MapWindow::~MapWindow() noexcept
 {
@@ -32,6 +33,17 @@ MapWindow::~MapWindow() noexcept
 
   delete topography_renderer;
 }
+
+#ifndef ENABLE_OPENGL
+
+void
+MapWindow::PublishFrameProjection() noexcept
+{
+  const std::lock_guard lock{frame_projection_mutex};
+  published_projection = visible_projection;
+}
+
+#endif
 
 #ifdef ENABLE_OPENGL
 

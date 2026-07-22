@@ -81,6 +81,13 @@ bool
 IsDefault() noexcept;
 
 /**
+ * @return true if the named input mode (from the ``.xci`` file) is active.
+ */
+[[gnu::pure]]
+bool
+IsMode(const char *name) noexcept;
+
+/**
  * Process an event chain.
  */
 void
@@ -134,6 +141,8 @@ void sub_SetZoom(double value);
 void eventAbortTask(const char *misc);
 void eventAdjustForecastTemperature(const char *misc);
 void eventAdjustVarioFilter(const char *misc);
+void eventVarioAudioMode(const char *misc);
+void eventVarioVolume(const char *misc);
 void eventAdjustWaypoint(const char *misc);
 void eventAnalysis(const char *misc);
 void eventArmAdvance(const char *misc);
@@ -152,6 +161,7 @@ void eventMarkLocation(const char *misc);
 void eventPilotEvent(const char *misc);
 void eventMode(const char *misc);
 void eventNearestAirspaceDetails(const char *misc);
+void eventNOTAMList(const char *misc);
 void eventNearestWaypointDetails(const char *misc);
 void eventNearestMapItems(const char *misc);
 void eventNull(const char *misc);
@@ -182,6 +192,7 @@ void eventTerrainTopography(const char *misc);
 void eventTerrainTopology(const char *misc);
 void eventWaypointDetails(const char *misc);
 void eventWaypointDetailsPersistent(const char *misc);
+void eventWeatherOverlay(const char *misc);
 void eventWaypointImage(const char *misc);
 void eventWaypointEditor(const char *misc);
 void eventZoom(const char *misc);
@@ -203,6 +214,8 @@ void eventCredits(const char *misc);
 void eventWeather(const char *misc);
 void eventQuickMenu(const char *misc);
 void eventFileManager(const char *misc);
+void eventDataManagement(const char *misc);
+void eventExportFlights(const char *misc);
 void eventRunLuaFile(const char *misc);
 void eventResetTask(const char *misc);
 void eventLockScreen(const char *misc);
@@ -210,6 +223,7 @@ void eventExchangeFrequencies(const char *misc);
 void eventUploadIGCFile(const char *misc);
 void eventOrientationCruise(const char *misc);
 void eventOrientationCircling(const char *misc);
+void eventDistanceRings(const char *misc);
 // -------
 
 } // namespace InputEvents

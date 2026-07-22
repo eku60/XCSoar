@@ -55,6 +55,20 @@ MapWindow::RenderRasp(Canvas &canvas) noexcept
       unsigned(state.map) >= rasp_store->GetItemCount())
     return;
 
+  BrokenTime auto_local_time = BrokenTime::Invalid();
+  if (state.time_auto_advance) {
+    const BrokenDateTime &utc = Basic().date_time_utc;
+    if (utc.IsPlausible()) {
+      const auto quarter = utc.ToLocal().FloorToQuarterHour();
+      auto_local_time = BrokenTime(quarter.hour, quarter.minute);
+    }
+  }
+
+  if (!rasp_store->HasSelectedTimeData(unsigned(state.map),
+                                       state.time_auto_advance,
+                                       state.time, auto_local_time))
+    return;
+
   if (!rasp_renderer) {
 #ifndef ENABLE_OPENGL
     const std::lock_guard lock{mutex};
@@ -174,9 +188,17 @@ MapWindow::Render(Canvas &canvas, const PixelRect &rc) noexcept
   // reset label over-write preventer
   label_block.reset();
 
+#ifndef ENABLE_OPENGL
+  {
+    const std::lock_guard lock{frame_projection_mutex};
+    render_projection = published_projection;
+  }
+#else
   render_projection = visible_projection;
+#endif
 
-  if (!render_projection.IsValid()) {
+  if (!render_projection.IsValid() ||
+      !render_projection.GetScreenBounds().IsValid()) {
     canvas.ClearWhite();
     return;
   }
@@ -221,6 +243,11 @@ MapWindow::Render(Canvas &canvas, const PixelRect &rc) noexcept
   draw_sw.Mark("RenderAirspace");
   RenderAirspace(canvas);
 
+  //////////////////////////////////////////////// distance rings
+
+  draw_sw.Mark("DrawDistanceRings");
+  DrawDistanceRings(canvas);
+
   //////////////////////////////////////////////// task
 
   // Render task, waypoints
@@ -260,6 +287,9 @@ MapWindow::Render(Canvas &canvas, const PixelRect &rc) noexcept
   draw_sw.Mark("RenderMisc1");
   DrawTaskOffTrackIndicator(canvas);
 
+  // Draw the Turn Back Marker (TBM) on the track line
+  DrawTurnBackMarker(canvas);
+
   draw_sw.Mark("RenderMisc2");
   DrawBestCruiseTrack(canvas, aircraft_pos);
 
@@ -272,10 +302,6 @@ MapWindow::Render(Canvas &canvas, const PixelRect &rc) noexcept
 
   //////////////////////////////////////////////// traffic
   // Draw traffic
-
-#ifdef HAVE_SKYLINES_TRACKING
-  DrawSkyLinesTraffic(canvas);
-#endif
 
   DrawGLinkTraffic(canvas);
 

@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "GlideComputer.hpp"
+#include "Atmosphere/AirDensity.hpp"
 #include "Computer/Settings.hpp"
 #include "NMEA/Derived.hpp"
 #include "GlideComputerInterface.hpp"
@@ -56,6 +57,12 @@ GlideComputer::ProcessGPS(bool force)
 {
   const MoreData &basic = Basic();
   DerivedInfo &calculated = SetCalculated();
+
+  if (computer_settings.polar.glide_polar_task.IsValid())
+    if (const auto altitude = basic.GetAnyAltitude())
+      computer_settings.polar.glide_polar_task.SetDensityRatio(
+          AirDensityRatio(*altitude));
+
   const ComputerSettings &settings = GetComputerSettings();
 
   const bool last_flying = calculated.flight.flying;
@@ -355,11 +362,20 @@ void
 GlideComputer::CalculateVarioScale()
 {
   DerivedInfo &calculated = SetCalculated();
-  const GlidePolar &glide_polar = GetComputerSettings().polar.glide_polar_task;
+  const FlightStatistics &stats = stats_computer.GetFlightStats();
   calculated.common_stats.vario_scale_positive =
-      std::max(stats_computer.GetFlightStats().GetVarioScalePositive(),
+      stats.GetVarioScalePositive();
+  calculated.common_stats.vario_scale_negative =
+      stats.GetVarioScaleNegative();
+
+  const GlidePolar &glide_polar = GetComputerSettings().polar.glide_polar_task;
+  if (!glide_polar.IsValid())
+    return;
+
+  calculated.common_stats.vario_scale_positive =
+      std::max(calculated.common_stats.vario_scale_positive,
                glide_polar.GetMC());
   calculated.common_stats.vario_scale_negative =
-      std::min(stats_computer.GetFlightStats().GetVarioScaleNegative(),
+      std::min(calculated.common_stats.vario_scale_negative,
                -glide_polar.GetSBestLD());
 }

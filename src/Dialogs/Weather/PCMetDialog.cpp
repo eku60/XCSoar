@@ -185,7 +185,7 @@ BitmapDialog(const Bitmap &bitmap)
   WidgetDialog dialog(WidgetDialog::Full{},
                       UIGlobals::GetMainWindow(),
                       UIGlobals::GetDialogLook(),
-                      "pc_met", new PCMetImageWidget(bitmap));
+                      "Flugwetter", new PCMetImageWidget(bitmap));
   auto &image = static_cast<PCMetImageWidget &>(dialog.GetWidget());
 
   dialog.AddButton(_("Close"), mrOK);
@@ -217,7 +217,7 @@ BitmapDialog(const PCMet::ImageType &type, const PCMet::ImageArea &area)
     bitmap.LoadFile(*path);
     BitmapDialog(bitmap);
   } catch (...) {
-    ShowError(std::current_exception(), "pc_met");
+    ShowError(std::current_exception(), "Flugwetter");
   }
 }
 
@@ -302,13 +302,8 @@ protected:
 };
 
 std::unique_ptr<Widget>
-CreatePCMetWidget()
+CreatePCMetMainWidget()
 {
-  const auto &settings = CommonInterface::GetComputerSettings().weather.pcmet;
-  if (!settings.www_credentials.IsDefined())
-    return std::make_unique<LargeTextWidget>(UIGlobals::GetDialogLook(),
-                                             "No account was configured.");
-
   auto area_widget = std::make_unique<ImageAreaListWidget>();
   auto type_widget = std::make_unique<ImageTypeListWidget>(*area_widget);
 

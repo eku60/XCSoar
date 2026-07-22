@@ -2,8 +2,10 @@
 // Copyright The XCSoar Project
 
 #include "Dialogs/ListPicker.hpp"
+#include "EmptyDownloadList.hpp"
 #include "HelpDialog.hpp"
 #include "Language/Language.hpp"
+#include "Look/DialogLook.hpp"
 #include "UIGlobals.hpp"
 #include "Widget/ListWidget.hpp"
 #include "Widget/StaticHelpTextWidget.hpp"
@@ -15,6 +17,42 @@
 
 #include <cassert>
 
+void
+ListPickerWidget::Prepare(ContainerWindow &parent,
+                          const PixelRect &rc) noexcept
+{
+  const DialogLook &look = UIGlobals::GetDialogLook();
+  unsigned height = row_height;
+  if (num_items == 0 && empty_extra_action)
+    height = LayoutEmptyDownloadRow(empty_row_renderer);
+
+  ListControl &list = CreateList(parent, look, rc, height);
+  list.SetLength(num_items > 0 ? num_items : (empty_extra_action ? 1u : 0u));
+  list.SetCursorIndex(initial_value);
+}
+
+unsigned
+ListPickerWidget::OnListResized() noexcept
+{
+  if (num_items == 0 && empty_extra_action)
+    return LayoutEmptyDownloadRow(empty_row_renderer);
+
+  return item_renderer.OnListResized();
+}
+
+void
+ListPickerWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
+                              unsigned idx) noexcept
+{
+  if (num_items == 0 && empty_extra_action) {
+    assert(idx == 0);
+    DrawEmptyDownloadHint(empty_row_renderer, canvas, rc);
+    return;
+  }
+
+  item_renderer.OnPaintItem(canvas, rc, idx);
+}
+
 int
 ListPicker(const char *caption,
            unsigned num_items, unsigned initial_value,
@@ -22,7 +60,8 @@ ListPicker(const char *caption,
            ListItemRenderer &item_renderer, bool update,
            const char *help_text,
            ItemHelpCallback_t _itemhelp_callback,
-           const char *extra_caption)
+           const char *extra_caption,
+           const char *extra_caption2)
 {
   assert(num_items <= 0x7fffffff);
   assert((num_items == 0 && initial_value == 0) || initial_value < num_items);
@@ -31,9 +70,13 @@ ListPicker(const char *caption,
   WidgetDialog dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
                       UIGlobals::GetDialogLook(), caption);
 
+  const bool empty_extra_action =
+    num_items == 0 && extra_caption != nullptr;
+
   ListPickerWidget *const list_widget =
     new ListPickerWidget(num_items, initial_value, item_height,
-                         item_renderer, dialog, caption, help_text);
+                         item_renderer, dialog, caption, help_text,
+                         empty_extra_action);
 
   std::unique_ptr<Widget> widget(list_widget);
 
@@ -55,7 +98,9 @@ ListPicker(const char *caption,
     dialog.AddButton(_("Select"), mrOK);
 
   if (extra_caption != nullptr)
-    dialog.AddButton(extra_caption, -2);
+    dialog.AddButton(extra_caption, mrExtra);
+  if (extra_caption2 != nullptr)
+    dialog.AddButton(extra_caption2, mrExtra2);
 
   /* only show a Help button when item help is active (the general
      help text complements the per-item help); for pickers without
@@ -80,7 +125,7 @@ ListPicker(const char *caption,
   int result = dialog.ShowModal();
   if (result == mrOK)
     result = (int)list_widget->GetList().GetCursorIndex();
-  else if (result != -2)
+  else if (result != mrExtra && result != mrExtra2)
     result = -1;
 
   return result;

@@ -34,11 +34,14 @@ class NativeView {
   static jmethodID bitmapToTexture_method;
   static jmethodID shareText_method;
   static jmethodID openURL_method;
+  static jmethodID openWifiSettings_method;
   static jmethodID openWaypointFile_method;
   static jmethodID getNetState_method;
+  static jmethodID getWifiIpAddress_method;
   static jmethodID isAutoRotateEnabled_method;
   static jmethodID getPhysicalOrientation_method;
   static jmethodID startMyService_method;
+  static jmethodID launchSAFTreePicker_method;
 
   static Java::TrivialClass clsBitmap;
   static jmethodID createBitmap_method;
@@ -168,6 +171,11 @@ public:
    */
   bool OpenURL(JNIEnv *env, const char *url) noexcept;
 
+  /**
+   * Open Android Wi-Fi settings or connectivity controls.
+   */
+  bool OpenWifiSettings(JNIEnv *env) noexcept;
+
   void OpenWaypointFile(JNIEnv *env, unsigned id, const char *filename) {
     env->CallVoidMethod(obj, openWaypointFile_method, id,
                         Java::String(env, filename).Get());
@@ -179,9 +187,21 @@ public:
   }
 
   /**
+   * Retrieve the current Wi-Fi IP address.
+   * @return true if an address was copied to the buffer
+   */
+  bool GetWifiIpAddress(JNIEnv *env, char *buffer,
+                        size_t max_size) const noexcept;
+
+  /**
    * Start the foreground service (only in fly mode).
    */
   void StartMyService(JNIEnv *env) const noexcept {
     env->CallVoidMethod(obj, startMyService_method);
   }
+
+  /**
+   * Launch the SAF document-tree picker for a given volume UUID.
+   */
+  void LaunchSAFTreePicker(JNIEnv *env, const char *volume_uuid) const noexcept;
 };

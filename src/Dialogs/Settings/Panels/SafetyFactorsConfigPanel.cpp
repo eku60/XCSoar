@@ -24,6 +24,7 @@ enum ControlIndex {
   AutoBugs,
   SafetyMC,
   RiskFactor,
+  TurnBackMarker,
 };
 
 class SafetyFactorsConfigPanel final : public RowFormWidget {
@@ -58,16 +59,20 @@ SafetyFactorsConfigPanel::Prepare(ContainerWindow &parent,
 
   static constexpr StaticEnumChoice abort_task_mode_list[] = {
     { AbortTaskMode::SIMPLE, N_("Simple"),
-      N_("The alternates will only be sorted by waypoint type (airport/outlanding field) and arrival height.") },
+      N_("Reachable airfields are listed first (nearest at top), then "
+         "outlanding sites (nearest at top).") },
     { AbortTaskMode::TASK, N_("Task"),
-      N_("The sorting will also take the current task direction into account.") },
+      N_("Reachable airfields are listed first (smallest detour to the "
+         "active turnpoint at top), then outlanding sites.") },
     { AbortTaskMode::HOME, N_("Home"),
-      N_("The sorting will try to find landing options in the current direction to the configured home waypoint.") },
+      N_("Reachable airfields are listed first (smallest detour toward "
+         "home at top), then outlanding sites.") },
     nullptr
   };
 
   AddEnum(_("Alternates mode"),
-          _("Determines sorting of alternates in the alternates dialog and in abort mode."),
+          _("Determines sorting of alternates in the alternates dialog "
+            "and in abort mode."),
           abort_task_mode_list, (unsigned)task_behaviour.abort_task_mode);
 
   AddFloat(_("Polar degradation"), /* xgettext:no-c-format */
@@ -99,6 +104,15 @@ SafetyFactorsConfigPanel::Prepare(ContainerWindow &parent,
            0, 1, 0.1, false,
            task_behaviour.risk_gamma);
   SetExpertRow(RiskFactor);
+
+  AddBoolean(_("Turn back marker"),
+             _("Show a green triangle on the map along the current track "
+               "indicating the furthest point from which the active task "
+               "waypoint or Goto target can still be reached with the "
+               "current altitude and conditions. "
+               "The triangle is only shown during cruise when the target "
+               "is reachable."),
+             task_behaviour.turn_back_marker_enabled);
 }
 
 bool
@@ -143,6 +157,11 @@ SafetyFactorsConfigPanel::Save(bool &_changed) noexcept
   if (SaveValue(RiskFactor, task_behaviour.risk_gamma)) {
     Profile::Set(ProfileKeys::RiskGamma,
                  iround(task_behaviour.risk_gamma * 10));
+    changed = true;
+  }
+
+  if (SaveValue(TurnBackMarker, task_behaviour.turn_back_marker_enabled)) {
+    Profile::Set(ProfileKeys::TurnBackMarkerEnabled, task_behaviour.turn_back_marker_enabled);
     changed = true;
   }
 

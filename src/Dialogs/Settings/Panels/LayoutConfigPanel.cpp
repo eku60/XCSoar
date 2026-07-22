@@ -13,7 +13,6 @@
 #include "Language/Language.hpp"
 #include "Widget/RowFormWidget.hpp"
 #include "UIGlobals.hpp"
-#include "UtilsSettings.hpp"
 #include "Asset.hpp"
 #include "Menu/ShowButton.hpp"
 #include "ActionInterface.hpp"
@@ -43,6 +42,7 @@ enum ControlIndex {
   AppInfoBoxBorder,
   ShowMenuButton,
   ShowZoomButton,
+  ShowQuickMenuButton,
 #ifdef DRAW_MOUSE_CURSOR
   CursorSize,
   CursorInverted,
@@ -186,9 +186,13 @@ LayoutConfigPanel::Prepare(ContainerWindow &parent,
   else
     AddDummy();
 
+#ifndef KOBO
   AddEnum(_("Dark mode"), nullptr, dark_mode_list,
           (unsigned)ui_settings.dark_mode);
   SetExpertRow(DarkMode);
+#else
+  AddDummy();
+#endif
 
   AddEnum(_("InfoBox geometry"),
           _("A list of possible InfoBox layouts. Do some trials to find the best for your screen size."),
@@ -230,6 +234,10 @@ LayoutConfigPanel::Prepare(ContainerWindow &parent,
   AddBoolean(_("Show Zoom button"), _("Show the Zoom button"),
              ui_settings.show_zoom_button);
   SetExpertRow(ShowZoomButton);
+  AddBoolean(_("Show QuickMenu button"),
+             _("Show the QuickMenu button"),
+             ui_settings.show_quickmenu_button);
+  SetExpertRow(ShowQuickMenuButton);
 
 #ifdef DRAW_MOUSE_CURSOR
   AddInteger(_("Cursor zoom"), _("Cursor zoom factor"), "%d x", "%d x", 1, 10, 1,
@@ -261,8 +269,15 @@ LayoutConfigPanel::Save(bool &_changed) noexcept
     changed |= orientation_changed;
   }
 
+#ifndef KOBO
   changed |= SaveValueEnum(DarkMode, ProfileKeys::DarkMode,
                            ui_settings.dark_mode);
+#else
+  if (ui_settings.dark_mode != UISettings::DarkMode::OFF) {
+    ui_settings.dark_mode = UISettings::DarkMode::OFF;
+    changed = true;
+  }
+#endif
 
   bool info_box_geometry_changed = false;
 
@@ -288,11 +303,18 @@ LayoutConfigPanel::Save(bool &_changed) noexcept
   changed |= SaveValueEnum(AppInfoBoxBorder, ProfileKeys::AppInfoBoxBorder,
                            ui_settings.info_boxes.border_style);
 
-  if (SaveValue(ShowMenuButton, ProfileKeys::ShowMenuButton,ui_settings.show_menu_button))
-    require_restart = changed = true;
+  bool overlay_buttons_changed = false;
+  if (SaveValue(ShowMenuButton, ProfileKeys::ShowMenuButton,
+                ui_settings.show_menu_button))
+    overlay_buttons_changed = changed = true;
   if (SaveValue(ShowZoomButton, ProfileKeys::ShowZoomButton,
-		ui_settings.show_zoom_button))
-    require_restart = changed = true;
+                ui_settings.show_zoom_button))
+    overlay_buttons_changed = changed = true;
+  if (SaveValue(ShowQuickMenuButton, ProfileKeys::ShowQuickMenuButton,
+                ui_settings.show_quickmenu_button))
+    overlay_buttons_changed = changed = true;
+  if (overlay_buttons_changed)
+    CommonInterface::main_window->ReinitialiseMapOverlayButtons();
 
   DialogSettings &dialog_settings = CommonInterface::SetUISettings().dialog;
   changed |= SaveValueEnum(TabDialogStyle, ProfileKeys::AppDialogTabStyle, dialog_settings.tab_style);

@@ -18,6 +18,10 @@ Look::Initialise(const Font &map_font)
 static bool
 GetDarkMode(const UISettings &settings) noexcept
 {
+#ifdef KOBO
+  (void)settings;
+  return false;
+#else
   switch (settings.dark_mode) {
   case UISettings::DarkMode::OFF:
     break;
@@ -30,6 +34,7 @@ GetDarkMode(const UISettings &settings) noexcept
   }
 
   return false;
+#endif
 }
 
 [[gnu::pure]]
@@ -97,4 +102,6 @@ Look::ReinitialiseLayout(unsigned infobox_width, unsigned scale_title_font)
 
   info_box.ReinitialiseLayout(infobox_width, scale_title_font);
   vario.ReinitialiseLayout(infobox_width);
+  flarm_gauge.ReinitialiseLayout();
+  flarm_dialog.ReinitialiseLayout();
 }

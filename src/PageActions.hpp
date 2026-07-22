@@ -3,12 +3,20 @@
 
 #pragma once
 
-struct PageLayout;
+#include "PageSettings.hpp"
+
 class GlueMapWindow;
 class Widget;
 
 namespace PageActions
 {
+  enum class ConfigureWeatherOverlayResult {
+    APPLIED_CURRENT,
+    ADDED_PAGE,
+    NO_CONFIGURED_PAGE,
+    PAGE_LIMIT_REACHED,
+  };
+
   /**
    * Returns the configured #PageLayout that was most recently
    * visible.
@@ -21,6 +29,13 @@ namespace PageActions
    */
   [[gnu::pure]]
   const PageLayout &GetCurrentLayout();
+
+  /**
+   * True after pan was disabled without Restore(), leaving the transient
+   * FullScreen layout active while a different page is configured.
+   */
+  [[gnu::pure]]
+  bool IsStuckPanFullScreenLayout() noexcept;
 
   /**
    * Opens the next page.
@@ -106,6 +121,34 @@ namespace PageActions
    * Show the dedicated weather map page.
    */
   void ShowWeatherPage();
+
+  /**
+   * Apply a weather overlay to the currently configured page.
+   *
+   * This mutates configured page settings (not transient special pages),
+   * persists profile changes, and refreshes the active layout.
+   */
+  ConfigureWeatherOverlayResult
+  AddWeatherOverlayToCurrentPage(PageLayout::Overlay overlay,
+                                 int rasp_field=-1);
+
+  /**
+   * Clone the current configured page, apply a weather overlay to the clone,
+   * append it as a new configured page, and activate it.
+   */
+  ConfigureWeatherOverlayResult
+  AddWeatherOverlayToNewPage(PageLayout::Overlay overlay,
+                             int rasp_field=-1);
+
+  /**
+   * Preserve active weather overlays across a temporary pan full-screen.
+   */
+  void SuspendWeatherOverlaysForPan() noexcept;
+
+  /**
+   * Clear temporary pan suspension flags for all weather overlays.
+   */
+  void ResumeWeatherOverlaysAfterPan() noexcept;
 
   /**
    * Use a custom widget for the "bottom" area.  This is a wrapper for

@@ -49,7 +49,7 @@ enum class FinalGlideBarDisplayMode: uint8_t {
   AUTO,
 };
 
-enum class DisplaySkyLinesTrafficMapMode: uint8_t {
+enum class DisplayOnlineTrafficMapMode: uint8_t {
   OFF,
   SYMBOL,
   SYMBOL_NAME,
@@ -164,6 +164,9 @@ struct MapSettings {
   /** Display climb band on map */
   bool show_thermal_profile;
 
+  /** Display distance rings around the aircraft */
+  bool distance_rings_enabled;
+
   /** Show FinalGlideBar mc0 arrow */
   bool final_glide_bar_mc0_enabled;
 
@@ -179,9 +182,9 @@ struct MapSettings {
   bool show_fai_triangle_areas;
 
   /**
-   * Display skylines name on map
+   * Display online traffic (SkyLines and XCSoar Cloud) on the map.
    */
-  DisplaySkyLinesTrafficMapMode skylines_traffic_map_mode;
+  DisplayOnlineTrafficMapMode online_traffic_map_mode;
 
   FAITriangleSettings fai_triangle_settings;
 

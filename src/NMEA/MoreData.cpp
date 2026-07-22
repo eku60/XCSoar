@@ -18,5 +18,14 @@ MoreData::Reset() noexcept
   brutto_vario = 0;
   brutto_vario_available.Clear();
 
+  filtered_brutto_vario = 0;
+  filtered_brutto_vario_available.Clear();
+
+  filtered_netto_vario = 0;
+  filtered_netto_vario_available.Clear();
+
+  V_stf = 0;
+  V_stf_available.Clear();
+
   NMEAInfo::Reset();
 }

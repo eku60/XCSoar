@@ -14,6 +14,10 @@
 #include "Asset.hpp"
 #include "Components.hpp"
 #include "BackendComponents.hpp"
+#include "ActionInterface.hpp"
+#ifdef HAVE_EDL
+#include "UIState.hpp"
+#endif
 
 #ifdef USE_X11
 #include "ui/event/Globals.hpp"
@@ -43,6 +47,7 @@ GlueMapWindow::OnDestroy() noexcept
 
 #ifdef ENABLE_OPENGL
   kinetic_timer.Cancel();
+  terrain_quantisation_timer.Cancel();
 #endif
 
   map_item_timer.Cancel();
@@ -97,6 +102,9 @@ GlueMapWindow::OnMouseMove(PixelPoint p, unsigned keys) noexcept
     /* invoke PaintWindow's Invalidate() implementation instead of
        DoubleBufferWindow's in order to reuse the buffered map */
     PaintWindow::Invalidate();
+#ifdef ENABLE_OPENGL
+    NoteTerrainQuantisationUserActivity();
+#endif
     return true;
 
   case DRAG_SIMULATOR:
@@ -236,6 +244,11 @@ GlueMapWindow::OnMouseUp(PixelPoint p) noexcept
     kinetic_x.MouseUp(p.x);
     kinetic_y.MouseUp(p.y);
     kinetic_timer.Schedule(std::chrono::milliseconds(30));
+#endif
+
+#ifdef HAVE_EDL
+    if (CommonInterface::GetUIState().weather.edl.session.IsSuspendedForPan())
+      ActionInterface::ScheduleSendUIState();
 #endif
     break;
 

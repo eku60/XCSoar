@@ -6,7 +6,9 @@
 #include "Language/Language.hpp"
 #include "Units/Units.hpp"
 #include "system/ConvertPathName.hpp"
+#include "system/FileUtil.hpp"
 #include "system/Path.hpp"
+#include "time/BrokenDateTime.hpp"
 #include "io/ZipArchive.hpp"
 #include "util/StringCompare.hxx"
 #include "util/Macros.hpp"
@@ -81,10 +83,51 @@ RaspStore::MapItem::MapItem(const char *_name)
   std::fill_n(times, ARRAY_SIZE(times), false);
 }
 
+BrokenDateTime
+RaspStore::GetFileModifiedTime() const noexcept
+{
+  if (path == nullptr || path.empty() || !File::Exists(path))
+    return BrokenDateTime::Invalid();
+
+  const auto modified = File::GetLastModification(path);
+  if (modified == std::chrono::system_clock::time_point{})
+    return BrokenDateTime::Invalid();
+
+  const BrokenDateTime dt{modified};
+  if (!dt.IsPlausible())
+    return BrokenDateTime::Invalid();
+
+  return dt.ToLocal();
+}
+
 BrokenTime
 RaspStore::IndexToTime(unsigned index)
 {
   return BrokenTime(index / 4, (index % 4) * 15);
+}
+
+unsigned
+RaspStore::TimeToIndex(BrokenTime t) noexcept
+{
+  return unsigned(t.hour) * 4u + unsigned(t.minute) / 15u;
+}
+
+bool
+RaspStore::HasSelectedTimeData(unsigned item_index, bool auto_advance,
+                               BrokenTime manual_time,
+                               BrokenTime auto_local_time) const noexcept
+{
+  if (item_index >= maps.size())
+    return false;
+
+  const BrokenTime forecast = (auto_advance || !manual_time.IsPlausible())
+    ? auto_local_time
+    : manual_time;
+  if (!forecast.IsPlausible())
+    return false;
+
+  const unsigned time_index = TimeToIndex(forecast);
+  return IsTimeAvailable(item_index, time_index);
 }
 
 unsigned

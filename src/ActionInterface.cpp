@@ -20,6 +20,8 @@
 #include "BackendComponents.hpp"
 #include "DataGlobals.hpp"
 #include "PageSettings.hpp"
+#include "Weather/Features.hpp"
+#include "Weather/Rasp/FieldControls.hpp"
 
 using namespace CommonInterface;
 
@@ -27,6 +29,10 @@ namespace ActionInterface {
 static void
 SendGetComputerSettings() noexcept;
 }
+
+static void
+UpdateMapScalePageInfo(UIState &state,
+                       const UISettings &settings) noexcept;
 
 void
 XCSoarInterface::ReceiveGPS() noexcept
@@ -256,6 +262,8 @@ ActionInterface::SendMapSettings(const bool trigger_draw) noexcept
 void
 ActionInterface::SendUIState(const bool trigger_draw) noexcept
 {
+  UpdateMapScalePageInfo(SetUIState(), GetUISettings());
+
   main_window->SetUIState(GetUIState());
 
   if (trigger_draw)
@@ -285,19 +293,32 @@ UpdateMapScalePageInfo(UIState &state,
                        const UISettings &settings) noexcept
 {
   const PagesState &pages = state.pages;
+  const PageLayout &configured =
+    settings.pages.pages[pages.current_index];
+
   const PageLayout &layout = pages.special_page.IsDefined()
     ? pages.special_page
-    : settings.pages.pages[pages.current_index];
+    : configured;
 
-  state.page_overlay = layout.IsMapMain()
-    ? layout.overlay
+  /* Pan fullscreen keeps the configured map overlay visible — retain its
+     type for RASP HUD logic and show the active layer in the PAN string. */
+  const PageLayout &overlay_layout =
+    (pages.special_page.IsDefined() &&
+     pages.special_page == PageLayout::FullScreen() &&
+     configured.IsMapMain() &&
+     configured.overlay != PageLayout::Overlay::NONE)
+    ? configured
+    : layout;
+
+  state.page_overlay = overlay_layout.IsMapMain()
+    ? overlay_layout.overlay
     : PageLayout::Overlay::NONE;
 
   state.map_scale_page_title.clear();
 
-  if (layout.IsMapMain() &&
-      layout.overlay != PageLayout::Overlay::NONE) {
-    const char *title = layout.MakeTitle(settings.info_boxes,
+  if (overlay_layout.IsMapMain() &&
+      overlay_layout.overlay != PageLayout::Overlay::NONE) {
+    const char *title = overlay_layout.MakeTitle(settings.info_boxes,
                                          std::span{state.map_scale_page_title.data(),
                                                    state.map_scale_page_title.capacity()},
                                          DataGlobals::GetRasp().get(),
@@ -326,6 +347,8 @@ ActionInterface::UpdateDisplayMode() noexcept
 void
 ActionInterface::SendUIState() noexcept
 {
+  UpdateMapScalePageInfo(SetUIState(), GetUISettings());
+
   /* force-update all InfoBoxes just in case the display mode has
      changed */
   InfoBoxManager::SetDirty();
@@ -464,4 +487,24 @@ ActionInterface::SetTransponderMode(TransponderMode mode) noexcept
   InfoBoxManager::SetDirty();
 
   /* Note: no device API currently exists to send only the mode. */
+}
+
+void
+ActionInterface::SetQNH(AtmosphericPressure qnh, bool to_devices) noexcept
+{
+  const NMEAInfo &basic = Basic();
+  ComputerSettings &settings_computer = SetComputerSettings();
+
+  settings_computer.pressure = qnh;
+  settings_computer.pressure_available.Update(basic.clock);
+
+  SendGetComputerSettings();
+
+  InfoBoxManager::SetDirty();
+  InfoBoxManager::ProcessTimer();
+
+  if (to_devices && backend_components && backend_components->devices) {
+    MessageOperationEnvironment env;
+    backend_components->devices->PutQNH(qnh, env);
+  }
 }

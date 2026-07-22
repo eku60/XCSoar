@@ -66,6 +66,7 @@ constexpr std::string_view SnailTrail = "SnailTrail";
 constexpr std::string_view TrailDrift = "TrailDrift";
 constexpr std::string_view DetourCostMarker = "DetourCostMarker";
 constexpr std::string_view DisplayTrackBearing = "DisplayTrackBearing";
+constexpr std::string_view TurnBackMarkerEnabled = "TurnBackMarkerEnabled";
 constexpr std::string_view SpeedUnitsValue = "SpeedUnit";
 constexpr std::string_view TaskSpeedUnitsValue = "TaskSpeedUnit";
 constexpr std::string_view WarningTime = "WarnTime";
@@ -131,6 +132,7 @@ constexpr std::string_view TeamcodeRefWaypoint = "TeamcodeRefWaypoint";
 constexpr std::string_view AppInfoBoxBorder = "AppInfoBoxBorder";
 constexpr std::string_view ShowMenuButton = "ShowMenuButton";
 constexpr std::string_view ShowZoomButton = "ShowZoomButton";
+constexpr std::string_view ShowQuickMenuButton = "ShowQuickMenuButton";
 constexpr std::string_view CursorSize = "CursorSize";
 constexpr std::string_view CursorColorsInverted = "CursorColorsInverted";
 constexpr std::string_view NoPositionTargetDistanceRing = "NoPositionTargetDistanceRing";
@@ -154,6 +156,7 @@ constexpr std::string_view AutoCloseFlarmDialog = "AutoCloseFlarmDialog";
 constexpr std::string_view EnableTAGauge = "EnableTAGauge";
 constexpr std::string_view TAPosition = "TAPosition";
 constexpr std::string_view EnableThermalProfile = "EnableThermalProfile";
+constexpr std::string_view DistanceRingsEnabled = "DistanceRingsEnabled";
 constexpr std::string_view GliderScreenPosition = "GliderScreenPosition";
 constexpr std::string_view SetSystemTimeFromGPS = "SetSystemTimeFromGPS";
 
@@ -264,8 +267,15 @@ constexpr std::string_view SkyLinesTrafficMapMode = "SkyLinesTrafficMapMode";
 constexpr std::string_view SkyLinesTrackingKey = "SkyLinesTrackingKey";
 
 constexpr std::string_view CloudEnabled = "CloudEnabled";
+constexpr std::string_view CloudShowTraffic = "CloudShowTraffic";
 constexpr std::string_view CloudShowThermals = "CloudShowThermals";
+constexpr std::string_view CloudRoaming = "CloudRoaming";
+constexpr std::string_view CloudHost = "CloudHost";
+constexpr std::string_view CloudPort = "CloudPort";
 constexpr std::string_view CloudKey = "CloudKey";
+constexpr std::string_view CloudOwnFlarmId = "CloudOwnFlarmId";
+
+constexpr std::string_view OnlineTrafficMapMode = "OnlineTrafficMapMode";
 
 constexpr std::string_view LiveTrack24Enabled = "LiveTrack24Enabled";
 constexpr std::string_view LiveTrack24Server = "LiveTrack24Server";
@@ -300,6 +310,7 @@ constexpr std::string_view VarioZeroFrequency = "VarioZeroFrequency";
 constexpr std::string_view VarioMaxFrequency = "VarioMaxFrequency";
 constexpr std::string_view VarioMinPeriod = "VarioMinPeriod";
 constexpr std::string_view VarioMaxPeriod = "VarioMaxPeriod";
+constexpr std::string_view VarioSoundSwitchingMode = "VarioSoundSwitchingMode";
 constexpr std::string_view VarioDeadBandEnabled = "VarioDeadBandEnabled";
 constexpr std::string_view VarioDeadBandMin = "VarioDeadBandMin";
 constexpr std::string_view VarioDeadBandMax = "VarioDeadBandMax";
@@ -311,6 +322,13 @@ constexpr std::string_view WaveAssistant = "WaveAssistant";
 constexpr std::string_view MasterAudioVolume = "MasterAudioVolume";
 
 constexpr std::string_view RaspFile = "RaspFile";
+constexpr std::string_view XCThermAutoSwitch = "XCThermAutoSwitch";
+constexpr std::string_view XCThermEmail = "XCThermEmail";
+constexpr std::string_view XCThermPassword = "XCThermPassword";
+constexpr std::string_view XCThermModel = "XCThermModel";
+constexpr std::string_view XCThermParameter = "XCThermParameter";
+constexpr std::string_view XCThermWaveHeight = "XCThermWaveHeight";
+constexpr std::string_view XCThermVerticalWindAGL = "XCThermVerticalWindAGL";
 
 constexpr std::string_view StratuxHorizontalRange = "StratuxHorizontalRange";
 constexpr std::string_view StratuxVerticalRange = "StratuxVerticalRange";

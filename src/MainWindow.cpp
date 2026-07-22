@@ -33,8 +33,16 @@
 #include "UIReceiveBlackboard.hpp"
 #include "UISettings.hpp"
 #include "Interface.hpp"
+
+#include <utility>
 #include "Components.hpp"
 #include "BackendComponents.hpp"
+#include "Storage/StorageManager.hpp"
+#include "Storage/StorageEvents.hpp"
+
+#ifdef USE_WINUSER
+#include "Storage/win/WinHotplugForward.hpp"
+#endif
 
 #ifdef ANDROID
 #include "Android/ReceiveTask.hpp"
@@ -97,6 +105,20 @@ MainWindow::GetShowMenuButtonRect(const PixelRect rc) noexcept
 
 [[gnu::pure]]
 PixelRect
+MainWindow::GetShowQuickMenuButtonRect(const PixelRect rc) noexcept
+{
+  const UISettings &settings = CommonInterface::GetUISettings();
+  const unsigned padding = Layout::GetTextPadding();
+
+  int top = rc.top + int(padding);
+  if (settings.show_menu_button)
+    top = GetShowMenuButtonRect(rc).bottom + int(padding);
+
+  return GetMapOverlayButtonRect(rc, top);
+}
+
+[[gnu::pure]]
+PixelRect
 MainWindow::GetShowZoomButtonRect(const PixelRect rc,
                                   ShowZoomButton::Sign sign) noexcept
 {
@@ -104,8 +126,17 @@ MainWindow::GetShowZoomButtonRect(const PixelRect rc,
   const unsigned padding = Layout::GetTextPadding();
   const unsigned size = Layout::GetMaximumControlHeight();
 
-  if (settings.show_menu_button && ShowMapOverlayZoomButtons(settings)) {
-    int top = GetShowMenuButtonRect(rc).bottom + int(padding);
+  const bool stack_top_right =
+    (settings.show_menu_button || settings.show_quickmenu_button) &&
+    ShowMapOverlayZoomButtons(settings);
+
+  if (stack_top_right) {
+    int top;
+    if (settings.show_quickmenu_button)
+      top = GetShowQuickMenuButtonRect(rc).bottom + int(padding);
+    else
+      top = GetShowMenuButtonRect(rc).bottom + int(padding);
+
     if (sign == ShowZoomButton::Sign::ZOOM_IN) {
       const PixelRect zoom_out =
         GetShowZoomButtonRect(rc, ShowZoomButton::Sign::ZOOM_OUT);
@@ -274,39 +305,106 @@ MainWindow::LayoutMapArea() noexcept
 void
 MainWindow::UpdateMapOverlayButtonLayout() noexcept
 {
-  if (widget != nullptr || map == nullptr)
-    return;
-
   const bool overlay_buttons_active =
+    widget == nullptr && map != nullptr &&
     !CommonInterface::GetUIState().pages.special_page.IsDefined();
-  const PixelRect rc = map->GetPosition();
 
   if (show_menu_button != nullptr) {
     show_menu_button->SetVisible(overlay_buttons_active);
     show_menu_button->SetEnabled(overlay_buttons_active);
     if (overlay_buttons_active)
-      show_menu_button->Move(GetShowMenuButtonRect(rc));
+      show_menu_button->Move(GetShowMenuButtonRect(map->GetPosition()));
+  }
+  if (show_quickmenu_button != nullptr) {
+    show_quickmenu_button->SetVisible(overlay_buttons_active);
+    show_quickmenu_button->SetEnabled(overlay_buttons_active);
+    if (overlay_buttons_active)
+      show_quickmenu_button->Move(GetShowQuickMenuButtonRect(map->GetPosition()));
   }
   if (show_zoom_out_button != nullptr) {
     show_zoom_out_button->SetVisible(overlay_buttons_active);
     show_zoom_out_button->SetEnabled(overlay_buttons_active);
     if (overlay_buttons_active)
-      show_zoom_out_button->Move(GetShowZoomButtonRect(rc,
+      show_zoom_out_button->Move(GetShowZoomButtonRect(map->GetPosition(),
                                                        ShowZoomButton::Sign::ZOOM_OUT));
   }
   if (show_zoom_in_button != nullptr) {
     show_zoom_in_button->SetVisible(overlay_buttons_active);
     show_zoom_in_button->SetEnabled(overlay_buttons_active);
     if (overlay_buttons_active)
-      show_zoom_in_button->Move(GetShowZoomButtonRect(rc,
+      show_zoom_in_button->Move(GetShowZoomButtonRect(map->GetPosition(),
                                                       ShowZoomButton::Sign::ZOOM_IN));
   }
 
 #ifdef ANDROID
-  if (show_rotate_button != nullptr)
-    show_rotate_button->Move(GetShowRotateButtonRect(rc));
+  if (show_rotate_button != nullptr && overlay_buttons_active)
+    show_rotate_button->Move(GetShowRotateButtonRect(map->GetPosition()));
 #endif
+
+  /* Newly created overlay buttons are added after the map; keep the map
+     underneath them (same as ReinitialiseLayout()). */
+  if (overlay_buttons_active)
+    map->BringToBottom();
 }
+
+void
+MainWindow::ReinitialiseMapOverlayButtons() noexcept
+{
+  if (look == nullptr)
+    return;
+
+  const UISettings &settings = CommonInterface::GetUISettings();
+  const PixelRect map_area_rect = GetMapAreaRect();
+
+  if (settings.show_menu_button) {
+    if (show_menu_button == nullptr) {
+      show_menu_button = new ShowMenuButton();
+      show_menu_button->Create(*this, look->dialog.button,
+                               GetShowMenuButtonRect(map_area_rect));
+    }
+  } else if (show_menu_button != nullptr) {
+    delete show_menu_button;
+    show_menu_button = nullptr;
+  }
+
+  if (settings.show_quickmenu_button) {
+    if (show_quickmenu_button == nullptr) {
+      show_quickmenu_button = new ShowQuickMenuButton();
+      show_quickmenu_button->Create(*this, look->dialog.button,
+                                    GetShowQuickMenuButtonRect(map_area_rect));
+    }
+  } else if (show_quickmenu_button != nullptr) {
+    delete show_quickmenu_button;
+    show_quickmenu_button = nullptr;
+  }
+
+  if (ShowMapOverlayZoomButtons(settings)) {
+    if (show_zoom_out_button == nullptr) {
+      show_zoom_out_button = new ShowZoomButton();
+      show_zoom_out_button->Create(*this, look->dialog.button,
+                                   GetShowZoomButtonRect(map_area_rect,
+                                                         ShowZoomButton::Sign::ZOOM_OUT),
+                                   ShowZoomButton::Sign::ZOOM_OUT);
+    }
+    if (show_zoom_in_button == nullptr) {
+      show_zoom_in_button = new ShowZoomButton();
+      show_zoom_in_button->Create(*this, look->dialog.button,
+                                  GetShowZoomButtonRect(map_area_rect,
+                                                        ShowZoomButton::Sign::ZOOM_IN),
+                                  ShowZoomButton::Sign::ZOOM_IN);
+    }
+  } else {
+    delete show_zoom_out_button;
+    show_zoom_out_button = nullptr;
+    delete show_zoom_in_button;
+    show_zoom_in_button = nullptr;
+  }
+
+  UpdateMapOverlayButtonLayout();
+}
+
+MainWindow::MainWindow(UI::Display &display) noexcept
+  : SingleWindow(display) {}
 
 /**
  * Destructor of the MainWindow-Class
@@ -370,32 +468,15 @@ MainWindow::InitialiseConfigured()
   ReinitialiseLayoutTA(rc, ib_layout);
   ReinitialiseLayout_flarm(rc, ib_layout);
 
-  const UISettings &settings = CommonInterface::GetUISettings();
-  const PixelRect map_area_rect = GetMapAreaRect();
-
-  if (settings.show_menu_button) {
-    show_menu_button = new ShowMenuButton();
-    show_menu_button->Create(*this, look->dialog.button,
-                             GetShowMenuButtonRect(map_area_rect));
-  }
-  if (ShowMapOverlayZoomButtons(settings)) {
-    show_zoom_out_button = new ShowZoomButton();
-    show_zoom_out_button->Create(*this, look->dialog.button,
-                                 GetShowZoomButtonRect(map_area_rect,
-                                                       ShowZoomButton::Sign::ZOOM_OUT),
-                                 ShowZoomButton::Sign::ZOOM_OUT);
-    show_zoom_in_button = new ShowZoomButton();
-    show_zoom_in_button->Create(*this, look->dialog.button,
-                                GetShowZoomButtonRect(map_area_rect,
-                                                      ShowZoomButton::Sign::ZOOM_IN),
-                                ShowZoomButton::Sign::ZOOM_IN);
-  }
+  ReinitialiseMapOverlayButtons();
 
 #ifdef ANDROID
   /* create a rotate button (initially hidden) when orientation is
      DEFAULT (not forced) and the system auto-rotate setting is
      enabled; the button appears temporarily when the Java
      OrientationEventListener detects a physical orientation change */
+  const UISettings &settings = CommonInterface::GetUISettings();
+  const PixelRect map_area_rect = GetMapAreaRect();
   if (settings.display.orientation == DisplayOrientation::DEFAULT &&
       native_view != nullptr &&
       native_view->IsAutoRotateEnabled(Java::GetEnv())) {
@@ -413,6 +494,42 @@ MainWindow::InitialiseConfigured()
 
   popup = new PopupMessage(*this, look->dialog, ui_settings);
   popup->Create(map_rect);
+}
+
+void
+MainWindow::InitialiseStorage() noexcept
+{
+  if (backend_components == nullptr ||
+      backend_components->storage_manager == nullptr)
+    return;
+
+  /* Create a small adapter that forwards storage events to our
+     private OnStorageEvent() method and register it directly
+     with the StorageManager. */
+  class Adapter final : public StorageEventListener {
+    MainWindow &window_;
+  public:
+    explicit Adapter(MainWindow &w) noexcept : window_(w) {}
+    void OnStorageEvent(const StorageEventInfo &info) noexcept override {
+      window_.OnStorageEvent(info);
+    }
+  };
+
+  storage_event_adapter_ = std::make_unique<Adapter>(*this);
+  backend_components->storage_manager->AddEventListener(
+    *storage_event_adapter_);
+}
+
+void
+MainWindow::DeinitialiseStorage() noexcept
+{
+  if (storage_event_adapter_ &&
+      backend_components != nullptr &&
+      backend_components->storage_manager != nullptr)
+    backend_components->storage_manager->RemoveEventListener(
+      *storage_event_adapter_);
+
+  storage_event_adapter_.reset();
 }
 
 void
@@ -435,6 +552,8 @@ MainWindow::Deinitialise() noexcept
 
   delete show_menu_button;
   show_menu_button = nullptr;
+  delete show_quickmenu_button;
+  show_quickmenu_button = nullptr;
   delete show_zoom_out_button;
   show_zoom_out_button = nullptr;
   delete show_zoom_in_button;
@@ -818,7 +937,52 @@ MainWindow::FullRedraw() noexcept
     map->FullRedraw();
 }
 
+void
+MainWindow::OnStorageNotify() noexcept
+{
+  if (backend_components == nullptr ||
+      backend_components->storage_manager == nullptr)
+    return;
+
+  backend_components->storage_manager->ProcessPendingChanges();
+}
+
+void
+MainWindow::OnStorageEvent(const StorageEventInfo &info) noexcept
+{
+  /* Show a popup only when the map is active and no dialog is
+     currently open.  This avoids queueing stale storage popups while
+     a modal dialog is shown and replaying them afterwards. */
+  if (GetMapIfActive() == nullptr || HasDialog())
+    return;
+
+  if (!popup)
+    return;
+
+  const std::string msg = info.Format();
+  if (!msg.empty())
+    popup->AddMessage(msg.c_str());
+}
+
 // Windows event handlers
+
+#ifdef USE_WINUSER
+LRESULT
+MainWindow::OnMessage(HWND hWnd, UINT message,
+                      WPARAM wParam, LPARAM lParam) noexcept
+{
+  switch (message) {
+  case WM_DEVICECHANGE:
+    /* Forward device change notifications to the storage hotplug
+       forwarder which will call the registered
+       WindowsStorageHotplugMonitor. */
+    Storage::Win::ForwardDeviceChange(wParam, lParam);
+    break;
+  }
+
+  return SingleWindow::OnMessage(hWnd, message, wParam, lParam);
+}
+#endif
 
 void
 MainWindow::OnResize(PixelSize new_size) noexcept
@@ -979,6 +1143,11 @@ MainWindow::RunTimer() noexcept
 
   ProcessTimer();
 
+#ifdef ENABLE_OPENGL
+  if (GlueMapWindow *m = GetMapIfActive())
+    m->PollTerrainQuantisationIdle();
+#endif
+
   UpdateGaugeVisibility();
 
   if (CommonInterface::GetUISettings().thermal_assistant_position == UISettings::ThermalAssistantPosition::OFF) {
@@ -1004,10 +1173,23 @@ MainWindow::RunTimer() noexcept
 }
 
 void
+MainWindow::SendGPSUpdate(const bool vario_bar_redraw) noexcept
+{
+  vario_bar_redraw_pending = vario_bar_redraw;
+  gps_notify.SendNotification();
+}
+
+void
 MainWindow::OnGpsNotify() noexcept
 {
   PopupOperationEnvironment env;
   UIReceiveSensorData(env);
+
+  if (std::exchange(vario_bar_redraw_pending, false) &&
+      CommonInterface::GetMapSettings().vario_bar_enabled) {
+    if (GlueMapWindow *m = GetMapIfActive())
+      m->InjectRedraw();
+  }
 }
 
 void
@@ -1221,16 +1403,18 @@ MainWindow::ActivateMap() noexcept
 
   if (widget != nullptr) {
     KillWidget();
+
+    if (bottom_widget != nullptr) {
+      PixelRect main_rect = GetMainRect();
+      const PixelRect top_rect = GetTopWidgetRect(main_rect, top_widget);
+      main_rect = GetMapRectBelow(main_rect, top_rect);
+      bottom_widget->Show(GetBottomWidgetRect(main_rect, bottom_widget));
+    }
+
     LayoutMapArea();
     map->Show();
     map->SetFocus();
     UpdateMapOverlayButtonLayout();
-
-    if (bottom_widget != nullptr) {
-      assert(HaveBottomWidget());
-      bottom_widget->Show(GetBottomWidgetRect(GetMainRect(),
-                                              bottom_widget));
-    }
 
 #ifndef ENABLE_OPENGL
     if (draw_suspended) {
@@ -1363,8 +1547,7 @@ MainWindow::SetBottomWidget(Widget *_widget) noexcept
       /* the bottom widget is only visible below the map, but not
          below a custom main widget; see HaveBottomWidget() */
       bottom_widget->Show(bottom_rect);
-    else
-      bottom_widget->Move(bottom_rect);
+    /* else: leave hidden until ActivateMap() shows it */
   }
 
   LayoutMapArea();
@@ -1406,6 +1589,8 @@ MainWindow::SetWidget(Widget *_widget) noexcept
   widget->Initialise(*this, rc);
   widget->Prepare(*this, rc);
   widget->Show(rc);
+
+  UpdateMapOverlayButtonLayout();
 
   if (!widget->SetFocus())
     SetFocus();

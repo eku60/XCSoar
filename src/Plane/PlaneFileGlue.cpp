@@ -5,6 +5,7 @@
 #include "Plane.hpp"
 #include "Polar/Parser.hpp"
 #include "Engine/GlideSolvers/GlidePolar.hpp"
+#include "Repository/FileType.hpp"
 #include "io/KeyValueFileReader.hpp"
 #include "io/KeyValueFileWriter.hpp"
 #include "io/FileOutputStream.hxx"
@@ -193,6 +194,9 @@ PlaneGlue::Write(const Plane &plane, KeyValueFileWriter &writer)
 void
 PlaneGlue::WriteFile(const Plane &plane, Path path)
 {
+  if (const auto parent = path.GetParent(); parent != nullptr)
+    Directory::CreateRecursive(parent);
+
   FileOutputStream file(path);
   BufferedOutputStream buffered(file);
   KeyValueFileWriter kvwriter(buffered);
@@ -226,7 +230,7 @@ PlaneGlue::FindByRegistration(const char *registration)
     }
   } visitor{match};
 
-  VisitDataFiles("*.xcp", visitor);
+  VisitDataFiles(GetFileTypePatterns(FileType::PLANE), visitor);
   return std::move(match.found_path);
 }
 

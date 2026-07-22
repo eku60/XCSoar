@@ -7,8 +7,11 @@
 #include "DemoReplayGlue.hpp"
 #include "io/FileLineReader.hpp"
 #include "Blackboard/DeviceBlackboard.hpp"
+#include "CalculationThread.hpp"
+#include "MergeThread.hpp"
 #include "Logger/Logger.hpp"
 #include "Interface.hpp"
+#include "Repository/FileType.hpp"
 #include "CatmullRomInterpolator.hpp"
 #include "time/Cast.hxx"
 
@@ -49,7 +52,8 @@ Replay::Start(Path _path)
 
   if (path == nullptr || path.empty()) {
     replay = new DemoReplayGlue(device_blackboard, task_manager);
-  } else if (path.EndsWithIgnoreCase(".igc")) {
+  } else if (FilenameMatchesFileType(path.GetBase().c_str(),
+                                      FileType::IGC)) {
     replay = new IgcReplay(std::make_unique<FileLineReaderA>(path));
 
     cli = new CatmullRomInterpolator(FloatDuration{0.98});
@@ -192,6 +196,45 @@ Replay::Update()
   }
 
   return true;
+}
+
+unsigned
+Replay::ProcessAllFixes(MergeThread &merge_thread,
+                        CalculationThread &calc_thread)
+{
+  if (replay == nullptr || path == nullptr || path.empty())
+    return 0;
+
+  timer.Cancel();
+  fast_forward = TimeStamp::Undefined();
+
+  NMEAInfo data;
+  data.Reset();
+  unsigned count = 0;
+
+  while (replay->Update(data)) {
+    assert(!data.gps.real);
+
+    if (data.time_available)
+      virtual_time = data.time;
+
+    {
+      const std::lock_guard lock{device_blackboard.mutex};
+      device_blackboard.SetReplayState() = data;
+    }
+
+    merge_thread.ProcessReplayFix();
+    calc_thread.ProcessReplayFix();
+    ++count;
+
+    if (data.time_available)
+      data.Expire();
+  }
+
+  if (count > 0)
+    next_data = data;
+
+  return count;
 }
 
 void

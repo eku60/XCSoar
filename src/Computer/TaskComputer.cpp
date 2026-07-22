@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "TaskComputer.hpp"
+#include "Atmosphere/AirDensity.hpp"
 #include "Task/ProtectedTaskManager.hpp"
 #include "Engine/Task/TaskManager.hpp"
 #include "Engine/Task/Ordered/OrderedTask.hpp"
@@ -55,6 +56,10 @@ TaskComputer::ProcessBasicTask(const MoreData &basic,
 
   _task->SetTaskBehaviour(settings_computer.task);
 
+  if (settings_computer.polar.glide_polar_task.IsValid())
+    if (const auto altitude = basic.GetAnyAltitude())
+      _task->SetDensityRatio(AirDensityRatio(*altitude));
+
   const AircraftState current_as = ToAircraftState(basic, calculated);
 
   if (force || (last_location_available &&
@@ -98,10 +103,15 @@ TaskComputer::ProcessMoreTask(const MoreData &basic,
                      settings_computer.task.route_planner,
                      glide_polar, safety_polar);
 
-  if (settings_computer.features.block_stf_enabled)
-    calculated.V_stf = calculated.common_stats.V_block;
-  else
-    calculated.V_stf = calculated.common_stats.V_dolphin;
+  if (glide_polar.IsValid()) {
+    calculated.V_stf = settings_computer.features.block_stf_enabled
+      ? calculated.common_stats.V_block
+      : calculated.common_stats.V_dolphin;
+    calculated.V_stf_available = calculated.V_stf > 0;
+  } else {
+    calculated.V_stf = 0;
+    calculated.V_stf_available = false;
+  }
 
   if (calculated.task_stats.current_leg.vector_remaining.IsValid()) {
     const GeoVector &v = calculated.task_stats.current_leg.vector_remaining;

@@ -1,2 +1,1 @@
-setuptools<83
-sphinxcontrib-blockdiag==3.0.0
+sphinx>=7.0

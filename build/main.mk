@@ -20,6 +20,15 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/JobDialog.cpp \
 	$(SRC)/Dialogs/WidgetDialog.cpp \
 	$(SRC)/Dialogs/FileManager.cpp \
+	$(SRC)/Dialogs/DataManagement/DataManagement.cpp \
+	$(SRC)/Dialogs/DataManagement/ExportFlightsPanel.cpp \
+	$(SRC)/Dialogs/DataManagement/BackupRestorePanel.cpp \
+	$(SRC)/Dialogs/DataManagement/ImportDataPanel.cpp \
+	$(SRC)/Dialogs/DataManagement/AdvancedFileExplorer.cpp \
+	$(SRC)/Dialogs/DataManagement/StorageLocationPickerDialog.cpp \
+	$(SRC)/io/TarBackup.cpp \
+	$(SRC)/Dialogs/DataManagement/FileTransferUtil.cpp \
+	$(SRC)/IGC/IgcMetaCache.cpp \
 	$(SRC)/Dialogs/Device/PortDataField.cpp \
 	$(SRC)/Dialogs/Device/PortPicker.cpp \
 	$(SRC)/Dialogs/Device/DeviceEditWidget.cpp \
@@ -74,6 +83,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/DataField.cpp \
 	$(SRC)/Dialogs/ComboPicker.cpp \
 	$(SRC)/Dialogs/FilePicker.cpp \
+	$(SRC)/Dialogs/EmptyDownloadList.cpp \
 	$(SRC)/Dialogs/MultiFilePicker.cpp \
 	$(SRC)/Dialogs/HelpDialog.cpp \
 	$(SRC)/Dialogs/WifiDialog.cpp \
@@ -114,6 +124,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Settings/Panels/MapDisplayConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/NetworkConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/PagesConfigPanel.cpp \
+	$(SRC)/Dialogs/Settings/Panels/RaspConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/RouteConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/SafetyFactorsConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/SiteConfigPanel.cpp \
@@ -126,6 +137,8 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Settings/Panels/TimeConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/WaypointDisplayConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/WeatherConfigPanel.cpp \
+	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/Settings/Panels/PCMetConfigPanel.cpp) \
+	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/Settings/Panels/XCThermConfigPanel.cpp) \
 	$(SRC)/Dialogs/Settings/Panels/WeGlideConfigPanel.cpp \
 	\
 	$(SRC)/Dialogs/Task/Widgets/ObservationZoneEditWidget.cpp \
@@ -157,6 +170,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/DateEntry.cpp \
 	$(SRC)/Dialogs/GeoPointEntry.cpp \
 	$(SRC)/Dialogs/Weather/WeatherDialog.cpp \
+	$(SRC)/Dialogs/Weather/OverlayPageActions.cpp \
 	$(SRC)/Dialogs/Weather/RASPDialog.cpp \
 	$(SRC)/Dialogs/dlgCredits.cpp \
 	$(SRC)/Dialogs/dlgQuickGuide.cpp \
@@ -171,6 +185,8 @@ endif
 
 ifeq ($(HAVE_HTTP),y)
 DIALOG_SOURCES += \
+	$(SRC)/Dialogs/Weather/XCThermDialog.cpp \
+	$(SRC)/Dialogs/Weather/WeatherCredentialGateWidget.cpp \
 	$(SRC)/Dialogs/Weather/PCMetDialog.cpp \
 	$(SRC)/Dialogs/Weather/NOAAList.cpp \
 	$(SRC)/Dialogs/Weather/NOAADetails.cpp
@@ -206,6 +222,8 @@ XCSOAR_SOURCES := \
 	$(SRC)/Engine/ThermalBand/ThermalSlice.cpp \
 	$(SRC)/Engine/ThermalBand/ThermalEncounterBand.cpp \
 	$(SRC)/Engine/ThermalBand/ThermalEncounterCollection.cpp \
+	$(SRC)/DataFileLayout.cpp \
+	$(SRC)/DataLayoutMigration.cpp \
 	$(SRC)/HorizonWidget.cpp \
 	$(SRC)/Renderer/TextRowRenderer.cpp \
 	$(SRC)/Renderer/TwoTextRowsRenderer.cpp \
@@ -252,6 +270,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/util/MD5.cpp \
 	$(SRC)/system/OpenLink.cpp \
 	$(SRC)/util/MarkdownParser.cpp \
+	$(SRC)/util/UnescapeCString.cpp \
 	$(SRC)/Logger/NMEALogger.cpp \
 	$(SRC)/Logger/ExternalLogger.cpp \
 	$(SRC)/Logger/FlightLogger.cpp \
@@ -326,6 +345,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Input/InputParser.cpp \
 	$(SRC)/Input/TaskEventObserver.cpp \
 	$(SRC)/PageSettings.cpp \
+	$(SRC)/PageOverlayTitle.cpp \
 	$(SRC)/PageState.cpp \
 	$(SRC)/PageActions.cpp \
 	$(SRC)/StatusMessage.cpp \
@@ -358,6 +378,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Renderer/MapItemListRenderer.cpp \
 	$(SRC)/Renderer/OZPreviewRenderer.cpp \
 	$(SRC)/Renderer/TrackLineRenderer.cpp \
+	$(SRC)/Renderer/TurnBackMarkerRenderer.cpp \
 	$(SRC)/Renderer/TrafficRenderer.cpp \
 	$(SRC)/Renderer/TrailRenderer.cpp \
 	$(SRC)/Renderer/UnitSymbolRenderer.cpp \
@@ -380,12 +401,22 @@ XCSOAR_SOURCES := \
 	$(SRC)/Weather/Rasp/RaspStyle.cpp \
 	$(SRC)/Weather/Rasp/FieldControls.cpp \
 	$(SRC)/Weather/Rasp/Configured.cpp \
+	$(SRC)/Weather/Rasp/DownloadGlue.cpp \
+	$(SRC)/Weather/MapOverlay/CursorBarLabels.cpp \
+	$(SRC)/Weather/MapOverlay/InputEvents.cpp \
+	$(SRC)/Weather/MapOverlay/ControlsFactory.cpp \
+	$(SRC)/Weather/MapOverlay/ControlsWidget.cpp \
+	$(SRC)/Weather/MapOverlay/TimePicker.cpp \
+	$(SRC)/Weather/MapOverlay/RaspControlsModel.cpp \
+	$(SRC)/Weather/MapOverlay/XcthermControlsModel.cpp \
+	$(SRC)/Weather/BackgroundDownloadProgress.cpp \
 	\
 	$(SRC)/Blackboard/BlackboardListener.cpp \
 	$(SRC)/Blackboard/ProxyBlackboardListener.cpp \
 	$(SRC)/Blackboard/RateLimitedBlackboardListener.cpp \
 	$(SRC)/Blackboard/LiveBlackboard.cpp \
 	$(SRC)/Blackboard/InterfaceBlackboard.cpp \
+	$(SRC)/Blackboard/BlackboardListenerRegistration.cpp \
 	$(SRC)/Blackboard/ScopeGPSListener.cpp \
 	$(SRC)/Blackboard/ScopeCalculatedListener.cpp \
 	\
@@ -421,6 +452,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Renderer/TaskLegRenderer.cpp \
 	$(SRC)/Renderer/TaskSpeedRenderer.cpp \
 	$(SRC)/Renderer/MapScaleRenderer.cpp \
+	$(SRC)/Renderer/DistanceRingsRenderer.cpp \
 	\
 	$(SRC)/Simulator.cpp \
 	$(SRC)/Asset.cpp \
@@ -433,6 +465,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Language/Language.cpp \
 	$(SRC)/Language/LanguageGlue.cpp \
 	$(SRC)/Language/Table.cpp \
+	$(SRC)/DataFilePath.cpp \
 	$(SRC)/LocalPath.cpp \
 	$(SRC)/UIActions.cpp \
 	$(SRC)/Interface.cpp \
@@ -493,7 +526,16 @@ XCSOAR_SOURCES := \
 	$(SRC)/Profile/FlarmProfile.cpp \
 	\
 	$(SRC)/Repository/FileRepository.cpp \
+	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Repository/Parser.cpp \
+	\
+	$(SRC)/Storage/PlatformStorageMonitor.cpp \
+	$(SRC)/Storage/PlatformStorageHotplugMonitor.cpp \
+	$(SRC)/Storage/StorageManager.cpp \
+	$(SRC)/Storage/StorageEvents.cpp \
+	$(SRC)/Storage/DirEntry.cpp \
+	$(SRC)/Storage/StorageDevice.cpp \
+	$(SRC)/Storage/StorageUtil.cpp \
 	\
 	$(SRC)/Job/Thread.cpp \
 	$(SRC)/Job/Async.cpp \
@@ -553,7 +595,24 @@ XCSOAR_SOURCES := \
 	$(SRC)/Monitor/AllMonitors.cpp \
 	\
 	$(SRC)/Hardware/PowerGlobal.cpp \
-	$(SRC)/Hardware/Battery.cpp
+	$(SRC)/Hardware/Battery.cpp \
+
+ifneq ($(TARGET),ANDROID)
+ifeq ($(TARGET_IS_LINUX),y)
+	XCSOAR_SOURCES += \
+		$(SRC)/Storage/linux/LinuxStorageDevice.cpp \
+		$(SRC)/Storage/linux/LinuxStorageMonitor.cpp \
+		$(SRC)/Storage/linux/LinuxStorageHotplugMonitor.cpp
+endif
+endif
+
+ifeq ($(HAVE_WIN32),y)
+	XCSOAR_SOURCES += \
+		$(SRC)/Storage/win/WindowsStorageDevice.cpp \
+		$(SRC)/Storage/win/WindowsStorageMonitor.cpp \
+		$(SRC)/Storage/win/WindowsStorageHotplugMonitor.cpp \
+		$(SRC)/Storage/win/WinHotplugForward.cpp
+endif
 
 $(call SRC_TO_OBJ,$(SRC)/Dialogs/Inflate.cpp): CPPFLAGS += $(ZLIB_CPPFLAGS)
 
@@ -561,7 +620,7 @@ ifeq ($(OPENGL),y)
 ifeq ($(HAVE_HTTP),y)
 XCSOAR_SOURCES += \
 	$(SRC)/Dialogs/Weather/MapOverlayWidget.cpp \
-	$(SRC)/Dialogs/Weather/MapOverlayControlsWidget.cpp
+	$(SRC)/Dialogs/Weather/EdlSettingsWidget.cpp
 endif
 endif
 
@@ -622,6 +681,13 @@ XCSOAR_SOURCES += \
 	$(SRC)/Android/TextEntryDialog.cpp \
 	$(SRC)/Android/FileProvider.cpp \
 	$(SRC)/Android/ReceiveTask.cpp \
+	$(SRC)/Android/SAFHelper.cpp \
+	$(SRC)/Storage/android/SAFReader.cpp \
+	$(SRC)/Storage/android/SAFOutputStream.cpp \
+	$(SRC)/Storage/android/AndroidSAFStorageDevice.cpp \
+	$(SRC)/Android/StorageHotplugBridge.cpp \
+	$(SRC)/Storage/android/AndroidStorageMonitor.cpp \
+	$(SRC)/Storage/android/AndroidStorageHotplugMonitor.cpp \
 	$(SRC)/Android/Main.cpp
 
 else
@@ -643,7 +709,18 @@ XCSOAR_SOURCES += \
 	$(SRC)/Weather/NOAAFormatter.cpp \
 	$(SRC)/Weather/NOAADownloader.cpp \
 	$(SRC)/Weather/NOAAStore.cpp \
-	$(SRC)/Weather/NOAAUpdater.cpp
+	$(SRC)/Weather/NOAAUpdater.cpp \
+	$(SRC)/Weather/xctherm/XCThermAPI.cpp \
+	$(SRC)/Weather/xctherm/XCThermDownload.cpp \
+	$(SRC)/Weather/xctherm/XCThermDownloadGlue.cpp \
+	$(SRC)/Weather/xctherm/XCThermGeoJSON.cpp \
+	$(SRC)/Weather/xctherm/XCThermGeoQuery.cpp \
+	$(SRC)/Weather/xctherm/XCThermGeoJSONOverlay.cpp \
+	$(SRC)/Weather/xctherm/XCThermMapOverlay.cpp \
+	$(SRC)/Weather/xctherm/XCThermCatalog.cpp \
+	$(SRC)/Weather/xctherm/XCThermForecastTime.cpp \
+	$(SRC)/Weather/xctherm/XCThermControlsModel.cpp \
+	$(SRC)/Weather/xctherm/XCThermAutoSwitch.cpp \
 
 XCSOAR_SOURCES += \
 	$(SRC)/Dialogs/Settings/Panels/TrackingConfigPanel.cpp \
@@ -660,6 +737,7 @@ XCSOAR_SOURCES += \
 	$(SRC)/Tracking/SkyLines/Assemble.cpp \
 	$(SRC)/Tracking/SkyLines/Key.cpp \
 	$(SRC)/Tracking/SkyLines/Glue.cpp \
+	$(SRC)/Tracking/SkyLines/FlarmTrafficBuilder.cpp \
 	$(SRC)/Tracking/TrackingGlue.cpp \
 	$(SRC)/NetComponents.cpp
 
@@ -667,9 +745,10 @@ ifeq ($(OPENGL),y)
 XCSOAR_SOURCES += \
 	$(SRC)/Weather/EDL/Levels.cpp \
 	$(SRC)/Weather/EDL/TileStore.cpp \
+	$(SRC)/Weather/EDL/TileValue.cpp \
+	$(SRC)/Weather/EDL/EdlMbTilesOverlay.cpp \
 	$(SRC)/Weather/EDL/StateController.cpp \
 	$(SRC)/Weather/MapOverlay/EdlControlsModel.cpp \
-	$(SRC)/Weather/MapOverlay/RaspControlsModel.cpp \
 	$(SRC)/Weather/EDL/Glue.cpp \
 	$(SRC)/Weather/EDL/DownloadGlue.cpp
 endif
