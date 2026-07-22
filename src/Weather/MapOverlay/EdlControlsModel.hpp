@@ -3,12 +3,16 @@
 
 #pragma once
 
+<<<<<<< HEAD
 #include "ControlsModel.hpp"
 #include "Weather/EDL/DownloadGlue.hpp"
+=======
+>>>>>>> upstream/feature/weather-cursor-bar
 #include "Weather/EDL/Levels.hpp"
 #include "time/BrokenDateTime.hpp"
 
 #include <array>
+<<<<<<< HEAD
 #include <memory>
 #include <optional>
 
@@ -17,6 +21,12 @@ namespace WeatherMapOverlay {
 class EdlControlsModel final : public ControlsModel,
                                private EDL::DownloadListener
 {
+=======
+
+namespace WeatherMapOverlay {
+
+class EdlControlsModel {
+>>>>>>> upstream/feature/weather-cursor-bar
   static constexpr unsigned forecast_choices = EDL::FORECAST_HOURS_PER_DAY;
 
   std::array<BrokenDateTime, forecast_choices> forecast_times{};
@@ -26,6 +36,7 @@ public:
   EdlControlsModel() noexcept = default;
   ~EdlControlsModel() noexcept override;
 
+<<<<<<< HEAD
   void OnShow() noexcept override;
   void OnHide() noexcept override;
 
@@ -76,6 +87,19 @@ private:
   void SelectForecastTime(const BrokenDateTime &time) noexcept;
   void SelectLevel(unsigned isobar) noexcept;
   void UnregisterEdlDownloadListener() noexcept;
+=======
+  void OnShow() noexcept;
+
+  bool StepForecast(int delta) noexcept;
+  bool StepLevel(int delta) noexcept;
+  void ResumeAutoAdvance() noexcept;
+
+  void FormatForecastLabel(StaticString<64> &text) const noexcept;
+  void FormatLevelLabel(StaticString<64> &text) const noexcept;
+
+  [[gnu::pure]]
+  bool HasOverlayData() const noexcept;
+>>>>>>> upstream/feature/weather-cursor-bar
 
   [[nodiscard]] [[gnu::pure]]
   unsigned FindForecastIndex() const noexcept;
@@ -83,8 +107,23 @@ private:
   [[nodiscard]]
   std::optional<unsigned> FindTrackedForecastIndex() const noexcept;
 
+<<<<<<< HEAD
   [[nodiscard]]
   bool HasOverlayData() const noexcept;
+=======
+  [[gnu::pure]]
+  bool GetLevelAutoAdvance() const noexcept;
+
+  void SetLevelAutoAdvance(bool auto_advance) noexcept;
+
+private:
+  void RebuildForecastTimes() noexcept;
+  void SelectForecast(unsigned index) noexcept;
+  void SelectLevel(unsigned isobar) noexcept;
+
+  [[gnu::pure]]
+  unsigned FindForecastIndex() const noexcept;
+>>>>>>> upstream/feature/weather-cursor-bar
 };
 
 } // namespace WeatherMapOverlay
