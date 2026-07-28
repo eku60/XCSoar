@@ -16,7 +16,25 @@ Version 7.45 - not yet released
   - Add expert cloud setting "Own FLARM IDs" (comma-separated hex list)
     to filter self and additional own aircraft from OGN when the device
     radio id is unavailable (e.g. LX passthrough) #2693
+* documentation
+  - document custom ``.xci`` loading: ``#CLEAR``, merge vs replace,
+    ``type`` values (``key`` / ``gce`` / ``gesture`` / ``ne`` /
+    ``label``), gesture ``data`` format, softkey ``location``,
+    label escapes, complete GCE list, and ``RemoteStick`` Quick Menu
 * ui
+  - Speed up long rich-text layout (Quick Guide What's New): estimate scroll
+    height before wrapping, skip FreeType for runs that clearly fit or
+    overflow by character budget, and use one measure for typical bullets
+  - Fix Quick Guide Up/Down focus so the bottom-bar checkbox and Close
+    button are reachable from the keyboard
+  - Expert Look → Screen Layout setting "Display type" (LCD / E-ink /
+    Color e-ink); e-ink modes disable kinetic and smooth scrolling.
+    Defaults to E-ink on Kobo and LCD elsewhere
+  - Device list: show the Vario flag for non-compensated and netto vario
+    sources as well as total-energy (e.g. BlueFly)
+  - E-paper: snap VScrollPanel smooth scrolling instead of animating at
+    ~60 Hz, and debounce ComboPicker per-item help updates while
+    scrolling (InfoBox content list etc.)
   - FLARM radar: show callsigns on all registered targets again, use the
     full callsign on target labels, and omit duplicate side vario/altitude
     on the selected target (info panel already shows them) #2718
@@ -52,6 +70,8 @@ Version 7.45 - not yet released
   - BLE serial ports now support Nordic UART Service (NUS) for e.g. Naviter
     dongles, in addition to HM-10; the protocol is auto-detected at connection
     time #2260
+  - BLE serial ports also support Microchip/ISSC transparent UART
+    (e.g. BlueFly Vario over BLE); auto-detected like NUS/HM-10
   - The saved device port type string for that mode remains ble_hm10 so
     existing profiles load without migration
   - add support for SoftRF Concorde, Prime Mk4, and Retro Mk2 as supported USB devices
@@ -61,6 +81,14 @@ Version 7.45 - not yet released
   - always start in light mode; dark mode is not supported on e-paper
     displays #2568
 * devices
+  - support $LK8EX1 (LK8000 external instrument) on all device ports:
+    pressure, QNE altitude, vario, temperature, and battery voltage
+    or percentage #2772
+  - $LXWP0 without airspeed publishes uncompensated vario (BlueFly LX
+    mode) instead of labelling it total-energy; with IAS/TAS keep TE
+  - Accept partial $LXWP0 vario samples (e.g. BlueFly LX mode with a
+    single rate) so Status Variometer is not stuck on Disconnected while
+    baro still works; keep the six-sample FIR for full LXNAV sentences #2763
   - fix LXNAV thermal averages when the device reports conflicting
     altitude sources #2754
   - Android: multi-port USB serial adapters (e.g. dual FTDI) use 0-based port
@@ -179,6 +207,8 @@ Version 7.45 - not yet released
     pre-filtered to recently-used waypoints; listed in the Gesture Help
     dialog with its own icon #336
 * map
+  - fix black terrain after idle high-resolution sharpening on OpenGL
+    devices with a 2048-pixel texture limit (e.g. Raspberry Pi 3 / VC4)
   - dynamically adjust contour line density to zoom factor #2233
   - provide different contour density profile settings for mountains,
     low lands, etc. to have sensible contours in a given landscape type

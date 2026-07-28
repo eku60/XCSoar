@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "DisplayType.hpp"
+
 #ifdef ANDROID
 #include "Android/Product.hpp"
 #endif
@@ -244,9 +246,13 @@ IsDithered() noexcept
  * Such screens need some special cases, because they are very slow
  * and show ghosting.  Animations shall be disabled when this function
  * returns true.
+ *
+ * Driven by #DisplaySettings::display_type via #SetDisplayType().
+ * Defaults to e-ink on Kobo and LCD elsewhere.
  */
-static constexpr bool
-HasEPaper() noexcept
-{
-  return IsKobo();
-}
+void
+SetDisplayType(DisplayType type) noexcept;
+
+[[gnu::pure]]
+bool
+HasEPaper() noexcept;
