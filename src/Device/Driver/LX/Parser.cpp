@@ -62,22 +62,45 @@ ReadFilteredLXWP0Vario(NMEAInputLine &line, double &vario)
   static constexpr double fir_coefficients[] = {
     -0.0421, 0.1628, 0.3793, 0.3793, 0.1628, -0.0421,
   };
+  static constexpr unsigned N = ARRAY_SIZE(fir_coefficients);
 
-  vario = 0;
-  bool vario_ok = true;
-  double value = 0;
-  for (double fir_b : fir_coefficients) {
-    if (!line.ReadChecked(value))
-      vario_ok = false;
-    else
-      vario += value * fir_b;
+  double samples[N];
+  unsigned n_valid = 0;
+
+  /* Always consume six fields so heading/wind stay aligned. */
+  for (unsigned i = 0; i < N; ++i) {
+    double value;
+    if (line.ReadChecked(value))
+      samples[n_valid++] = value;
   }
 
-  return vario_ok;
+  if (n_valid == 0)
+    return false;
+
+  if (n_valid == N) {
+    vario = 0;
+    for (unsigned i = 0; i < N; ++i)
+      vario += samples[i] * fir_coefficients[i];
+    return true;
+  }
+
+  /* Partial sentence (e.g. BlueFly LX output): restore 7.44 behaviour
+     and take the first successfully parsed sample. */
+  vario = samples[0];
+  return true;
 }
 
+/**
+ * @param provide_altitude_vario When false ($PLXVF already received, or
+ * this is an LXNAV vario), skip pressure altitude and TE vario from
+ * $LXWP0.  On LXNAV S8x/S10x, $LXWP0 altitude includes ALTOFF (QNH /
+ * calibration) while $PLXVF PressAlt is raw pressure altitude above
+ * 1013.25 hPa; alternating both into ProvidePressureAltitude() spikes
+ * gps_vario and corrupts T Avg (#2754).  Airspeed and wind are still
+ * taken from $LXWP0.
+ */
 bool
-LXWP0(NMEAInputLine &line, NMEAInfo &info, bool provide_vario)
+LXWP0(NMEAInputLine &line, NMEAInfo &info, bool provide_altitude_vario)
 {
   /*
   $LXWP0,Y,222.3,1665.5,1.71,,,,,,239,174,10.1
@@ -98,22 +121,33 @@ LXWP0(NMEAInputLine &line, NMEAInfo &info, bool provide_vario)
   if (tas_available && (airspeed < -50 || airspeed > 250))
     /* implausible */
     return false;
+
   double value;
-  if (line.ReadChecked(value))
-    /* a dump on a LX7007 has confirmed that the LX sends uncorrected
-       altitude above 1013.25hPa here */
-    info.ProvidePressureAltitude(value);
+  if (line.ReadChecked(value)) {
+    if (provide_altitude_vario)
+      /* Without $PLXVF, treat as pressure altitude above 1013.25 hPa
+         (confirmed on LX7007).  With $PLXVF, the value may include
+         ALTOFF — ignore it and keep $PLXVF PressAlt. */
+      info.ProvidePressureAltitude(value);
+  }
 
   if (tas_available)
     /*
-     * Call ProvideTrueAirspeed() after ProvidePressureAltitude() to use
-     * the provided altitude (if available)
+     * Prefer providing TAS after any pressure altitude update so
+     * density correction can use it when available.
      */
     info.ProvideTrueAirspeed(Units::ToSysUnit(airspeed, Unit::KILOMETER_PER_HOUR));
 
-  if (provide_vario) {
-    if (ReadFilteredLXWP0Vario(line, value))
-      info.ProvideTotalEnergyVario(value);
+  if (provide_altitude_vario) {
+    if (ReadFilteredLXWP0Vario(line, value)) {
+      /* Real LXNAV fills IAS/TAS and the vario slots are TE.  Partial
+         LX emitters (BlueFly LX mode) leave airspeed blank and put
+         uncompensated climb/sink in those slots — do not label as TE. */
+      if (tas_available)
+        info.ProvideTotalEnergyVario(value);
+      else
+        info.ProvideNoncompVario(value);
+    }
   } else
     line.Skip(6);
 

@@ -15,15 +15,25 @@ struct DeviceInfo;
 namespace LX {
 
 /**
- * Read six LXWP0 vario samples and apply the 5th-order low-pass FIR
- * filter used by LX EOS.
+ * Read up to six LXWP0 vario samples.  When all six are present,
+ * apply the 5th-order low-pass FIR used by LX EOS / full LXNAV
+ * sentences.  When only some slots are filled (BlueFly LX mode,
+ * Condor, older devices — often a single sample), use the first
+ * valid sample so vario is still published (#2763).
  */
 bool
 ReadFilteredLXWP0Vario(NMEAInputLine &line, double &vario);
 
+/**
+ * @param provide_altitude_vario When false, skip pressure altitude and
+ * vario (used once $PLXVF is active on LXNAV varios).
+ *
+ * Vario is published as TE when the sentence includes airspeed, else
+ * as uncompensated (BlueFly LX mode leaves IAS blank).
+ */
 bool
 LXWP0(NMEAInputLine &line, NMEAInfo &info,
-      bool provide_vario=true);
+      bool provide_altitude_vario=true);
 
 void
 LXWP1(NMEAInputLine &line, DeviceInfo &device);

@@ -202,6 +202,78 @@ TestTasman()
 }
 
 static void
+TestLK8EX1()
+{
+  NMEAParser parser;
+
+  NMEAInfo nmea_info;
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+
+  /* pressure present: altitude field ignored; voltage battery */
+  ok1(parser.ParseLine("$LK8EX1,101325,99999,0,25.0,3.70*31", nmea_info));
+  ok1(nmea_info.static_pressure_available);
+  ok1(equals(nmea_info.static_pressure.GetPascal(), 101325));
+  ok1(!nmea_info.pressure_altitude_available);
+  ok1(nmea_info.noncomp_vario_available);
+  ok1(equals(nmea_info.noncomp_vario, 0));
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 25));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 3.70));
+  ok1(!nmea_info.battery_level_available);
+
+  /* altitude-only + negative vario; missing temp/battery sentinels */
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+  ok1(parser.ParseLine("$LK8EX1,999999,1500,-50,99,999*2A", nmea_info));
+  ok1(!nmea_info.static_pressure_available);
+  ok1(nmea_info.pressure_altitude_available);
+  ok1(equals(nmea_info.pressure_altitude, 1500));
+  ok1(nmea_info.noncomp_vario_available);
+  ok1(equals(nmea_info.noncomp_vario, -0.5));
+  ok1(!nmea_info.temperature_available);
+  ok1(!nmea_info.voltage_available);
+  ok1(!nmea_info.battery_level_available);
+
+  /* all missing sentinels */
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+  ok1(parser.ParseLine("$LK8EX1,999999,99999,9999,99,999*3F", nmea_info));
+  ok1(!nmea_info.static_pressure_available);
+  ok1(!nmea_info.pressure_altitude_available);
+  ok1(!nmea_info.noncomp_vario_available);
+  ok1(!nmea_info.temperature_available);
+  ok1(!nmea_info.voltage_available);
+  ok1(!nmea_info.battery_level_available);
+
+  /* battery percentage encoding (14%) */
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+  ok1(parser.ParseLine("$LK8EX1,98725,99999,120,21.5,1014*18", nmea_info));
+  ok1(nmea_info.static_pressure_available);
+  ok1(equals(nmea_info.static_pressure.GetPascal(), 98725));
+  ok1(nmea_info.noncomp_vario_available);
+  ok1(equals(nmea_info.noncomp_vario, 1.2));
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 21.5));
+  ok1(nmea_info.battery_level_available);
+  ok1(equals(nmea_info.battery_level, 14));
+  ok1(!nmea_info.voltage_available);
+
+  /* 0% battery via 1000+percent */
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+  ok1(parser.ParseLine("$LK8EX1,101325,99999,0,25,1000*34", nmea_info));
+  ok1(nmea_info.battery_level_available);
+  ok1(equals(nmea_info.battery_level, 0));
+  ok1(!nmea_info.voltage_available);
+
+  /* bad checksum */
+  ok1(!parser.ParseLine("$LK8EX1,101325,99999,0,25.0,3.70*00", nmea_info));
+}
+
+static void
 TestFLARM()
 {
   NMEAParser parser;
@@ -1326,6 +1398,32 @@ TestLX(const struct DeviceRegister &driver, bool condor=false, bool reciprocal_w
   ok1(equals(nmea_info.external_wind.norm, 10.1 / 3.6));
   ok1(equals(nmea_info.external_wind.bearing, reciprocal_wind ? 354 : 174));
 
+  if (!condor) {
+    /* Partial six-slot vario with airspeed: still TE (#2763). */
+    nmea_info.Reset();
+    nmea_info.clock = TimeStamp{FloatDuration{1}};
+    ok1(device->ParseNMEA("$LXWP0,Y,222.3,1665.5,1.71,,,,,,239,174,10.1*47",
+                          nmea_info));
+    ok1(nmea_info.pressure_altitude_available);
+    ok1(equals(nmea_info.pressure_altitude, 1665.5));
+    ok1(nmea_info.airspeed_available);
+    ok1(nmea_info.total_energy_vario_available);
+    ok1(equals(nmea_info.total_energy_vario, 1.71));
+    ok1(nmea_info.external_wind_available);
+
+    /* BlueFly LX mode: no airspeed — uncompensated, not TE. */
+    nmea_info.Reset();
+    nmea_info.clock = TimeStamp{FloatDuration{1}};
+    ok1(device->ParseNMEA("$LXWP0,N,,119.9,0.16,,,,,,259,,*64",
+                          nmea_info));
+    ok1(nmea_info.pressure_altitude_available);
+    ok1(equals(nmea_info.pressure_altitude, 119.9));
+    ok1(!nmea_info.airspeed_available);
+    ok1(!nmea_info.total_energy_vario_available);
+    ok1(nmea_info.noncomp_vario_available);
+    ok1(equals(nmea_info.noncomp_vario, 0.16));
+  }
+
 
   nmea_info.Reset();
   nmea_info.clock = TimeStamp{FloatDuration{1}};
@@ -1706,6 +1804,7 @@ TestLXV7()
   NMEAInfo basic;
   basic.Reset();
   basic.clock = TimeStamp{FloatDuration{1}};
+  basic.alive.Update(basic.clock);
 
   LXDevice &lx_device = *(LXDevice *)device;
   lx_device.ResetDeviceDetection();
@@ -1720,6 +1819,19 @@ TestLXV7()
   ok1(basic.acceleration.available);
   ok1(equals(basic.acceleration.g_load, 1.331));
 
+  /* After $PLXVF, $LXWP0 must not overwrite pressure altitude or TE vario
+     (ALTOFF-adjusted LXWP0 altitude vs raw PLXVF PressAlt, #2754). */
+  basic.clock = TimeStamp{FloatDuration{2}};
+  ok1(device->ParseNMEA("$LXWP0,Y,222.3,1665.5,1.71,1.71,1.71,1.71,1.71,1.71,239,174,10.1*5E",
+                        basic));
+  ok1(basic.pressure_altitude_available);
+  ok1(equals(basic.pressure_altitude, 244.3));
+  ok1(basic.total_energy_vario_available);
+  ok1(equals(basic.total_energy_vario, -0.25));
+  ok1(basic.airspeed_available);
+  ok1(basic.external_wind_available);
+
+  basic.clock = TimeStamp{FloatDuration{3}};
   ok1(device->ParseNMEA("$PLXVS,23.1,0,12.3,*71", basic));
   ok1(basic.temperature_available);
   ok1(equals(basic.temperature.ToKelvin(), 296.25));
@@ -3196,7 +3308,7 @@ int main()
   SetSingleDataPath(data_path);
   CreateDataPath();
 
-  plan_tests(1036 /* drivers */ + 29 /* PFLAU extended */
+  plan_tests(1057 /* drivers */ + 29 /* PFLAU extended */
              + 37 /* PFLAA v7+ */ + 12 /* PFLAE */ + 10 /* PFLAJ */
              + 16 /* PFLAQ */
              + 109 /* LXNav protocol 1.05 */
@@ -3205,9 +3317,11 @@ int main()
              + 12 /* TempHumidityValidity */ + 2 /* ReadGeoAngleNoDot */
              + 13 /* GLL */ + 20 /* GSA */ + 23 /* MalformedInput */
              + 59 /* Condor3UDP */ + 24 /* FlarmTrafficBuilder */
-             + 24 /* TrafficExtensionsWire */);
+             + 24 /* TrafficExtensionsWire */
+             + 42 /* LK8EX1 */);
   TestGeneric();
   TestTasman();
+  TestLK8EX1();
   TestFLARM();
   TestAltairRU();
   TestBlueFly();
