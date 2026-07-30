@@ -43,6 +43,7 @@
 #include "Device/Driver/XCTracer.hpp"
 #include "Device/Driver/KRT2.hpp"
 #include "Device/Driver/LX160.hpp"
+#include "Device/Driver/AR62xx.hpp"
 #include "Device/Driver/Stratux.hpp"
 #include "Device/Driver/LoEFGREN.hpp"
 #include "util/Macros.hpp"
@@ -90,6 +91,7 @@ static const struct DeviceRegister *const driver_list[] = {
   &xctracer_driver,
   &thermalexpress_driver,
   &acd_driver,
+  &ar62xx_driver,
   &condor3_driver,
   &condor3_udp_driver,
   &lx_eos_driver,
