@@ -47,9 +47,6 @@ struct NetComponents {
 #ifdef HAVE_DOWNLOAD_MANAGER
   const std::unique_ptr<RaspDownloadGlue> rasp_download;
 #endif
-#ifdef HAVE_DOWNLOAD_MANAGER
-  const std::unique_ptr<RaspDownloadGlue> rasp_download;
-#endif
 
   NetComponents(EventLoop &event_loop, CurlGlobal &curl,
                 const TrackingSettings &tracking_settings,

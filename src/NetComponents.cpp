@@ -42,9 +42,6 @@ NetComponents::NetComponents(EventLoop &event_loop, CurlGlobal &curl,
 #ifdef HAVE_DOWNLOAD_MANAGER
   ,rasp_download(new RaspDownloadGlue())
 #endif
-#ifdef HAVE_DOWNLOAD_MANAGER
-  ,rasp_download(new RaspDownloadGlue())
-#endif
 {
 #ifdef HAVE_DOWNLOAD_MANAGER
   if (rasp_download != nullptr)

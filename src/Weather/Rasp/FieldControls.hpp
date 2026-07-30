@@ -67,7 +67,6 @@ unsigned
 MinuteOfDayFromTime(BrokenTime time) noexcept;
 
 /**
-<<<<<<< HEAD
  * Step through forecast times available for @p field_index.
  *
  * @return false when stepping is not possible
@@ -75,82 +74,6 @@ MinuteOfDayFromTime(BrokenTime time) noexcept;
 bool
 StepTime(bool time_auto_advance, int field_index, int delta,
          unsigned &minute_of_day) noexcept;
-=======
- * Step through local quarter hours (0:00–23:45), even when no raster exists.
- *
- * @return false when @p delta is zero
- */
-bool
-StepTime(const RaspStore *rasp, unsigned field_index,
-         BrokenTime current_time, bool time_auto_advance,
-         int delta, unsigned &minute_of_day) noexcept;
-
-/**
- * Compact label for the active RASP field (cursor bar).
- */
-void
-FormatFieldCursorLabel(StaticString<64> &text) noexcept;
-
-/**
- * Number of RASP fields in the loaded repository, or @c 0.
- */
-[[gnu::pure]]
-unsigned
-GetFieldCount() noexcept;
-
-/**
- * Apply @p field_index to the current RASP page and active overlay.
- *
- * @return false when the field is invalid or the page is not RASP
- */
-bool
-SelectField(unsigned field_index) noexcept;
-
-/**
- * Step the active RASP field by @p delta (wraps at list ends).
- *
- * @return false when stepping is not possible
- */
-bool
-StepField(int delta) noexcept;
-
-/**
- * Return true when a RASP field is loaded and selected.
- */
-[[gnu::pure]]
-bool
-HasSelectedField() noexcept;
-
-/**
- * Compact label for the active RASP field (map-scale PAN string).
- */
-StaticString<64>
-GetPanOverlayLabel(const PageLayout &configured) noexcept;
-
-/**
- * Cursor-bar time label, e.g. @c "14:30 (+0:15)" or @c "AUTO: …".
- *
- * When @p auto_advance is true, the display follows GPS local time ("Now").
- */
-void
-FormatTimeCursorLabel(StaticString<64> &text, bool auto_advance) noexcept;
-
-/**
- * Return true when the active RASP field has raster data for the
- * effective cursor-bar time ("Now"/AUTO or manual selection).
- */
-[[gnu::pure]]
-bool
-HasSelectedTimeData(bool auto_advance) noexcept;
-
-/**
- * When AUTO is active but the configured field has no raster for the
- * current quarter hour, queue a repository / RASP refresh (at most once
- * per quarter hour while the gap persists).
- */
-void
-MaybeRequestConfiguredRaspUpdateOnAutoNoData() noexcept;
->>>>>>> upstream/feature/weather-cursor-bar
 
 /**
  * Synchronise #WeatherUIState::map from the active RASP page layout.
