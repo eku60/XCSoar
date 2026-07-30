@@ -152,6 +152,15 @@ ApplyOverlayFromSession() noexcept
 }
 
 void
+ApplyOverlayFromSession() noexcept
+{
+  if (TryApplyOverlayFromCache())
+    return;
+
+  ClearOverlay();
+}
+
+void
 OnTimeUpdate(BrokenDateTime utc) noexcept
 {
   if (!OverlayEnabled() || !utc.IsPlausible())
