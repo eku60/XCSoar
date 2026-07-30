@@ -109,6 +109,7 @@ TEST_NAMES = \
 	TestOGNAprsParser \
 	TestMETARParser \
 	TestIGCParser \
+	TestTraceBounds \
 	TestStrings TestUnescapeCString TestUTF8 TestWrapText \
 	TestInputConfig \
 	TestCRC16 TestCRC8 \
@@ -127,6 +128,7 @@ TEST_NAMES = \
 	TestThermalBand \
 	TestPackedFloat \
 	TestVersionNumber \
+	TestSlowCPU \
 	TestWeglideScoring \
 	TestNetCoupeScoring \
 	TestDMStScoring
@@ -1022,6 +1024,14 @@ TEST_TRACE_SOURCES = \
 TEST_TRACE_DEPENDS = IO OS GEO MATH UTIL
 $(eval $(call link-program,TestTrace,TEST_TRACE))
 
+TEST_TRACE_BOUNDS_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(SRC)/Engine/Trace/Point.cpp \
+	$(SRC)/Engine/Trace/Trace.cpp \
+	$(TEST_SRC_DIR)/TestTraceBounds.cpp
+TEST_TRACE_BOUNDS_DEPENDS = GEO MATH UTIL
+$(eval $(call link-program,TestTraceBounds,TEST_TRACE_BOUNDS))
+
 FLIGHT_TABLE_SOURCES = \
 	$(SRC)/IGC/IGCParser.cpp \
 	$(SRC)/Repository/FileType.cpp \
@@ -1074,6 +1084,7 @@ DEBUG_PROGRAM_NAMES = \
 ifeq ($(TARGET_IS_ANDROID),n)
 # These programs are broken on Android because they require Java code
 DEBUG_PROGRAM_NAMES += \
+	RunTrailRendererStress \
 	RunTrace \
 	RunContestAnalysis \
 	RunWaveComputer \
@@ -1876,6 +1887,28 @@ RUN_TASK_SOURCES = \
 	$(TEST_SRC_DIR)/RunTask.cpp
 RUN_TASK_DEPENDS = $(DEBUG_REPLAY_DEPENDS) TASKFILE WAYPOINTFILE GLIDE GEO MATH UTIL IO TIME
 $(eval $(call link-program,RunTask,RUN_TASK))
+
+
+RUN_TRAIL_RENDERER_STRESS_SOURCES = \
+	$(SRC)/Computer/TraceComputer.cpp \
+	$(SRC)/Engine/Trace/Point.cpp \
+	$(SRC)/Engine/Trace/Trace.cpp \
+	$(SRC)/Engine/Trace/Vector.cpp \
+	$(SRC)/Projection/Projection.cpp \
+	$(SRC)/Projection/WindowProjection.cpp \
+	$(SRC)/Math/Screen.cpp \
+	$(SRC)/Look/TrailLook.cpp \
+	$(SRC)/Renderer/TrailRenderer.cpp \
+	$(SRC)/TransponderCode.cpp \
+	$(SRC)/Version.cpp \
+	$(SRC)/system/StandardVersion.cpp \
+	$(MORE_SCREEN_SOURCES) \
+	$(DEBUG_REPLAY_SOURCES) \
+	$(TEST_SRC_DIR)/FakeAsset.cpp \
+	$(TEST_SRC_DIR)/RunTrailRendererStress.cpp
+RUN_TRAIL_RENDERER_STRESS_DEPENDS = \
+	$(DEBUG_REPLAY_DEPENDS) SCREEN EVENT ASYNC OS IO THREAD GEO MATH UTIL TIME
+$(eval $(call link-program,RunTrailRendererStress,RUN_TRAIL_RENDERER_STRESS))
 
 RUN_TRACE_SOURCES = \
 	$(DEBUG_REPLAY_SOURCES) \
@@ -2866,6 +2899,11 @@ TEST_VERSION_NUMBER_SOURCES = \
 	$(TEST_SRC_DIR)/TestVersionNumber.cpp
 TEST_VERSION_NUMBER_DEPENDS = MATH UTIL
 $(eval $(call link-program,TestVersionNumber,TEST_VERSION_NUMBER))
+
+TEST_SLOW_CPU_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestSlowCPU.cpp
+$(eval $(call link-program,TestSlowCPU,TEST_SLOW_CPU))
 
 TEST_HTTPS_VERIFY_SOURCES = \
 	$(SRC)/net/SocketError.cxx \

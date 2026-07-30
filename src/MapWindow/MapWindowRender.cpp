@@ -7,7 +7,6 @@
 #include "Weather/Rasp/RaspRenderer.hpp"
 #include "Weather/Rasp/RaspCache.hpp"
 #include "Weather/Rasp/RaspStore.hpp"
-#include "Weather/Rasp/FieldControls.hpp"
 #include "Topography/CachedTopographyRenderer.hpp"
 #include "Renderer/AircraftRenderer.hpp"
 #include "Renderer/WaveRenderer.hpp"
