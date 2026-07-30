@@ -85,11 +85,7 @@ EdlControlsModel::RebuildForecastTimes() noexcept
 {
   EDL::EnsureInitialised();
 
-  auto selected_time = EDL::GetForecastTime();
-  if (!selected_time.IsPlausible())
-    selected_time = EDL::GetTrackedForecastTime(BrokenDateTime::NowUTC());
-
-  if (!selected_time.IsPlausible())
+  if (!PageActions::GetCurrentLayout().UsesEdlOverlay())
     return;
 
   const auto base_time = selected_time + std::chrono::hours{-11};
