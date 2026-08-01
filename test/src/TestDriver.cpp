@@ -667,12 +667,56 @@ TestBlueFly()
   ok1(device->ParseNMEA("BAT 1068", nmea_info)); //4.2V
   ok1(nmea_info.battery_level_available);
   ok1(equals(nmea_info.battery_level, 100.0));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 4.2));
   ok1(device->ParseNMEA("BAT EFE", nmea_info)); //3.84V
   ok1(nmea_info.battery_level_available);
   ok1(equals(nmea_info.battery_level, 50.0));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 3.838));
   ok1(device->ParseNMEA("BAT ED8", nmea_info)); //3.80V
   ok1(nmea_info.battery_level_available);
   ok1(equals(nmea_info.battery_level, 37.3333));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 3.8));
+
+  ok1(device->ParseNMEA("TMP 231", nmea_info)); //23.1 °C
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 23.1));
+
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+
+  ok1(!device->ParseNMEA("$BFV,101325,123,23.1,85,0*00", nmea_info));
+
+  ok1(device->ParseNMEA("$BFV,101325,123,23.1,85,0*69", nmea_info));
+  ok1(nmea_info.static_pressure_available);
+  ok1(equals(nmea_info.static_pressure.GetPascal(), 101325));
+  ok1(nmea_info.noncomp_vario_available);
+  ok1(equals(nmea_info.noncomp_vario, 1.23));
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 23.1));
+  ok1(nmea_info.battery_level_available);
+  ok1(equals(nmea_info.battery_level, 85.0));
+  ok1(!nmea_info.dyn_pressure_available);
+  ok1(!nmea_info.voltage_available);
+
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+
+  ok1(device->ParseNMEA("$BFX,101325,-50,18.5,40,12,3.84*74", nmea_info));
+  ok1(nmea_info.static_pressure_available);
+  ok1(equals(nmea_info.static_pressure.GetPascal(), 101325));
+  ok1(nmea_info.noncomp_vario_available);
+  ok1(equals(nmea_info.noncomp_vario, -0.5));
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 18.5));
+  ok1(nmea_info.battery_level_available);
+  ok1(equals(nmea_info.battery_level, 40.0));
+  ok1(nmea_info.dyn_pressure_available);
+  ok1(equals(nmea_info.dyn_pressure.GetPascal(), 12));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 3.84));
 
   delete device;
 }
@@ -3176,8 +3220,16 @@ TestFlarmTrafficBuilder()
     90, true, FlarmId::Undefined(), 1, nullptr);
 
   ok1(traffic.source == FlarmTraffic::SourceType::OGN);
+  ok1(traffic.absolute_location);
+  ok1(traffic.absolute_altitude);
   ok1(SkyLinesTracking::FlarmTrafficBuilder::FillRelative(traffic, basic));
   ok1(traffic.relative_east != 0 || traffic.relative_north != 0);
+  ok1(equals(double(traffic.relative_altitude), 200));
+
+  basic.pressure_altitude = 950;
+  basic.pressure_altitude_available.Update(basic.clock);
+  ok1(SkyLinesTracking::FlarmTrafficBuilder::FillRelative(traffic, basic));
+  ok1(equals(double(traffic.relative_altitude), 250));
 
   FlarmTraffic device_traffic{};
   device_traffic.source = FlarmTraffic::SourceType::FLARM;
@@ -3308,7 +3360,7 @@ int main()
   SetSingleDataPath(data_path);
   CreateDataPath();
 
-  plan_tests(1057 /* drivers */ + 29 /* PFLAU extended */
+  plan_tests(1091 /* drivers */ + 29 /* PFLAU extended */
              + 37 /* PFLAA v7+ */ + 12 /* PFLAE */ + 10 /* PFLAJ */
              + 16 /* PFLAQ */
              + 109 /* LXNav protocol 1.05 */
@@ -3316,7 +3368,7 @@ int main()
              + 5 /* MWVRelativeTrue */ + 4 /* StallRatio */
              + 12 /* TempHumidityValidity */ + 2 /* ReadGeoAngleNoDot */
              + 13 /* GLL */ + 20 /* GSA */ + 23 /* MalformedInput */
-             + 59 /* Condor3UDP */ + 24 /* FlarmTrafficBuilder */
+             + 59 /* Condor3UDP */ + 29 /* FlarmTrafficBuilder */
              + 24 /* TrafficExtensionsWire */
              + 42 /* LK8EX1 */);
   TestGeneric();

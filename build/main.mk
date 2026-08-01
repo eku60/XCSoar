@@ -40,6 +40,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Device/ManageFlarmDialog.cpp \
 	$(SRC)/Dialogs/Device/BlueFly/BlueFlyConfigurationDialog.cpp \
 	$(SRC)/Dialogs/Device/Stratux/ConfigurationDialog.cpp \
+	$(SRC)/Dialogs/Device/GDL90/ConfigurationDialog.cpp \
 	$(SRC)/Dialogs/Device/ManageI2CPitotDialog.cpp \
 	$(SRC)/Dialogs/Device/LX/ManageLXNAVVarioDialog.cpp \
 	$(SRC)/Dialogs/Device/LX/LXNAVVarioConfigWidget.cpp \
@@ -371,6 +372,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Renderer/AirspaceLabelRenderer.cpp \
 	$(SRC)/Renderer/AirspaceListRenderer.cpp \
 	$(SRC)/Renderer/AirspacePreviewRenderer.cpp \
+	$(SRC)/Renderer/AirspaceWarningStatusRenderer.cpp \
 	$(SRC)/Renderer/BestCruiseArrowRenderer.cpp \
 	$(SRC)/Renderer/CompassRenderer.cpp \
 	$(SRC)/Renderer/FinalGlideBarRenderer.cpp \

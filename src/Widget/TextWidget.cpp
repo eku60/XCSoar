@@ -22,6 +22,14 @@ TextWidget::SetColor(Color _color) noexcept
   w.SetTextColor(_color);
 }
 
+void
+TextWidget::SetBackgroundColor(Color _color) noexcept
+{
+  WndFrame &w = (WndFrame &)GetWindow();
+  w.SetBackgroundColor(_color);
+  w.Invalidate();
+}
+
 PixelSize
 TextWidget::GetMinimumSize() const noexcept
 {
@@ -52,8 +60,11 @@ TextWidget::Prepare(ContainerWindow &parent, const PixelRect &rc) noexcept
   WindowStyle style;
   style.Hide();
 
-  SetWindow(std::make_unique<WndFrame>(parent, UIGlobals::GetDialogLook(),
-                                       rc, style));
+  auto frame = std::make_unique<WndFrame>(parent, UIGlobals::GetDialogLook(),
+                                          rc, style);
+  if (top_separator)
+    frame->SetTopSeparator();
+  SetWindow(std::move(frame));
 }
 
 

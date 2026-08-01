@@ -100,6 +100,8 @@ FlarmTraffic::Update(const FlarmTraffic &other) noexcept
   rssi = other.rssi;
   rssi_available = other.rssi_available;
   no_track = other.no_track;
+  absolute_location = other.absolute_location;
+  absolute_altitude = other.absolute_altitude;
 }
 
 void
@@ -107,8 +109,10 @@ FlarmTraffic::UpdateOnline(const FlarmTraffic &built) noexcept
 {
   location = built.location;
   location_available = built.location_available;
+  absolute_location = built.absolute_location;
   altitude = built.altitude;
   altitude_available = built.altitude_available;
+  absolute_altitude = built.absolute_altitude;
   name = built.name;
   source = built.source;
   type = built.type;

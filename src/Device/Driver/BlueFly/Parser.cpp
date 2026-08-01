@@ -3,8 +3,13 @@
 
 #include "Device/Driver/BlueFlyVario.hpp"
 #include "Internal.hpp"
+#include "NMEA/Checksum.hpp"
 #include "NMEA/Info.hpp"
+#include "NMEA/InputLine.hpp"
 #include "util/IterableSplitString.hxx"
+#include "util/StringCompare.hxx"
+
+using std::string_view_literals::operator""sv;
 
 bool
 BlueFlyDevice::ParseBAT(const char *content, NMEAInfo &info)
@@ -39,6 +44,9 @@ BlueFlyDevice::ParseBAT(const char *content, NMEAInfo &info)
     info.battery_level = 100;
   info.battery_level_available.Update(info.clock);
 
+  info.voltage = mV / 1000.;
+  info.voltage_available.Update(info.clock);
+
   return true;
 }
 
@@ -67,6 +75,22 @@ BlueFlyDevice::ParsePRS(const char *content, NMEAInfo &info)
                                                  kalman_filter.GetXVel()));
     info.ProvideStaticPressure(AtmosphericPressure::HectoPascal(kalman_filter.GetXAbs()));
   }
+
+  return true;
+}
+
+bool
+BlueFlyDevice::ParseTMP(const char *content, NMEAInfo &info)
+{
+  // e.g. TMP 231 → 23.1 °C (decimal deci-degrees)
+
+  char *endptr;
+  long value = strtol(content, &endptr, 10);
+  if (endptr == content)
+    return true;
+
+  info.temperature = Temperature::FromCelsius(value / 10.);
+  info.temperature_available.Update(info.clock);
 
   return true;
 }
@@ -158,13 +182,68 @@ BlueFlyDevice::ParseSET(const char *content, [[maybe_unused]] NMEAInfo &info)
   return true;
 }
 
+/**
+ * $BFV / $BFX telemetry (output modes 5 / 6).
+ *
+ * $BFV,pressurePa,vario_cm/s,tempC,batteryPct,pitotDiffPa*CC
+ * $BFX,... same plus batteryVolts
+ */
+static bool
+ParseBFVTelemetry(NMEAInputLine &line, NMEAInfo &info, bool extended)
+{
+  double value;
+
+  if (line.ReadChecked(value))
+    info.ProvideStaticPressure(AtmosphericPressure::Pascal(value));
+
+  if (line.ReadChecked(value))
+    info.ProvideNoncompVario(value / 100);
+
+  if (line.ReadChecked(value)) {
+    info.temperature = Temperature::FromCelsius(value);
+    info.temperature_available.Update(info.clock);
+  }
+
+  if (line.ReadChecked(value)) {
+    info.battery_level = value;
+    if (info.battery_level > 100)
+      info.battery_level = 100;
+    info.battery_level_available.Update(info.clock);
+  }
+
+  if (line.ReadChecked(value) && value != 0)
+    info.ProvideDynamicPressure(AtmosphericPressure::Pascal(value));
+
+  if (extended && line.ReadChecked(value)) {
+    info.voltage = value;
+    info.voltage_available.Update(info.clock);
+  }
+
+  return true;
+}
+
 bool
 BlueFlyDevice::ParseNMEA(const char *line, NMEAInfo &info)
 {
+  if (line[0] == '$') {
+    if (!VerifyNMEAChecksum(line))
+      return false;
+
+    NMEAInputLine nmea(line);
+    const auto type = nmea.ReadView();
+    if (type == "$BFV"sv)
+      return ParseBFVTelemetry(nmea, info, false);
+    if (type == "$BFX"sv)
+      return ParseBFVTelemetry(nmea, info, true);
+    return false;
+  }
+
   if (StringIsEqual(line, "PRS ", 4))
     return ParsePRS(line + 4, info);
   else if (StringIsEqual(line, "BAT ", 4))
     return ParseBAT(line + 4, info);
+  else if (StringIsEqual(line, "TMP ", 4))
+    return ParseTMP(line + 4, info);
   else if (StringIsEqual(line, "BFV ", 4))
     return ParseBFV(line + 4, info);
   else if (StringIsEqual(line, "BST ", 4))
