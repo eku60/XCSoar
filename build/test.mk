@@ -339,9 +339,13 @@ $(eval $(call link-program,TestWrapClock,TEST_WRAP_CLOCK))
 
 TEST_PROFILE_SOURCES = \
 	$(SRC)/LocalPath.cpp \
+	$(SRC)/PageSettings.cpp \
+	$(SRC)/Profile/PageProfile.cpp \
 	$(SRC)/Profile/Profile.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(TEST_SRC_DIR)/FakeLanguage.cpp \
+	$(TEST_SRC_DIR)/PageOverlayTitleStub.cpp \
 	$(TEST_SRC_DIR)/TestProfile.cpp
 TEST_PROFILE_DEPENDS = PROFILE MATH IO OS UTIL
 $(eval $(call link-program,TestProfile,TEST_PROFILE))
@@ -632,11 +636,9 @@ $(eval $(call link-program,TestByteSizeFormatter,TEST_BYTE_SIZE_FORMATTER))
 TEST_FILE_METADATA_FORMATTER_SOURCES = \
 	$(SRC)/Formatter/ByteSizeFormatter.cpp \
 	$(SRC)/Formatter/TimeFormatter.cpp \
-	$(SRC)/system/FileUtil.cpp \
-	$(SRC)/system/Path.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestFileMetadataFormatter.cpp
-TEST_FILE_METADATA_FORMATTER_DEPENDS = MATH UTIL TIME
+TEST_FILE_METADATA_FORMATTER_DEPENDS = MATH UTIL TIME OS
 $(eval $(call link-program,TestFileMetadataFormatter,TEST_FILE_METADATA_FORMATTER))
 
 TEST_TIME_FORMATTER_SOURCES = \
@@ -702,9 +704,8 @@ $(eval $(call link-program,TestWrapText,TEST_WRAP_TEXT))
 ifeq ($(HAVE_WIN32),y)
 TEST_UTF8WIN_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
-	$(TEST_SRC_DIR)/TestUTF8Win.cpp \
-	$(SRC)/ui/canvas/gdi/UTF8Win.cpp
-TEST_UTF8WIN_DEPENDS = UTIL
+	$(TEST_SRC_DIR)/TestUTF8Win.cpp
+TEST_UTF8WIN_DEPENDS = IO OS UTIL
 $(eval $(call link-program,TestUTF8Win,TEST_UTF8WIN))
 endif
 
@@ -748,11 +749,9 @@ TEST_GLIDE_POLAR_DEPENDS = GEO MATH IO UNITS
 $(eval $(call link-program,TestGlidePolar,TEST_GLIDE_POLAR))
 
 TEST_FILE_UTIL_SOURCES = \
-	$(SRC)/system/FileUtil.cpp \
-	$(SRC)/system/Path.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestFileUtil.cpp
-TEST_FILE_UTIL_DEPENDS = UTIL
+TEST_FILE_UTIL_DEPENDS = OS UTIL
 $(eval $(call link-program,TestFileUtil,TEST_FILE_UTIL))
 
 TEST_PATH_SOURCES = \

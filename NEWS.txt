@@ -38,6 +38,39 @@ Version 7.45 - not yet released
   - FLARM radar: show callsigns on all registered targets again, use the
     full callsign on target labels, and omit duplicate side vario/altitude
     on the selected target (info panel already shows them) #2718
+  - Add XCTherm to the pages config map overlay choices (alongside RASP
+    and EDL) #2705
+  - Add Weather Setup to the weather overlay menu (opens Info → Weather
+    on the active overlay tab); the layer/level/altitude list picker also
+    has a Setup button for the same path #2690
+  - Add Auto update to the RASP weather panel to enable/disable background
+    download of the forecast; it downloads at most once a day and only
+    while the forecast time follows the clock (Auto or Now); Update
+    remains available for a manual refresh
+  - Add Auto update to the EDL weather panel to enable/disable background
+    download of missing overlay tiles; Precache day is disabled while Auto
+    update is on #2690
+  - Add Layer/Time (Level/Altitude) on weather panels for the current map
+    page; Apply to page commits changes when dirty, Add page creates a
+    page with those values, and Pages setup opens Config → Look → Pages
+    #2705 #2690
+  - Store both overlay cursor axes on weather map pages: RASP Layer/Time,
+    EDL Level/Time, and XCTherm Altitude/Time; switching pages restores
+    Auto or manual selections independently #2690 #2705
+  - Show the current map page RASP layer and time on the RASP weather
+    panel; Apply commits them to that page #2690
+  - Allow Precache day on the EDL weather panel without an active EDL map
+    page; add Time and Level using the same pickers as the overlay
+    controls #2690
+  - Align the XCTherm weather panel Time / Altitude layout with RASP and
+    EDL; map Altitude is independent of the download Layer #2690 #2705
+  - Store RASP forecast time per map page (Auto, Now, or fixed slot);
+    selecting a page restores its Layer and Time #2690 #2705
+  - Fix crash when opening Weather Setup from the weather overlay
+    layer/level/altitude list picker #2690
+  - Keep the RASP time cursor when stepping onto all-day layers (single
+    archive time slot such as PFD); grey out the time controls until a
+    multi-slot layer is selected again #2705
   - Show all tasks by default in Task Browser instead of requiring to click
     the "More" button first.
   - Rename to turnpoint observation zone type "Symmetric Quadrant" to
@@ -48,6 +81,8 @@ Version 7.45 - not yet released
     long centre labels instead of hiding them when they do not fit
   - Fix crash when opening the map item list on waypoints with long
     non-ASCII comments (UTF-8 truncation)
+  - Fix crash wrapping unspaced UTF-8 help text (e.g. Chinese language
+    picker) #2768
   - add optional map overlay QuickMenu button (Config → Look → Layout),
     enabled by default when a touch screen is detected #2610
   - input events: add ``VarioVolume`` to mute/unmute and adjust the
@@ -80,6 +115,9 @@ Version 7.45 - not yet released
 * Kobo
   - always start in light mode; dark mode is not supported on e-paper
     displays #2568
+* Windows
+  - fix crash opening the log list when replay filenames contain
+    non-ASCII characters (Unicode directory listing and file open)
 * devices
   - support $LK8EX1 (LK8000 external instrument) on all device ports:
     pressure, QNE altitude, vario, temperature, and battery voltage
