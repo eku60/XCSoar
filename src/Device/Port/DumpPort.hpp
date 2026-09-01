@@ -52,6 +52,23 @@ public:
     return until > std::chrono::steady_clock::time_point{};
   }
 
+  Port &GetInnerPort() noexcept {
+    return *port;
+  }
+
+  const Port &GetInnerPort() const noexcept {
+    return *port;
+  }
+
+  /**
+   * Unwrap this DumpPort (and any inner wrappers) so a driver can
+   * downcast to a concrete port type.  Do not pass this to
+   * CreateOnPort; that skips Debug I/O logging (#2903).
+   */
+  Port &GetImplementationPort() noexcept override {
+    return port->GetImplementationPort();
+  }
+
 private:
   /**
    * Determine whether dumping is currently enabled.

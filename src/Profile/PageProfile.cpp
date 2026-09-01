@@ -6,6 +6,8 @@
 #include "Map.hpp"
 #include "PageSettings.hpp"
 #include "InfoBoxes/InfoBoxSettings.hpp"
+#include "util/NumberParser.hxx"
+#include "util/StaticString.hxx"
 #include "util/StringFormat.hpp"
 
 #include <stdio.h>
@@ -71,8 +73,48 @@ Load(const ProfileMap &map, PageLayout &_pl, const unsigned page)
   strcpy(profileKey + prefixLen, "RaspField");
   map.Get(profileKey, pl.rasp_field);
 
+  strcpy(profileKey + prefixLen, "RaspTime");
+  if (!map.Get(profileKey, pl.rasp_time))
+    pl.rasp_time = PageLayout::RASP_TIME_AUTO;
+
+  strcpy(profileKey + prefixLen, "EdlTime");
+  if (!map.Get(profileKey, pl.edl_time))
+    pl.edl_time = PageLayout::EDL_TIME_AUTO;
+
+  strcpy(profileKey + prefixLen, "EdlIsobar");
+  map.Get(profileKey, pl.edl_isobar);
+
+  strcpy(profileKey + prefixLen, "XCThermLayer");
+  if (!map.Get(profileKey, pl.xctherm_layer))
+    pl.xctherm_layer = PageLayout::XCTHERM_LAYER_AUTO;
+
+  strcpy(profileKey + prefixLen, "XCThermTime");
+  if (!map.Get(profileKey, pl.xctherm_time))
+    pl.xctherm_time = PageLayout::XCTHERM_TIME_AUTO;
+
+  strcpy(profileKey + prefixLen, "SkysightOverlay");
+  const char *skysight_overlay_value = map.Get(profileKey);
+  strcpy(profileKey + prefixLen, "SkysightOverlay");
+  if (const char *value = map.Get(profileKey); value != nullptr)
+    skysight_overlay_value = value;
+  if (skysight_overlay_value != nullptr && *skysight_overlay_value != '\0') {
+    pl.skysight_overlay = skysight_overlay_value;
+    if (pl.overlay == PageLayout::Overlay::NONE)
+      pl.overlay = PageLayout::Overlay::SKYSIGHT;
+  } else {
+    pl.skysight_overlay.clear();
+  }
+
+  strcpy(profileKey + prefixLen, "SkySightTime");
+  if (const char *value = map.Get(profileKey); value != nullptr) {
+    if (!ParseIntegerTo(std::string_view{value}, pl.skysight_time) ||
+        pl.skysight_time < PageLayout::SKYSIGHT_TIME_AUTO)
+      pl.skysight_time = PageLayout::SKYSIGHT_TIME_AUTO;
+  }
+
   if (pl.overlay == PageLayout::Overlay::NONE &&
-      pl.bottom == PageLayout::Bottom::WEATHER_CONTROLS)
+      pl.bottom == PageLayout::Bottom::WEATHER_CONTROLS &&
+      pl.skysight_overlay.empty())
     pl.overlay = PageLayout::Overlay::EDL;
 
   pl.Normalise();
@@ -122,6 +164,29 @@ Profile::Save(ProfileMap &map, const PageLayout &page, const unsigned i)
 
   strcpy(profileKey + prefixLen, "RaspField");
   map.Set(profileKey, page.rasp_field);
+
+  strcpy(profileKey + prefixLen, "RaspTime");
+  map.Set(profileKey, page.rasp_time);
+
+  strcpy(profileKey + prefixLen, "EdlTime");
+  map.Set(profileKey, page.edl_time);
+
+  strcpy(profileKey + prefixLen, "EdlIsobar");
+  map.Set(profileKey, page.edl_isobar);
+
+  strcpy(profileKey + prefixLen, "XCThermLayer");
+  map.Set(profileKey, page.xctherm_layer);
+
+  strcpy(profileKey + prefixLen, "XCThermTime");
+  map.Set(profileKey, page.xctherm_time);
+
+  strcpy(profileKey + prefixLen, "SkysightOverlay");
+  map.Set(profileKey, page.skysight_overlay.c_str());
+
+  strcpy(profileKey + prefixLen, "SkySightTime");
+  StaticString<32> skysight_time;
+  skysight_time.Format("%lld", (long long)page.skysight_time);
+  map.Set(profileKey, skysight_time.c_str());
 }
 
 

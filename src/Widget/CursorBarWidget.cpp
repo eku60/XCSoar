@@ -10,6 +10,7 @@
 #include "Form/Button.hpp"
 #include "Renderer/SymbolButtonRenderer.hpp"
 #include "ui/canvas/Canvas.hpp"
+#include "ui/canvas/Features.hpp"
 #include "ui/window/SolidContainerWindow.hpp"
 #include "ui/window/PaintWindow.hpp"
 #include "util/StaticArray.hxx"
@@ -60,6 +61,11 @@ protected:
 
   void OnPaint(Canvas &canvas) noexcept override {
     const auto rc = GetClientRect();
+    if (HaveClipping())
+      /* with clipping, the parent's background does not extend into
+         child windows, so we must fill the background ourselves */
+      canvas.Clear(look.background_brush);
+
     canvas.SetBackgroundTransparent();
     canvas.SetTextColor(is_available
                         ? look.text_color
@@ -137,7 +143,6 @@ public:
     style.Hide();
     style.ControlParent();
     SolidContainerWindow::Create(parent, rc, look.background_color, style);
-    SetGradientTopColor(look.background_gradient_top_color);
 
     int total_h, row_h, btn_w, w;
     ComputeLayout(rc, row_count, total_h, row_h, btn_w, w);
@@ -199,6 +204,16 @@ public:
     labels[row]->SetAvailable(available);
   }
 
+  void SetRowEnabled(unsigned row, bool enabled) noexcept {
+    if (row >= row_count)
+      return;
+
+    if (prev_buttons[row].IsDefined())
+      prev_buttons[row].SetEnabled(enabled);
+    if (next_buttons[row].IsDefined())
+      next_buttons[row].SetEnabled(enabled);
+  }
+
 protected:
   void OnResize(PixelSize new_size) noexcept override {
     SolidContainerWindow::OnResize(new_size);
@@ -208,7 +223,8 @@ protected:
   }
 
   void OnPaint(Canvas &canvas) noexcept override {
-    SolidContainerWindow::OnPaint(canvas);
+    canvas.Clear(look.background_brush);
+    ContainerWindow::OnPaint(canvas);
 
     if (row_count < 2)
       return;
@@ -313,6 +329,15 @@ CursorBarWidget::SetRowText(unsigned row, const char *text,
     return;
 
   static_cast<BarWindow &>(GetWindow()).SetRowText(row, text, available);
+}
+
+void
+CursorBarWidget::SetRowEnabled(unsigned row, bool enabled) noexcept
+{
+  if (!IsDefined())
+    return;
+
+  static_cast<BarWindow &>(GetWindow()).SetRowEnabled(row, enabled);
 }
 
 void

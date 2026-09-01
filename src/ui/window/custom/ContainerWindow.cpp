@@ -71,6 +71,17 @@ ContainerWindow::FocusFirstControl() noexcept
 }
 
 bool
+ContainerWindow::FocusLastControl() noexcept
+{
+  Window *control = children.FindLastControl();
+  if (control == nullptr)
+    return false;
+
+  control->SetFocus();
+  return true;
+}
+
+bool
 ContainerWindow::FocusNextControl() noexcept
 {
   Window *focused = GetFocusedWindow();
@@ -181,6 +192,17 @@ ContainerWindow::OnMultiTouchDown() noexcept
     return capture_child->OnMultiTouchDown();
 
   return PaintWindow::OnMultiTouchDown();
+}
+
+bool
+ContainerWindow::OnMultiTouchMove(PixelPoint a, PixelPoint b) noexcept
+{
+  if (!capture && capture_child != nullptr) {
+    const auto origin = capture_child->GetTopLeft();
+    return capture_child->OnMultiTouchMove(a - origin, b - origin);
+  }
+
+  return PaintWindow::OnMultiTouchMove(a, b);
 }
 
 bool

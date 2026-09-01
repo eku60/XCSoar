@@ -21,6 +21,9 @@
 #include "Look/GestureLook.hpp"
 #include "Input/InputEvents.hpp"
 #include "Renderer/MapScaleRenderer.hpp"
+#include "Components.hpp"
+#include "BackendComponents.hpp"
+#include "Replay/Replay.hpp"
 
 #include <algorithm> // for std::clamp()
 
@@ -110,8 +113,8 @@ GlueMapWindow::DrawPanInfo(Canvas &canvas) const noexcept
     TerrainHeight elevation = terrain->GetTerrainHeight(location);
     if (!elevation.IsSpecial()) {
       StaticString<64> elevation_long;
-      elevation_long = _("Elevation: ");
-      elevation_long += FormatUserAltitude(elevation.GetValue()).c_str();
+      elevation_long.Format("%s: %s", _("Elevation"),
+                            FormatUserAltitude(elevation.GetValue()).c_str());
 
       TextInBox(canvas, elevation_long, p, mode,
                 render_projection.GetScreenSize());
@@ -138,6 +141,26 @@ GlueMapWindow::DrawPanInfo(Canvas &canvas) const noexcept
 
     start = newline + 1;
   }
+
+  /* RASP field value at the panned location, analogous to the "map
+     items at this location" dialog. */
+  if (rasp_renderer && rasp_renderer->IsInside(location)) {
+    const char *label = rasp_renderer->GetLabel();
+    if (label != nullptr && *label != '\0') {
+      const auto value = FormatRaspValue(rasp_renderer->GetValueAt(location));
+
+      StaticString<128> rasp_line;
+      if (value.empty())
+        rasp_line = label;
+      else
+        rasp_line.Format("%s: %s", label, value.c_str());
+
+      TextInBox(canvas, rasp_line, p, mode,
+                render_projection.GetScreenSize());
+
+      p.y += height;
+    }
+  }
 }
 
 void
@@ -157,18 +180,32 @@ GlueMapWindow::DrawGPSStatus(Canvas &canvas, const PixelRect &rc,
     // early exit
     return;
 
+  const Font &font = *look.overlay.overlay_font;
+  canvas.Select(font);
+
+  /* DrawMapScale paints the scale bar and the map-title line
+     (AUTO / Simulator / REPLAY / …) after this overlay.  Reserve that
+     band (and bottom_margin) so the GPS label sits above the title. */
+  const int scale_band = (int)font.GetCapitalHeight()
+    + (int)Layout::GetTextPadding();
+  const int title_band = (int)font.GetHeight()
+    + (int)Layout::GetTextPadding();
+  const int clear_bottom = rc.bottom - (int)bottom_margin
+    - scale_band - title_band - Layout::Scale(2);
+
+  const int row_height = std::max((int)icon->GetSize().height,
+                                  (int)font.GetHeight());
   PixelPoint p(rc.left + Layout::FastScale(2),
-               rc.bottom - Layout::FastScale(35));
+               clear_bottom - row_height);
   icon->Draw(canvas, p);
 
   p.x += icon->GetSize().width + Layout::FastScale(4);
-  p.y = rc.bottom - Layout::FastScale(34);
+  p.y = clear_bottom - (int)font.GetAscentHeight()
+    - ((row_height - (int)font.GetHeight()) / 2);
 
   TextInBoxMode mode;
   mode.shape = LabelShape::ROUNDED_BLACK;
 
-  const Font &font = *look.overlay.overlay_font;
-  canvas.Select(font);
   TextInBox(canvas, txt, p, mode, rc, nullptr);
 }
 
@@ -277,6 +314,17 @@ GlueMapWindow::SetBottomMargin(unsigned margin) noexcept
 }
 
 void
+GlueMapWindow::SetTopRightMargin(unsigned margin) noexcept
+{
+  if (margin == top_right_margin)
+    /* no change, don't redraw */
+    return;
+
+  top_right_margin = margin;
+  QuickRedraw();
+}
+
+void
 GlueMapWindow::SetBottomMarginFactor(unsigned margin_factor) noexcept
 {
   if (follow_mode != FOLLOW_PAN || Layout::landscape) {
@@ -316,7 +364,7 @@ GlueMapWindow::DrawMapScale(Canvas &canvas, const PixelRect &rc,
   if (!projection.IsValid())
     return;
 
-  StaticString<80> buffer;
+  StaticString<256> buffer;
 
   buffer.clear();
 
@@ -333,7 +381,20 @@ GlueMapWindow::DrawMapScale(Canvas &canvas, const PixelRect &rc,
   }
 
   const UIState &ui_state = GetUIState();
+  if (Basic().gps.replay) {
+    if (backend_components != nullptr &&
+        backend_components->replay != nullptr)
+      buffer.AppendFormat(_("REPLAY %.0fx "),
+                          backend_components->replay->GetTimeScale());
+    else
+      buffer += _("REPLAY ");
+  } else if (Basic().gps.simulator) {
+    buffer += _("Simulator");
+    buffer += " ";
+  }
+
   if (!ui_state.map_scale_page_title.empty()) {
+    buffer += "| ";
     buffer += ui_state.map_scale_page_title;
     buffer += " ";
   } else if (ui_state.auxiliary_enabled) {
@@ -341,24 +402,10 @@ GlueMapWindow::DrawMapScale(Canvas &canvas, const PixelRect &rc,
     buffer += " ";
   }
 
-  if (Basic().gps.replay)
-    buffer += "REPLAY ";
-  else if (Basic().gps.simulator) {
-    buffer += _("Simulator");
-    buffer += " ";
-  }
-
   if (GetComputerSettings().polar.ballast_timer_active)
     buffer.AppendFormat(
         "BALLAST %d LITERS ",
         (int)GetComputerSettings().polar.glide_polar_task.GetBallastLitres());
-
-  if (rasp_renderer != nullptr &&
-      ui_state.page_overlay != PageLayout::Overlay::RASP) {
-    const char *label = rasp_renderer->GetLabel();
-    if (label != nullptr)
-      buffer += gettext(label);
-  }
 
   if (!buffer.empty()) {
 
@@ -412,8 +459,17 @@ GlueMapWindow::RenderTrail(Canvas &canvas,
     break;
   }
 
-  DrawTrail(canvas, aircraft_pos, min_time,
-            GetMapSettings().trail.wind_drift_enabled && InCirclingMode());
+  /* Trail drift is for thermal centering at near zoom.  At overview
+     scales a Full trail shifted by hours of wind looks like a wrong
+     ground track (#2835, #709).  GetMapScale 2000 ≈ 16 km short edge. */
+  static constexpr double TRAIL_DRIFT_MAX_MAP_SCALE = 2000;
+
+  const bool enable_traildrift =
+    GetMapSettings().trail.wind_drift_enabled &&
+    InCirclingMode() &&
+    render_projection.GetMapScale() <= TRAIL_DRIFT_MAX_MAP_SCALE;
+
+  DrawTrail(canvas, aircraft_pos, min_time, enable_traildrift);
 }
 
 void

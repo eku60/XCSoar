@@ -24,6 +24,7 @@
 #include <Message.hpp>
 #include "Geo/AltitudeReference.hpp"
 #include "Language/Language.hpp"
+#include "Language/FormatText.hpp"
 #include "TransponderMode.hpp"
 #include "LogFile.hpp"
 #include "util/StaticString.hxx"
@@ -291,7 +292,7 @@ NOTAMDetailsWidget::AddNOTAMIdentifiers(const char *notam_number,
   // Display NOTAM number
   if (notam_number && notam_number[0] != '\0') {
     const auto safe_notam_number = SafeString(std::string{notam_number});
-    AddReadOnly(_("NOTAM"), nullptr, safe_notam_number.c_str());
+    AddReadOnly(C_("Setting", "NOTAM"), nullptr, safe_notam_number.c_str());
   }
 
   // Display ICAO location if we found the NOTAM
@@ -303,13 +304,13 @@ NOTAMDetailsWidget::AddNOTAMIdentifiers(const char *notam_number,
   // Display Q-code (feature type)
   if (notam_opt && !notam_opt->feature_type.empty()) {
     const auto feature_type = SafeString(notam_opt->feature_type);
-    AddReadOnly(_("Q-Code"), nullptr, feature_type.c_str());
+    AddReadOnly(C_("Setting", "Q-Code"), nullptr, feature_type.c_str());
   }
 
   // NOTAM Series (if available)
   if (notam_opt && !notam_opt->series.empty()) {
     const auto series = SafeString(notam_opt->series);
-    AddReadOnly(_("Series"), nullptr, series.c_str());
+    AddReadOnly(C_("Setting", "Series"), nullptr, series.c_str());
   }
 }
 
@@ -326,15 +327,15 @@ NOTAMDetailsWidget::AddNOTAMValidity(
   // Effective start - format as friendly date/time
   BrokenDateTime start_dt(notam_opt->start_time);
   FormatISO8601(time_buffer, start_dt);
-  AddReadOnly(_("Valid From"), nullptr, time_buffer);
+  AddReadOnly(C_("Setting", "Valid From"), nullptr, time_buffer);
 
   // Check if it's a far future date (PERM = permanent)
   if (notam_opt->end_time_permanent) {
-    AddReadOnly(_("Valid Until"), nullptr, "PERM");
+    AddReadOnly(C_("Setting", "Valid Until"), nullptr, "PERM");
   } else {
     BrokenDateTime end_dt(notam_opt->end_time);
     FormatISO8601(time_buffer, end_dt);
-    AddReadOnly(_("Valid Until"), nullptr, time_buffer);
+    AddReadOnly(C_("Setting", "Valid Until"), nullptr, time_buffer);
   }
 
   // Status indicator
@@ -362,7 +363,7 @@ NOTAMDetailsWidget::AddNOTAMValidity(
         time_str.Format(_("%dd"), static_cast<int>(days));
       }
     }
-    buffer.Format(_("Starts in %s"), time_str.c_str());
+    FormatStartsIn(buffer, time_str.c_str());
   } else if (!notam_opt->end_time_permanent && now > notam_opt->end_time) {
     // Expired
     const auto expired_ago =

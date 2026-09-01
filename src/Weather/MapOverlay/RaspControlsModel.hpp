@@ -21,6 +21,8 @@ public:
   [[nodiscard]]
   bool HasPrimaryData() const noexcept override;
   [[nodiscard]]
+  bool IsPrimaryEnabled() const noexcept override;
+  [[nodiscard]]
   bool HasSecondaryData() const noexcept override;
 
   [[nodiscard]]
@@ -42,7 +44,9 @@ public:
 
   void OpenPrimaryPicker() noexcept override;
   void ResumePrimaryAuto() noexcept override;
-  void OpenSecondaryPicker() noexcept override;
+
+  [[nodiscard]]
+  SecondaryPickerResult OpenSecondaryPicker() noexcept override;
 
   void RefreshOverlay() noexcept override;
   void OnGPSUpdate(const MoreData &basic) noexcept override;

@@ -22,6 +22,9 @@
 #include "Message.hpp"
 #include "Weather/Rasp/RaspStore.hpp"
 #include "Weather/Rasp/Configured.hpp"
+#ifdef HAVE_HTTP
+#include "Weather/SkySight/SkySightClient.hpp"
+#endif
 #include "Input/InputEvents.hpp"
 #include "Input/InputQueue.hpp"
 #include "Dialogs/StartupDialog.hpp"
@@ -71,6 +74,7 @@
 #include "net/client/tim/Glue.hpp"
 #include "Hardware/DisplayDPI.hpp"
 #include "Hardware/DisplayGlue.hpp"
+#include "Screen/Layout.hpp"
 #include "util/Compiler.h"
 #include "NMEA/Aircraft.hpp"
 #include "Waypoint/Waypoints.hpp"
@@ -126,6 +130,7 @@
 
 #ifdef __APPLE__
 #include "Apple/Services.hpp"
+#include "Apple/BackgroundSave.hpp"
 #endif
 
 #ifdef HAVE_EDL
@@ -141,17 +146,33 @@ static AllMonitors *all_monitors;
 static GlideComputerTaskEvents *task_events;
 static DeviceFactory *device_factory;
 
+/** @see WasStartupCancelledByUser() */
+static bool startup_cancelled_by_user = false;
+
+bool
+WasStartupCancelledByUser() noexcept
+{
+  return startup_cancelled_by_user;
+}
+
 static bool
 LoadProfile()
 {
+  /* run the data-layout migration BEFORE the profile is selected and
+     loaded: it moves root-level profiles into profiles/ - selecting or
+     loading first ends up with an empty profile that later overwrites
+     the migrated one on exit (settings loss on first start after an
+     upgrade) */
+  MigrateDataLayoutToSubdirs();
+
   if (Profile::GetPath() == nullptr &&
       !dlgStartupShowModal()) {
     LogString("LoadProfile: no profile path and startup dialog was cancelled");
+    startup_cancelled_by_user = true;
     return false;
   }
 
   Profile::Load();
-  MigrateDataLayoutToSubdirs();
   Profile::Use(Profile::map);
 
   Units::SetConfig(CommonInterface::GetUISettings().format.units);
@@ -331,9 +352,6 @@ Startup(UI::Display &display)
   if (!main_window->IsDefined())
     return false;
 
-  LogFmt("Display dpi={},{}",
-         Display::GetDPI(display).x, Display::GetDPI(display).y);
-
 #ifdef ENABLE_OPENGL
   LogFmt("OpenGL: "
 #ifdef HAVE_DYNAMIC_MULTI_DRAW_ARRAYS
@@ -366,6 +384,7 @@ Startup(UI::Display &display)
     SimulatorPromptResult result = dlgSimulatorPromptShowModal();
     switch (result) {
     case SPR_QUIT:
+      startup_cancelled_by_user = true;
       return false;
 
     case SPR_FLY:
@@ -400,6 +419,13 @@ Startup(UI::Display &display)
   if (!LoadProfile())
     return false;
 
+#ifdef __APPLE__
+  /* now that there is a profile to save, arm the "save on suspend"
+     hook; doing this any earlier could persist the still empty
+     profile map */
+  InitializeAppleBackgroundSave();
+#endif
+
   operation.SetText(_("Initialising"));
 
   /* create XCSoarData on the first start */
@@ -421,6 +447,17 @@ Startup(UI::Display &display)
   main_window->CheckResize();
 
   SetDisplayType(CommonInterface::GetUISettings().display.display_type);
+
+  {
+    const PixelSize size = main_window->GetSize();
+    const auto dpi = Display::GetDPI(display);
+    LogFmt("Display: {}x{} dpi={},{} vdpi={} size={:.2f}x{:.2f}in "
+           "small_screen={}",
+           size.width, size.height, dpi.x, dpi.y, Layout::vdpi,
+           dpi.x > 0 ? double(size.width) / dpi.x : 0.,
+           dpi.y > 0 ? double(size.height) / dpi.y : 0.,
+           Layout::small_screen);
+  }
 
   /* Log device capabilities and features after initialization */
   LogFormat("Device capabilities: HasIOIOLib()=%s",
@@ -533,8 +570,10 @@ Startup(UI::Display &display)
 #endif
 
   // Show unified Quick Guide dialog (warranty + guide pages)
-  if (!dlgQuickGuideShowModal())
+  if (!dlgQuickGuideShowModal()) {
+    startup_cancelled_by_user = true;
     return false;
+  }
 
   GlidePolar &gp = CommonInterface::SetComputerSettings().polar.glide_polar_task;
   gp = GlidePolar(0);
@@ -590,6 +629,11 @@ Startup(UI::Display &display)
   // Scan for weather forecast
   LogString("RASP load");
   auto rasp = LoadConfiguredRasp();
+
+#ifdef HAVE_HTTP
+  auto skysight = std::make_shared<SkySightClient>(*Net::curl);
+  DataGlobals::SetSkySight(skysight);
+#endif
 
   // Reads the airspace files
   {
@@ -761,6 +805,14 @@ DestroyNetComponents() noexcept
 #endif
 
 void
+SaveUserState() noexcept
+{
+  SaveFlarmColors();
+  SaveFlarmMessaging();
+  Profile::Save();
+}
+
+void
 Shutdown()
 {
   VerboseOperationEnvironment operation;
@@ -770,6 +822,12 @@ Shutdown()
 
   // Turn off all displays first to prevent UI operations from blocking
   global_running = false;
+
+#ifdef __APPLE__
+  /* stop saving on suspend before we start tearing down the state
+     which SaveUserState() would touch */
+  DeinitializeAppleBackgroundSave();
+#endif
 
 #ifdef HAVE_HTTP
   if (main_window != nullptr)
@@ -815,12 +873,9 @@ Shutdown()
   }
 #endif
 
-  SaveFlarmColors();
-  SaveFlarmMessaging();
-
   // Save settings to profile
   operation.SetText(_("Shutdown, saving profile..."));
-  Profile::Save();
+  SaveUserState();
 
   operation.SetText(_("Shutdown, please wait..."));
 
@@ -874,6 +929,12 @@ Shutdown()
 
   LogString("delete MapWindow");
   main_window->Deinitialise();
+
+#ifdef HAVE_HTTP
+  /* Release SkySight before HTTP/curl teardown so active tile requests cancel
+     while the UI event loop is still alive. */
+  DataGlobals::SetSkySight({});
+#endif
 
   // Stop sound
   AudioVarioGlue::Deinitialise();

@@ -139,12 +139,40 @@ private:
   PixelRect map_rect;
   bool FullScreen = false;
 
+  /**
+   * Nesting count for #BeginCoalesceMapLayout() /
+   * #EndCoalesceMapLayout().  While non-zero, #LayoutMapArea() only
+   * sets #map_layout_pending.
+   */
+  unsigned coalesce_map_layout = 0;
+
+  /** A #LayoutMapArea() was requested while coalescing was active. */
+  bool map_layout_pending = false;
+
+  /**
+   * True when #BeginCoalesceMapLayout() also started map full-redraw
+   * coalescing.  End must use this rather than re-testing #map, which
+   * may appear or disappear between the pair of calls.
+   */
+  bool coalesce_map_redraw = false;
+
 #ifndef ENABLE_OPENGL
   /**
    * This variable tracks whether the #DrawThread was suspended
    * because the map was replaced by a #Widget.
    */
   bool draw_suspended = false;
+#else
+  /**
+   * Number of frames which must still be repainted with a cleared
+   * background to erase a gesture trail which the #GlueMapWindow has
+   * painted outside its own rectangle.  Sized from the swap-chain
+   * depth so every presentation buffer gets a clean frame.
+   *
+   * @see OnPaint()
+   * @see TopWindow::GetPresentationBufferCount()
+   */
+  unsigned clear_gesture_frames = 0;
 #endif
 
   bool restore_page_pending = false;
@@ -347,6 +375,13 @@ public:
   }
 
   void SetFullScreen(bool _full_screen) noexcept;
+
+  /**
+   * Coalesce map area layout (and map #FullRedraw) while a page layout
+   * is applied in several steps (InfoBoxes, bottom widget, …).
+   */
+  void BeginCoalesceMapLayout() noexcept;
+  void EndCoalesceMapLayout() noexcept;
 
   void SendGPSUpdate(bool vario_bar_redraw=false) noexcept;
 

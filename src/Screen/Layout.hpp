@@ -13,6 +13,12 @@ namespace Layout
 extern bool landscape;
 
 /**
+ * True when the short edge is smaller than about 5 inches (used to
+ * shrink fonts for closer viewing distance).
+ */
+extern bool small_screen;
+
+/**
  * Screen size in pixels, the smaller of width and height.
  */
 extern unsigned min_screen_pixels;
@@ -264,6 +270,22 @@ static inline unsigned
 GetMaximumControlHeight() noexcept
 {
   return maximum_control_height;
+}
+
+/**
+ * In-flight tap target (pan menu, map cursor bar), in points.
+ * ~20 mm, large enough for a gloved tap (2 * map hit radius).
+ */
+static constexpr unsigned inflight_button_pt = 56;
+
+/**
+ * Pixel size of #inflight_button_pt.
+ */
+[[gnu::pure]]
+static inline unsigned
+GetInflightButtonHeight() noexcept
+{
+  return PtScale(inflight_button_pt);
 }
 
 /**

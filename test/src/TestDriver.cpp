@@ -41,6 +41,9 @@
 #include "Device/Driver/Zander.hpp"
 #include "Device/Parser.hpp"
 #include "Device/Port/NullPort.hpp"
+#include "DumpPort.hpp"
+#include "Device/Driver/LX/LXNAVPolarConversion.hpp"
+#include "Engine/GlideSolvers/GlidePolar.hpp"
 #include "FLARM/Error.hpp"
 #include "FLARM/Progress.hpp"
 #include "FLARM/State.hpp"
@@ -72,6 +75,8 @@
 #include "util/StaticString.hxx"
 #include "util/ByteOrder.hxx"
 #include "util/PackedFloat.hxx"
+
+#include <fmt/format.h>
 
 #include <chrono>
 #include <cstring>
@@ -414,6 +419,19 @@ TestFLARM()
     skip(15, 0, "traffic == NULL");
   }
 
+  /* ADS-B airliner GS via PFLAA; used to wrap RoughSpeed above 127 m/s. */
+  ok1(parser.ParseLine("$PFLAA,0,100,-150,10,1,4CAAAA,90,,223,0,8*1B",
+                       nmea_info));
+
+  id = FlarmId::Parse("4CAAAA", NULL);
+  traffic = nmea_info.flarm.traffic.FindTraffic(id);
+  if (ok1(traffic != NULL)) {
+    ok1(traffic->speed_received);
+    ok1(equals(traffic->speed, 223));
+  } else {
+    skip(2, 0, "traffic == NULL");
+  }
+
   // PFLAA with IDType=0 (random ID)
   ok1(parser.ParseLine("$PFLAA,0,300,400,20,0,ABC123,90,,20,,8*30",
                        nmea_info));
@@ -667,12 +685,56 @@ TestBlueFly()
   ok1(device->ParseNMEA("BAT 1068", nmea_info)); //4.2V
   ok1(nmea_info.battery_level_available);
   ok1(equals(nmea_info.battery_level, 100.0));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 4.2));
   ok1(device->ParseNMEA("BAT EFE", nmea_info)); //3.84V
   ok1(nmea_info.battery_level_available);
   ok1(equals(nmea_info.battery_level, 50.0));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 3.838));
   ok1(device->ParseNMEA("BAT ED8", nmea_info)); //3.80V
   ok1(nmea_info.battery_level_available);
   ok1(equals(nmea_info.battery_level, 37.3333));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 3.8));
+
+  ok1(device->ParseNMEA("TMP 231", nmea_info)); //23.1 °C
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 23.1));
+
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+
+  ok1(!device->ParseNMEA("$BFV,101325,123,23.1,85,0*00", nmea_info));
+
+  ok1(device->ParseNMEA("$BFV,101325,123,23.1,85,0*69", nmea_info));
+  ok1(nmea_info.static_pressure_available);
+  ok1(equals(nmea_info.static_pressure.GetPascal(), 101325));
+  ok1(nmea_info.noncomp_vario_available);
+  ok1(equals(nmea_info.noncomp_vario, 1.23));
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 23.1));
+  ok1(nmea_info.battery_level_available);
+  ok1(equals(nmea_info.battery_level, 85.0));
+  ok1(!nmea_info.dyn_pressure_available);
+  ok1(!nmea_info.voltage_available);
+
+  nmea_info.Reset();
+  nmea_info.clock = TimeStamp{FloatDuration{1}};
+
+  ok1(device->ParseNMEA("$BFX,101325,-50,18.5,40,12,3.84*74", nmea_info));
+  ok1(nmea_info.static_pressure_available);
+  ok1(equals(nmea_info.static_pressure.GetPascal(), 101325));
+  ok1(nmea_info.noncomp_vario_available);
+  ok1(equals(nmea_info.noncomp_vario, -0.5));
+  ok1(nmea_info.temperature_available);
+  ok1(equals(nmea_info.temperature.ToCelsius(), 18.5));
+  ok1(nmea_info.battery_level_available);
+  ok1(equals(nmea_info.battery_level, 40.0));
+  ok1(nmea_info.dyn_pressure_available);
+  ok1(equals(nmea_info.dyn_pressure.GetPascal(), 12));
+  ok1(nmea_info.voltage_available);
+  ok1(equals(nmea_info.voltage, 3.84));
 
   delete device;
 }
@@ -1609,19 +1671,19 @@ TestCondor3UDP()
   ok1(device->ParseNMEA("compass=270", info));
   ok1(info.attitude.heading_available);
   ok1(equals(info.attitude.heading.Degrees(), 270));
-  ok1(info.track_available);
-  ok1(equals(info.track.Degrees(), 270));
+  ok1(!info.track_available);
 
   next_step();
   ok1(device->ParseNMEA("compass=90", info));
-  ok1(info.track_available);
-  ok1(equals(info.track.Degrees(), 90));
+  ok1(info.attitude.heading_available);
+  ok1(equals(info.attitude.heading.Degrees(), 90));
+  ok1(!info.track_available);
   ++step;
   info.clock = TimeStamp{FloatDuration{step}};
   info.alive.Update(info.clock);
   ok1(device->ParseNMEA("vx=30", info));
   ok1(device->ParseNMEA("vy=40", info));
-  ok1(equals(info.track.Degrees(), 90));
+  ok1(!info.track_available);
   ok1(equals(info.ground_speed, 50));
 
   next_step();
@@ -1907,6 +1969,130 @@ TestLXV7POLAR()
 
   delete device;
 }
+
+/**
+ * LXNAV polar write regressions for #2397.
+ *
+ * PutPolar must emit LX-scaled coefficients and preserve device
+ * metadata.  PutCrewMass must not fall back to a partial POLAR write
+ * with empty a,b,c (that zeroes the polar on S-series varios).
+ */
+static void
+TestLXV7PolarWrite()
+{
+  DumpPort dump;
+  Device *device = lx_driver.CreateOnPort(dummy_config, dump);
+  ok1(device != nullptr);
+
+  LXDevice &lx = *static_cast<LXDevice *>(device);
+  lx.ResetDeviceDetection();
+
+  NMEAInfo basic;
+  basic.Reset();
+  basic.clock = TimeStamp{FloatDuration{1}};
+
+  /* Identify as S-series so PutPolar/PutCrewMass are active */
+  ok1(device->ParseNMEA("$LXWP1,S8x,12345,1.0,1.0,12345*1D", basic));
+  ok1(lx.IsSVario());
+
+  dump.Clear();
+
+  GlidePolar polar{0};
+  const PolarCoefficients coeffs(0.0022032, -0.08784, 1.47);
+  polar.SetCoefficients(coeffs, false);
+  polar.SetReferenceMass(318, false);
+  polar.SetEmptyMass(228, false);
+  polar.SetCrewMass(90, false);
+  polar.SetWingArea(9.8);
+  polar.SetBugs(1);
+  polar.SetBallastLitres(0);
+  polar.Update();
+  ok1(polar.IsValid());
+
+  NullOperationEnvironment env;
+
+  /* Without cached metadata, PutPolar requests POLAR and does not
+     write a destructive full sentence with max_weight=0. */
+  ok1(device->PutPolar(polar, env));
+  ok1(dump.FindContaining("PLXV0,POLAR,W,") == nullptr);
+  ok1(dump.FindContaining("PLXV0,POLAR,R") != nullptr);
+
+  /* Seed device_polar from a device POLAR response */
+  dump.Clear();
+  ok1(device->ParseNMEA(
+        "$PLXV0,POLAR,W,1.780,-3.030,1.930,30.0,292,600,265,90,LS 7,0*21",
+        basic));
+
+  double a_lx, b_lx, c_lx;
+  LXNAVPolar::ToNmeaPolar(coeffs, a_lx, b_lx, c_lx);
+  const auto expected = fmt::format("PLXV0,POLAR,W,{:.6f},{:.6f},{:.6f},",
+                                    a_lx, b_lx, c_lx);
+
+  ok1(device->PutPolar(polar, env));
+  const char *polar_line = dump.FindContaining("PLXV0,POLAR,W,");
+  ok1(polar_line != nullptr);
+  ok1(!LXNAVPolar::IsPartialPolarWrite(polar_line));
+  ok1(strstr(polar_line, expected.c_str()) != nullptr);
+  ok1(strstr(polar_line, ",600,") != nullptr);
+  ok1(strstr(polar_line, ",LS 7,") != nullptr);
+
+  /* After PutPolar, crew-mass updates must keep full coefficients */
+  dump.Clear();
+  ok1(device->PutCrewMass(95, env));
+  const char *crew_line = dump.FindContaining("PLXV0,POLAR,W,");
+  ok1(crew_line != nullptr);
+  ok1(!LXNAVPolar::IsPartialPolarWrite(crew_line));
+  ok1(strstr(crew_line, expected.c_str()) != nullptr);
+
+  /* Receive-only path: cached POLAR enables full PutCrewMass without
+     a prior PutPolar from XCSoar. */
+  delete device;
+  dump.Clear();
+  device = lx_driver.CreateOnPort(dummy_config, dump);
+  ok1(device != nullptr);
+  LXDevice &lx2 = *static_cast<LXDevice *>(device);
+  lx2.ResetDeviceDetection();
+  basic.Reset();
+  basic.clock = TimeStamp{FloatDuration{2}};
+  ok1(device->ParseNMEA("$LXWP1,S8x,12345,1.0,1.0,12345*1D", basic));
+  ok1(device->ParseNMEA(
+        "$PLXV0,POLAR,W,1.780,-3.030,1.930,30.0,292,600,265,90,LS 7,0*21",
+        basic));
+  dump.Clear();
+
+  ok1(device->PutCrewMass(95, env));
+  const char *recv_crew = dump.FindContaining("PLXV0,POLAR,W,");
+  ok1(recv_crew != nullptr);
+  ok1(!LXNAVPolar::IsPartialPolarWrite(recv_crew));
+  ok1(strstr(recv_crew, ",600,") != nullptr);
+  ok1(strstr(recv_crew, ",95.0,") != nullptr ||
+      strstr(recv_crew, ",95.00,") != nullptr ||
+      strstr(recv_crew, ",95,") != nullptr);
+
+  /* Fresh device: PutCrewMass without a cached polar must not emit
+     a partial POLAR write that would zero a,b,c on the vario. */
+  delete device;
+  dump.Clear();
+  device = lx_driver.CreateOnPort(dummy_config, dump);
+  ok1(device != nullptr);
+  LXDevice &lx3 = *static_cast<LXDevice *>(device);
+  lx3.ResetDeviceDetection();
+  basic.Reset();
+  basic.clock = TimeStamp{FloatDuration{3}};
+  ok1(device->ParseNMEA("$LXWP1,S8x,12345,1.0,1.0,12345*1D", basic));
+  dump.Clear();
+
+  ok1(device->PutCrewMass(95, env));
+
+  bool any_partial = false;
+  for (const auto &line : dump.GetLines())
+    if (LXNAVPolar::IsPartialPolarWrite(line))
+      any_partial = true;
+  ok1(!any_partial);
+
+  delete device;
+}
+
 
 static void
 TestLXRadioTransponder()
@@ -3176,8 +3362,16 @@ TestFlarmTrafficBuilder()
     90, true, FlarmId::Undefined(), 1, nullptr);
 
   ok1(traffic.source == FlarmTraffic::SourceType::OGN);
+  ok1(traffic.absolute_location);
+  ok1(traffic.absolute_altitude);
   ok1(SkyLinesTracking::FlarmTrafficBuilder::FillRelative(traffic, basic));
   ok1(traffic.relative_east != 0 || traffic.relative_north != 0);
+  ok1(equals(double(traffic.relative_altitude), 200));
+
+  basic.pressure_altitude = 950;
+  basic.pressure_altitude_available.Update(basic.clock);
+  ok1(SkyLinesTracking::FlarmTrafficBuilder::FillRelative(traffic, basic));
+  ok1(equals(double(traffic.relative_altitude), 250));
 
   FlarmTraffic device_traffic{};
   device_traffic.source = FlarmTraffic::SourceType::FLARM;
@@ -3308,17 +3502,19 @@ int main()
   SetSingleDataPath(data_path);
   CreateDataPath();
 
-  plan_tests(1057 /* drivers */ + 29 /* PFLAU extended */
-             + 37 /* PFLAA v7+ */ + 12 /* PFLAE */ + 10 /* PFLAJ */
+  plan_tests(1091 /* drivers */ + 29 /* PFLAU extended */
+             + 37 /* PFLAA v7+ */ + 4 /* PFLAA high speed */
+             + 12 /* PFLAE */ + 10 /* PFLAJ */
              + 16 /* PFLAQ */
              + 109 /* LXNav protocol 1.05 */
              + 8 /* SubSecond */ + 4 /* MWVStatus */
              + 5 /* MWVRelativeTrue */ + 4 /* StallRatio */
              + 12 /* TempHumidityValidity */ + 2 /* ReadGeoAngleNoDot */
              + 13 /* GLL */ + 20 /* GSA */ + 23 /* MalformedInput */
-             + 59 /* Condor3UDP */ + 24 /* FlarmTrafficBuilder */
+             + 59 /* Condor3UDP */ + 29 /* FlarmTrafficBuilder */
              + 24 /* TrafficExtensionsWire */
-             + 42 /* LK8EX1 */);
+             + 42 /* LK8EX1 */
+             + 30 /* LXV7PolarWrite */);
   TestGeneric();
   TestTasman();
   TestLK8EX1();
@@ -3341,6 +3537,7 @@ int main()
   TestLXEos();
   TestLXV7();
   TestLXV7POLAR();
+  TestLXV7PolarWrite();
   TestLXRadioTransponder();
   TestLXNavDeclare();
   TestILEC();

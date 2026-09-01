@@ -207,8 +207,15 @@ NOTAMConfigPanel::Show(const PixelRect &rc) noexcept
     OnUpdateButton();
   });
   
-  ConfigPanel::BorrowExtraButton(2, _("List"), [](){
+  ConfigPanel::BorrowExtraButton(2, _("List"), [this](){
     ShowNOTAMListDialog(UIGlobals::GetMainWindow());
+
+    // Filtering from the list changes the shared settings directly.  This
+    // panel remains alive while the list dialog is open, so reload the text
+    // field to avoid saving its stale value on the next refresh.
+    LoadValue(HIDDEN_QCODES,
+              CommonInterface::GetComputerSettings().airspace.notam
+                .hidden_qcodes.c_str());
   });
 #endif
 
@@ -272,7 +279,7 @@ NOTAMConfigPanel::OnUpdateButton() noexcept
     const auto &basic = CommonInterface::Basic();
     if (!basic.location_available || !basic.location.IsValid()) {
       UpdateFilterCounts();
-      ShowMessageBox(_("No valid location."), _("NOTAM"),
+      ShowMessageBox(_("No valid location."), C_("Menu", "NOTAM"),
                      MB_OK | MB_ICONEXCLAMATION);
       return;
     }
@@ -307,7 +314,7 @@ void
 NOTAMConfigPanel::SetFilterRowLoading(const unsigned control) noexcept
 {
 #ifdef HAVE_HTTP
-  SetText(control, _("Loading..."));
+  SetText(control, C_("Status", "Loading..."));
 #else
   (void)control;
 #endif

@@ -35,6 +35,7 @@ data=GPS_FIX_WAIT
 mode=default
 type=gce
 data=STARTUP_SIMULATOR
+event=StatusMessage Simulator Steer by dragging from the glider, or using InfoBoxes Altitude and Speed Ground
 
 mode=default
 type=gce
@@ -91,7 +92,8 @@ type=key
 data=RETURN
 event=Traffic details
 
-# Traffic radar: F2/F3 zoom in/out, UP/DOWN and F1/F4 = next/prev target
+# Traffic radar: F1 = AVG/ALT side labels; F2/F3 = zoom;
+# F5 = auto zoom; F6 = north-up; UP/DOWN and F4 = next/prev target
 mode=default.Traffic Display1.Traffic Display2.Traffic
 type=key
 data=UP
@@ -105,7 +107,7 @@ event=Traffic previous
 mode=default.Traffic Display1.Traffic Display2.Traffic
 type=key
 data=F1
-event=Traffic previous
+event=Traffic label toggle
 
 mode=default.Traffic Display1.Traffic Display2.Traffic
 type=key
@@ -121,6 +123,16 @@ mode=default.Traffic Display1.Traffic Display2.Traffic
 type=key
 data=F4
 event=Traffic next
+
+mode=default.Traffic Display1.Traffic Display2.Traffic
+type=key
+data=F5
+event=Traffic zoom auto toggle
+
+mode=default.Traffic Display1.Traffic Display2.Traffic
+type=key
+data=F6
+event=Traffic northup toggle
 
 ###### pan mode
 
@@ -293,7 +305,7 @@ location=8
 # Stick: UP/DOWN field, LEFT/RIGHT time, RETURN time picker, ESCAPE exit
 # Keys: F2 = list, F3 = auto (map overlay +/- always zoom)
 # Buttons: 1=Time-, 2=List (F2), 3=Auto (F3), 4=Time+,
-#          5=Field+, 6=Field-, 7=Time Picker
+#          5=Field+, 6=Field-, 7=Time Picker, 8=Weather Setup
 # ------------
 
 mode=weather
@@ -384,6 +396,13 @@ data=0
 event=WeatherOverlay time picker
 label=Time\nPicker\n(RETURN)
 location=7
+
+mode=weather
+type=key
+data=0
+event=WeatherOverlay setup
+label=Weather\nSetup
+location=8
 
 ###### main entry buttons
 
@@ -723,7 +742,7 @@ type=key
 data=9
 event=Setup Target
 event=Mode default
-label=Target Show$(CheckTask)$(CheckTaskResumed)
+label=Target$(CheckTask)$(CheckTaskResumed)
 location=8
 
 # -------------
@@ -822,6 +841,14 @@ event=AirSpace toggle
 label=Airspace\n$(AirspaceToggleActionName)
 location=9
 
+mode=Display2
+type=key
+data=5
+event=AirspaceLabels show
+event=AirspaceLabels toggle
+label=Airspace Labels\n$(AirspaceLabelsToggleActionName)$(CheckAirspace)
+location=4
+
 # -------------
 # mode=Config1
 # -------------
@@ -837,7 +864,7 @@ type=key
 data=6
 event=Setup System
 event=Mode default
-label=System
+label=Configuration
 location=5
 
 mode=Config1
@@ -845,7 +872,7 @@ type=key
 data=7
 event=Setup Plane
 event=Mode default
-label=Plane
+label=Planes
 location=6
 
 mode=Config1
@@ -861,7 +888,7 @@ type=key
 data=9
 event=Setup Basic
 event=Mode default
-label=Flight
+label=Flight Setup
 location=8
 
 mode=Config1
@@ -895,7 +922,7 @@ type=key
 data=7
 event=UploadIGCFile
 event=Mode default
-label=WeGlide Upload$(CheckWeGlide)
+label=WeGlide Upload
 location=6
 
 mode=Config2
@@ -1065,7 +1092,7 @@ type=key
 data=6
 event=FlarmTraffic
 event=Mode default
-label=FLARM Radar$(CheckFLARM)
+label=FLARM Radar
 location=5
 
 mode=Info1
@@ -1073,7 +1100,7 @@ type=key
 data=7
 event=Weather
 event=Mode default
-label=Weather Setup
+label=Weather
 location=6
 
 mode=Info1
@@ -1139,7 +1166,7 @@ type=key
 data=9
 event=FlarmDetails
 event=Mode default
-label=Traffic List
+label=Traffic
 location=8
 
 mode=Info2
@@ -1318,7 +1345,7 @@ type=key
 data=0
 event=Setup Wind
 event=Mode default
-label=Setup Wind
+label=Wind
 location=2
 
 mode=RemoteStick
@@ -1326,7 +1353,7 @@ type=key
 data=0
 event=Setup System
 event=Mode default
-label=Setup System
+label=Configuration
 location=3
 
 mode=RemoteStick
@@ -1334,7 +1361,7 @@ type=key
 data=0
 event=Setup Airspace
 event=Mode default
-label=Settings Airspace$(CheckAirspace)
+label=Airspace$(CheckAirspace)
 location=4
 
 mode=RemoteStick
@@ -1342,7 +1369,7 @@ type=key
 data=0
 event=Setup Plane
 event=Mode default
-label=Setup Plane
+label=Planes
 location=5
 
 mode=RemoteStick
@@ -1384,28 +1411,36 @@ event=TerrainTopography topography toggle
 label=Topo.\n$(TopographyToggleActionName)
 location=10
 
+mode=RemoteStick
+type=key
+data=0
+event=AirspaceLabels show
+event=AirspaceLabels toggle
+label=Airspace Labels\n$(AirspaceLabelsToggleActionName)$(CheckAirspace)
+location=11
+
 # Priority 2: Task management (inner ring)
 mode=RemoteStick
 type=key
 data=0
 event=AdjustWaypoint previousarm
 label=$(WaypointPreviousArm)
-location=11
+location=12
 
 mode=RemoteStick
 type=key
 data=0
 event=AdjustWaypoint nextarm
 label=$(WaypointNextArm)
-location=12
+location=13
 
 mode=RemoteStick
 type=key
 data=0
 event=Calculator
 event=Mode default
-label=Task
-location=13
+label=Task Manager
+location=14
 
 mode=RemoteStick
 type=key
@@ -1413,7 +1448,7 @@ data=0
 event=Mode default
 event=AbortTask toggle
 label=Task\n$(TaskAbortToggleActionName)$(CheckWaypointFile)
-location=14
+location=15
 
 mode=RemoteStick
 type=key
@@ -1423,7 +1458,7 @@ event=StatusMessage Pilot event announced
 event=Logger note PEV
 event=PilotEvent
 label=Pilot Event Announce
-location=15
+location=16
 
 # Priority 1: Most important in-flight buttons (CENTER AREA)
 mode=RemoteStick
@@ -1432,36 +1467,36 @@ data=0
 event=Checklist
 event=Mode default
 label=Checklist
-location=16
+location=17
 
 mode=RemoteStick
 type=key
 data=0
 event=Setup Target
 event=Mode default
-label=Target Show$(CheckTask)$(CheckTaskResumed)
-location=17
+label=Target$(CheckTask)$(CheckTaskResumed)
+location=18
 
 mode=RemoteStick
 type=key
 data=0
 event=Mode mc
 label=MacCready
-location=18
+location=19
 
 mode=RemoteStick
 type=key
 data=0
 event=AirSpace toggle
 label=Airspace\n$(AirspaceToggleActionName)
-location=19
+location=20
 
 mode=RemoteStick
 type=key
 data=0
 event=Pan on
 label=Pan Mode
-location=20
+location=21
 
 mode=RemoteStick
 type=key
@@ -1469,7 +1504,7 @@ data=0
 event=WaypointDetails select
 event=Mode default
 label=Waypoint List$(CheckWaypointFile)
-location=21
+location=22
 
 mode=RemoteStick
 type=key
@@ -1477,7 +1512,7 @@ data=0
 event=Setup Alternates
 event=Mode default
 label=Alternates$(CheckWaypointFile)
-location=22
+location=23
 
 mode=RemoteStick
 type=key
@@ -1485,7 +1520,7 @@ data=0
 event=AirspaceWarnings
 event=Mode default
 label=Airspace Warnings
-location=23
+location=24
 
 mode=RemoteStick
 type=key
@@ -1493,7 +1528,7 @@ data=0
 event=NearestAirspaceDetails
 event=Mode default
 label=Nearest Airspace$(CheckAirspace)
-location=24
+location=25
 
 # Priority 2: Task management continued (inner ring)
 mode=RemoteStick
@@ -1501,8 +1536,8 @@ type=key
 data=0
 event=Weather
 event=Mode default
-label=Weather Setup
-location=25
+label=Weather
+location=26
 
 mode=RemoteStick
 type=key
@@ -1510,14 +1545,14 @@ data=0
 event=GotoLookup
 event=Mode default
 label=GoTo$(CheckWaypointFile)
-location=26
+location=27
 
 mode=RemoteStick
 type=key
 data=0
 event=FlarmTraffic
-label=FLARM Radar$(CheckFLARM)
-location=27
+label=FLARM Radar
+location=28
 
 mode=RemoteStick
 type=key
@@ -1527,7 +1562,7 @@ event=StatusMessage Dropped marker
 event=Logger note Mark
 event=MarkLocation
 label=Marker Drop
-location=28
+location=29
 
 mode=RemoteStick
 type=key
@@ -1535,7 +1570,7 @@ data=0
 event=Zoom auto show
 event=Zoom auto toggle
 label=Zoom\n$(ZoomAutoToggleActionName)
-location=29
+location=30
 
 # Analysis and info screens (outer ring)
 mode=RemoteStick
@@ -1544,7 +1579,7 @@ data=0
 event=Analysis
 event=Mode default
 label=Analysis
-location=30
+location=31
 
 mode=RemoteStick
 type=key
@@ -1552,15 +1587,23 @@ data=0
 event=Status all
 event=Mode default
 label=Status
-location=31
+location=32
+
+mode=RemoteStick
+type=key
+data=0
+event=QuickGuide
+event=Mode default
+label=Quick Guide
+location=33
 
 mode=RemoteStick
 type=key
 data=0
 event=ThermalAssistant
 event=Mode default
-label=Thermal Assistant$(CheckCircling)
-location=32
+label=Thermal Assistant
+location=34
 
 mode=RemoteStick
 type=key
@@ -1568,7 +1611,7 @@ data=0
 event=AirSpace list
 event=Mode default
 label=Airspaces
-location=33
+location=35
 
 # Low priority: System functions (far from center)
 mode=RemoteStick
@@ -1577,14 +1620,22 @@ data=0
 event=Logger show
 event=Logger toggle ask
 label=Logger\n$(LoggerActive)$(CheckLogger)
-location=34
+location=36
 
 mode=RemoteStick
 type=key
 data=0
 event=Logger nmea
 label=NMEA Logger$(CheckLogger)
-location=35
+location=37
+
+mode=RemoteStick
+type=key
+data=0
+event=Setup Replay
+event=Mode default
+label=Replay$(CheckReplay)
+location=38
 
 mode=RemoteStick
 type=key
@@ -1592,7 +1643,7 @@ data=0
 event=Device list
 event=Mode default
 label=Devices
-location=36
+location=39
 
 mode=RemoteStick
 type=key
@@ -1600,44 +1651,44 @@ data=0
 event=DataManagement
 event=Mode default
 label=Data Management
-location=37
+location=40
 
 mode=RemoteStick
 type=key
 data=0
 event=RepeatStatusMessage
 label=Message Repeat
-location=38
+location=41
 
 mode=RemoteStick
 type=key
 data=0
 event=DistanceRings show
 event=DistanceRings toggle
-label=Dist. Rings\n$(DistanceRingsToggleActionName)
-location=39
+label=Distance Rings\n$(DistanceRingsToggleActionName)
+location=42
 
 mode=RemoteStick
 type=key
 data=0
 event=UploadIGCFile
 event=Mode default
-label=WeGlide Upload$(CheckWeGlide)
-location=40
+label=WeGlide Upload
+location=43
 
 mode=RemoteStick
 type=key
 data=0
 event=Exit
-label=Quit XCSoar
-location=41
+label=Quit
+location=44
 
 mode=RemoteStick
 type=key
 data=0
 event=Mode weather
 label=Forecast\nControls
-location=42
+location=45
 
 # -------------
 # Define gesture to open Quickmenu without keyboard or remote

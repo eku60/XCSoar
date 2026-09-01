@@ -37,14 +37,47 @@ BMP_ICONS_ALL += $$(BMP_ICONS_$(1))
 $$(eval $$(call rsvg-convert,$$(PNG_ICONS_$(1)),$$(DATA)/icons/%_$(1).png,$$(DATA)/icons/%.svg,--x-zoom=$2 --y-zoom=$2))
 endef
 
-# Default 100PPI (eg 320x240 4" display)
-$(eval $(call generate-icon-scale,96,1.0))
+# Icon density variants, named after the Android density buckets
+# (https://developer.android.com/training/multiscreen/screendensities);
+# ldpi is XCSoar's 96 dpi desktop baseline rather than Android's 120.
+# Zoom = bucket density / 96, so each variant carries exactly the
+# detail its density needs.
+#
+# OpenGL magnifies icons in list views, so its builds render three
+# times the detail of each bucket; Icon.cpp scales the nominal density
+# by the same factor, leaving the on-screen size unchanged.  The other
+# canvases stretch by an integer factor and cannot use the detail.
+# Keep in sync with ICON_SUPERSAMPLE in src/ui/canvas/Icon.cpp.
+ifeq ($(OPENGL),y)
+ICON_ZOOM_LDPI = 3.0
+ICON_ZOOM_MDPI = 5.0
+ICON_ZOOM_XHDPI = 10.0
+ICON_ZOOM_XXHDPI = 15.0
+else
+ICON_ZOOM_LDPI = 1.0
+ICON_ZOOM_MDPI = 1.6667
+ICON_ZOOM_XHDPI = 3.3333
+ICON_ZOOM_XXHDPI = 5.0
+endif
 
-#160PPI (eg 640x480 5" display)
-$(eval $(call generate-icon-scale,160,1.6316))
+# The SVG sources do not change when the zoom factors do, and all
+# targets share the output directory; track the zoom in a stamp file
+# so that the PNGs are re-rendered when it changes.
+ICON_ZOOM_STAMP = $(DATA)/icons/zoom.stamp
 
-# 300dpi
-$(eval $(call generate-icon-scale,300,3.0))
+$(ICON_ZOOM_STAMP): FORCE | $(DATA)/icons/dirstamp
+	@zoom="$(ICON_ZOOM_LDPI) $(ICON_ZOOM_MDPI) $(ICON_ZOOM_XHDPI) $(ICON_ZOOM_XXHDPI)"; \
+	if [ "$$(cat $@ 2>/dev/null)" != "$$zoom" ]; then \
+		echo "$$zoom" >$@.$(RANDOM_NUMBER).tmp && mv $@.$(RANDOM_NUMBER).tmp $@; \
+	fi
+
+$(eval $(call generate-icon-scale,ldpi,$(ICON_ZOOM_LDPI)))
+$(eval $(call generate-icon-scale,mdpi,$(ICON_ZOOM_MDPI)))
+$(eval $(call generate-icon-scale,xhdpi,$(ICON_ZOOM_XHDPI)))
+$(eval $(call generate-icon-scale,xxhdpi,$(ICON_ZOOM_XXHDPI)))
+
+$(PNG_ICONS_ldpi) $(PNG_ICONS_mdpi) $(PNG_ICONS_xhdpi) \
+$(PNG_ICONS_xxhdpi): $(ICON_ZOOM_STAMP)
 
 # modify working copy of SVG to improve rendering
 $(SVG_NOALIAS_ICONS): $(DATA)/icons/%.svg: build/svg_preprocess.xsl Data/icons/%.svg | $(DATA)/icons/dirstamp
@@ -113,7 +146,9 @@ PNG_TITLE_320 = $(patsubst Data/graphics/%.svg,$(DATA)/graphics/%_320.png,$(SVG_
 BMP_TITLE_320 = $(PNG_TITLE_320:.png=.bmp)
 PNG_TITLE_640 = $(patsubst Data/graphics/%.svg,$(DATA)/graphics/%_640.png,$(SVG_TITLE))
 BMP_TITLE_640 = $(PNG_TITLE_640:.png=.bmp)
+PNG_TITLE_110_RGBA = $(patsubst Data/graphics/%.svg,$(DATA)/graphics2/%_110_rgba.png,$(SVG_TITLE))
 PNG_TITLE_320_RGBA = $(patsubst Data/graphics/%.svg,$(DATA)/graphics2/%_320_rgba.png,$(SVG_TITLE))
+PNG_TITLE_640_RGBA = $(patsubst Data/graphics/%.svg,$(DATA)/graphics2/%_640_rgba.png,$(SVG_TITLE))
 
 SVG_TITLE_WHITE = Data/graphics/title_white.svg Data/graphics/title_red_white.svg
 PNG_TITLE_WHITE_320_RGBA = $(patsubst Data/graphics/%.svg,$(DATA)/graphics2/%_320_rgba.png,$(SVG_TITLE_WHITE))
@@ -123,7 +158,9 @@ PNG_TITLE_WHITE_640_RGBA = $(patsubst Data/graphics/%.svg,$(DATA)/graphics2/%_64
 $(eval $(call rsvg-convert,$(PNG_TITLE_110),$(DATA)/graphics/%_110.png,Data/graphics/%.svg,--width=110))
 $(eval $(call rsvg-convert,$(PNG_TITLE_320),$(DATA)/graphics/%_320.png,Data/graphics/%.svg,--width=320))
 $(eval $(call rsvg-convert,$(PNG_TITLE_640),$(DATA)/graphics/%_640.png,Data/graphics/%.svg,--width=640))
+$(eval $(call rsvg-convert,$(PNG_TITLE_110_RGBA),$(DATA)/graphics2/%_110_rgba.png,Data/graphics/%.svg,--width=110))
 $(eval $(call rsvg-convert,$(PNG_TITLE_320_RGBA),$(DATA)/graphics2/%_320_rgba.png,Data/graphics/%.svg,--width=320))
+$(eval $(call rsvg-convert,$(PNG_TITLE_640_RGBA),$(DATA)/graphics2/%_640_rgba.png,Data/graphics/%.svg,--width=640))
 $(eval $(call rsvg-convert,$(PNG_TITLE_WHITE_320_RGBA),$(DATA)/graphics2/%_320_rgba.png,Data/graphics/%.svg,--width=320))
 $(eval $(call rsvg-convert,$(PNG_TITLE_WHITE_640_RGBA),$(DATA)/graphics2/%_640_rgba.png,Data/graphics/%.svg,--width=640))
 
@@ -327,7 +364,7 @@ RESOURCE_FILES += $(BMP_DIALOG_TITLE) $(BMP_PROGRESS_BORDER)
 RESOURCE_FILES += $(BMP_TITLE_640) $(BMP_TITLE_320) $(BMP_TITLE_110)
 ifneq ($(USE_WIN32_RESOURCES),y)
 RESOURCE_FILES += $(PNG_SPLASH_320_RGBA) $(PNG_SPLASH_160_RGBA) $(PNG_SPLASH_80_RGBA)
-RESOURCE_FILES += $(PNG_TITLE_320_RGBA)
+RESOURCE_FILES += $(PNG_TITLE_110_RGBA) $(PNG_TITLE_320_RGBA) $(PNG_TITLE_640_RGBA)
 RESOURCE_FILES += $(PNG_TITLE_WHITE_320_RGBA)
 RESOURCE_FILES += $(PNG_TITLE_WHITE_640_RGBA)
 endif

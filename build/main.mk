@@ -40,6 +40,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Device/ManageFlarmDialog.cpp \
 	$(SRC)/Dialogs/Device/BlueFly/BlueFlyConfigurationDialog.cpp \
 	$(SRC)/Dialogs/Device/Stratux/ConfigurationDialog.cpp \
+	$(SRC)/Dialogs/Device/GDL90/ConfigurationDialog.cpp \
 	$(SRC)/Dialogs/Device/ManageI2CPitotDialog.cpp \
 	$(SRC)/Dialogs/Device/LX/ManageLXNAVVarioDialog.cpp \
 	$(SRC)/Dialogs/Device/LX/LXNAVVarioConfigWidget.cpp \
@@ -108,12 +109,14 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Waypoint/Manager.cpp \
 	$(SRC)/Dialogs/Waypoint/dlgWaypointEdit.cpp \
 	$(SRC)/Dialogs/Waypoint/WaypointList.cpp \
+	$(SRC)/Dialogs/Waypoint/GetWaypointReachability.cpp \
 	$(SRC)/Dialogs/Waypoint/NearestWaypoint.cpp \
 	\
 	$(SRC)/Dialogs/Settings/Panels/AirspaceConfigPanel.cpp \
 	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/Settings/Panels/NOTAMConfigPanel.cpp) \
 	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/NOTAM/NOTAMMessageListener.cpp) \
 	$(SRC)/Dialogs/Settings/Panels/GaugesConfigPanel.cpp \
+	$(SRC)/Dialogs/Settings/Panels/DisplayConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/VarioConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/GlideComputerConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/WindConfigPanel.cpp \
@@ -125,6 +128,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Settings/Panels/NetworkConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/PagesConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/RaspConfigPanel.cpp \
+	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/Settings/Panels/SkySightConfigPanel.cpp) \
 	$(SRC)/Dialogs/Settings/Panels/RouteConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/SafetyFactorsConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/SiteConfigPanel.cpp \
@@ -170,7 +174,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/DateEntry.cpp \
 	$(SRC)/Dialogs/GeoPointEntry.cpp \
 	$(SRC)/Dialogs/Weather/WeatherDialog.cpp \
-	$(SRC)/Dialogs/Weather/OverlayPageActions.cpp \
+	$(SRC)/Dialogs/Weather/WeatherOverlayDraft.cpp \
 	$(SRC)/Dialogs/Weather/RASPDialog.cpp \
 	$(SRC)/Dialogs/dlgCredits.cpp \
 	$(SRC)/Dialogs/dlgQuickGuide.cpp \
@@ -190,6 +194,11 @@ DIALOG_SOURCES += \
 	$(SRC)/Dialogs/Weather/PCMetDialog.cpp \
 	$(SRC)/Dialogs/Weather/NOAAList.cpp \
 	$(SRC)/Dialogs/Weather/NOAADetails.cpp
+endif
+
+ifeq ($(HAVE_HTTP),y)
+DIALOG_SOURCES += \
+	$(SRC)/Dialogs/Weather/SkySightDialog.cpp
 endif
 
 XCSOAR_SOURCES := \
@@ -371,6 +380,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Renderer/AirspaceLabelRenderer.cpp \
 	$(SRC)/Renderer/AirspaceListRenderer.cpp \
 	$(SRC)/Renderer/AirspacePreviewRenderer.cpp \
+	$(SRC)/Renderer/AirspaceWarningStatusRenderer.cpp \
 	$(SRC)/Renderer/BestCruiseArrowRenderer.cpp \
 	$(SRC)/Renderer/CompassRenderer.cpp \
 	$(SRC)/Renderer/FinalGlideBarRenderer.cpp \
@@ -398,7 +408,9 @@ XCSOAR_SOURCES := \
 	$(SRC)/Weather/Rasp/RaspStore.cpp \
 	$(SRC)/Weather/Rasp/RaspCache.cpp \
 	$(SRC)/Weather/Rasp/RaspRenderer.cpp \
+	$(SRC)/Weather/Rasp/ColorMap.cpp \
 	$(SRC)/Weather/Rasp/RaspStyle.cpp \
+	$(SRC)/Weather/Rasp/RaspStylesData.cpp \
 	$(SRC)/Weather/Rasp/FieldControls.cpp \
 	$(SRC)/Weather/Rasp/Configured.cpp \
 	$(SRC)/Weather/Rasp/DownloadGlue.cpp \
@@ -407,8 +419,11 @@ XCSOAR_SOURCES := \
 	$(SRC)/Weather/MapOverlay/ControlsFactory.cpp \
 	$(SRC)/Weather/MapOverlay/ControlsWidget.cpp \
 	$(SRC)/Weather/MapOverlay/TimePicker.cpp \
+	$(SRC)/Weather/MapOverlay/WeatherSetupDialog.cpp \
 	$(SRC)/Weather/MapOverlay/RaspControlsModel.cpp \
 	$(SRC)/Weather/MapOverlay/XcthermControlsModel.cpp \
+	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Weather/MapOverlay/SkySightControlsModel.cpp) \
+	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Weather/SkySight/FieldControls.cpp) \
 	$(SRC)/Weather/BackgroundDownloadProgress.cpp \
 	\
 	$(SRC)/Blackboard/BlackboardListener.cpp \
@@ -596,6 +611,7 @@ XCSOAR_SOURCES := \
 	\
 	$(SRC)/Hardware/PowerGlobal.cpp \
 	$(SRC)/Hardware/Battery.cpp \
+	$(SRC)/Hardware/DisplayBrightness.cpp \
 
 ifneq ($(TARGET),ANDROID)
 ifeq ($(TARGET_IS_LINUX),y)
@@ -624,14 +640,30 @@ XCSOAR_SOURCES += \
 endif
 endif
 
+ifeq ($(HAVE_HTTP),y)
+XCSOAR_SOURCES += \
+	$(SRC)/Weather/SkySight/SkySightFileDecoder.cpp \
+	$(SRC)/Weather/SkySight/SkySightClient.cpp \
+	$(SRC)/Weather/SkySight/SkySightCache.cpp \
+	$(SRC)/Weather/SkySight/SkySightAPI.cpp \
+	$(SRC)/Weather/SkySight/SkySightRequest.cpp
+
+$(call SRC_TO_OBJ,$(SRC)/Weather/SkySight/SkySightFileDecoder.cpp): CPPFLAGS += $(NETCDF_CPPFLAGS)
+endif
+
 ifeq ($(TARGET_IS_DARWIN),y)
 XCSOAR_SOURCES += \
 	$(SRC)/Apple/Services.cpp \
+	$(SRC)/Apple/BackgroundSave.cpp \
 	$(SRC)/Apple/SoundUtil.cpp \
 	$(SRC)/Apple/PathProvider.cpp \
 	$(SRC)/Apple/InternalSensors.cpp \
 	$(SRC)/Apple/KeyboardDetection.cpp \
 	$(SRC)/Device/SmartDeviceSensors.cpp
+endif
+
+ifeq ($(TARGET_IS_OSX),y)
+XCSOAR_SOURCES += $(SRC)/Apple/MacOSMainMenu.cpp
 endif
 
 ifeq ($(TARGET),ANDROID)
@@ -719,6 +751,7 @@ XCSOAR_SOURCES += \
 	$(SRC)/Weather/xctherm/XCThermMapOverlay.cpp \
 	$(SRC)/Weather/xctherm/XCThermCatalog.cpp \
 	$(SRC)/Weather/xctherm/XCThermForecastTime.cpp \
+	$(SRC)/Weather/xctherm/FieldControls.cpp \
 	$(SRC)/Weather/xctherm/XCThermControlsModel.cpp \
 	$(SRC)/Weather/xctherm/XCThermAutoSwitch.cpp \
 
@@ -748,6 +781,7 @@ XCSOAR_SOURCES += \
 	$(SRC)/Weather/EDL/TileValue.cpp \
 	$(SRC)/Weather/EDL/EdlMbTilesOverlay.cpp \
 	$(SRC)/Weather/EDL/StateController.cpp \
+	$(SRC)/Weather/EDL/FieldControls.cpp \
 	$(SRC)/Weather/MapOverlay/EdlControlsModel.cpp \
 	$(SRC)/Weather/EDL/Glue.cpp \
 	$(SRC)/Weather/EDL/DownloadGlue.cpp
@@ -759,6 +793,13 @@ endif
 
 ifeq ($(HAVE_PCM_PLAYER),y)
 XCSOAR_SOURCES += $(SRC)/Audio/VarioGlue.cpp
+endif
+
+# Selected systemd unit controls for desktop/embedded Linux.
+ifeq ($(TARGET_IS_LINUX)$(TARGET_IS_KOBO)$(TARGET_IS_ANDROID),ynn)
+XCSOAR_SOURCES += \
+	$(SRC)/Dialogs/Settings/Panels/SystemdConfigPanel.cpp \
+	$(SRC)/Linux/SystemdServiceList.cpp
 endif
 
 include $(topdir)/build/net-wifi.mk
@@ -803,6 +844,10 @@ endif
 
 ifeq ($(TARGET_IS_DARWIN),y)
 XCSOAR_LDLIBS += -framework CoreLocation -lSDL2main # include SDL2main for main() on MacOS and iOS (otherwise linking fails)
+endif
+
+ifeq ($(HAVE_HTTP),y)
+XCSOAR_LDLIBS += $(NETCDF_LDLIBS)
 endif
 
 XCSOAR_STRIP = y

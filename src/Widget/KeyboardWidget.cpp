@@ -164,6 +164,14 @@ KeyboardWidget::ResizeButtons()
 }
 
 void
+KeyboardWidget::MoveSymbolKey(PixelPoint position) noexcept
+{
+  /* the key holds either '-' or '_', depending on the shift state */
+  MoveButton('-', position);
+  MoveButton('_', position);
+}
+
+void
 KeyboardWidget::MoveButtonsToRow(const PixelRect &rc, const char *row_keys,
                                  unsigned row, int offset) noexcept
 {
@@ -186,15 +194,15 @@ KeyboardWidget::MoveButtons(const PixelRect &rc)
   MoveButtonsToRow(rc, "ZXCVBNM@.", 3, int(button_size.width));
 
   if (IsLandscape(rc)) {
-    MoveButton('-', rc.GetTopLeft() + PixelSize(int(button_size.width) * 9,
-                                                int(Layout::Scale(160U))));
+    MoveSymbolKey(rc.GetTopLeft() + PixelSize(int(button_size.width) * 9,
+                                              int(Layout::Scale(160U))));
     MoveButton(' ', rc.GetTopLeft() + PixelSize(int(Layout::Scale(80U)),
                                                  int(Layout::Scale(160U))));
     ResizeButton(' ', {Layout::Scale(93U), Layout::Scale(40U)});
   } else {
     const int h = int(button_size.height);
     const int w = int(button_size.width);
-    MoveButton('-', rc.GetTopLeft() + PixelSize(w * 8, h * 4));
+    MoveSymbolKey(rc.GetTopLeft() + PixelSize(w * 8, h * 4));
     MoveButton(' ', rc.GetTopLeft() + PixelSize(w * 2, h * 4));
     ResizeButton(' ', {button_size.width * 11 / 2, button_size.height});
   }
@@ -248,9 +256,14 @@ KeyboardWidget::UpdateShiftState() noexcept
       if (shift_state) {
         if (IsLowerAlphaASCII(c))
           buttons[i].SetCharacter(c - 0x20);
+        else if (show_shift_button && c == '-')
+          /* '-' doubles as '_', which is otherwise not reachable */
+          buttons[i].SetCharacter('_');
       } else {
         if (IsUpperAlphaASCII(c))
           buttons[i].SetCharacter(c + 0x20);
+        else if (show_shift_button && c == '_')
+          buttons[i].SetCharacter('-');
       }
     }
   }
@@ -309,8 +322,7 @@ KeyboardWidget::GetCenterByIndex(int idx, PixelPoint &out) const noexcept
   const Button *b = GetByIndex(idx);
   if (b == nullptr || !b->IsDefined() || !b->IsVisible())
     return false;
-  const PixelRect r = b->GetPosition();
-  out = {(r.left + r.right) / 2, (r.top + r.bottom) / 2};
+  out = b->GetPosition().GetCenter();
   return true;
 }
 
@@ -572,6 +584,20 @@ KeyboardWidget::MoveFocusInGridByArrowKey(unsigned key_code, Window *w,
   return false;
 }
 
+KeyboardWidget::FocusArea
+KeyboardWidget::ClassifyFocusArea(Window *w, int grid_index,
+                                  Button *backspace,
+                                  Button *action_row_first) const noexcept
+{
+  if (grid_index >= 0)
+    return FocusArea::Grid;
+  if (backspace != nullptr && w == static_cast<Window *>(backspace))
+    return FocusArea::Backspace;
+  if (action_row_first != nullptr)
+    return FocusArea::ActionRow;
+  return FocusArea::Other;
+}
+
 bool
 KeyboardWidget::KeyPressImpl(unsigned key_code, Button *backspace,
                              Button *action_row_first) noexcept
@@ -582,24 +608,43 @@ KeyboardWidget::KeyPressImpl(unsigned key_code, Button *backspace,
   if (w == nullptr)
     return false;
 
-  if (action_row_first != nullptr &&
-      w == static_cast<Window *>(action_row_first) && key_code == KEY_UP) {
-    /* @em OK is outside the grid: first @em up is @em Space, then
-       @c FindIndexVerticalFrom (Z → A → Q → 0…9) and
-       @c RouteNumberRowAndBackspace to on-screen @em backspace. */
-    return FocusSpaceKey();
+  const int from = FindIndexOf(w);
+  const FocusArea area =
+    ClassifyFocusArea(w, from, backspace, action_row_first);
+
+  switch (area) {
+  case FocusArea::ActionRow:
+    /* Up from OK / Cancel / Clear enters at Space (or first key). */
+    if (key_code != KEY_UP)
+      return false;
+    if (FocusSpaceKey())
+      return true;
+    return FocusFirstEnabledInGrid();
+
+  case FocusArea::Backspace:
+    if (key_code == KEY_UP && action_row_first != nullptr) {
+      action_row_first->SetFocus();
+      return true;
+    }
+    return RouteNumberRowAndBackspace(key_code, backspace, w);
+
+  case FocusArea::Grid:
+    if (RouteSpaceToActionRow(key_code, action_row_first, w))
+      return true;
+    if (RouteNumberRowAndBackspace(key_code, backspace, w))
+      return true;
+    if (MoveFocusInGridByArrowKey(key_code, w, backspace, action_row_first))
+      return true;
+    /* Stay put at a geometric edge — do not use letter-creation tab
+       order (FocusNextControl). */
+    {
+      int dix = 0, diy = 0;
+      return ArrowToDirection(key_code, dix, diy);
+    }
+
+  case FocusArea::Other:
+    return false;
   }
 
-  if (RouteSpaceToActionRow(key_code, action_row_first, w))
-    return true;
-  if (backspace != nullptr && action_row_first != nullptr &&
-      w == static_cast<Window *>(backspace) && key_code == KEY_UP) {
-    /* @em backspace is not in the key grid, so
-       @c MoveFocusInGridByArrowKey is never used; send @em up to @em OK. */
-    action_row_first->SetFocus();
-    return true;
-  }
-  if (RouteNumberRowAndBackspace(key_code, backspace, w))
-    return true;
-  return MoveFocusInGridByArrowKey(key_code, w, backspace, action_row_first);
+  return false;
 }
