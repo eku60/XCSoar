@@ -5,6 +5,7 @@
 #include "GlideSolvers/GlidePolar.hpp"
 #include "Units/System.hpp"
 
+#include <cmath>
 #include <cstdio>
 
 class GlidePolarTest
@@ -18,9 +19,11 @@ private:
   void Init();
   void TestBasic();
   void TestBallast();
+  void TestBallastOverload();
   void TestBugs();
   void TestMC();
   void TestDensityRatio();
+  void TestDensityRatioMC();
 };
 
 void
@@ -114,6 +117,40 @@ GlidePolarTest::TestBallast()
 }
 
 void
+GlidePolarTest::TestBallastOverload()
+{
+  /* Matches ApplyExternalSettings BallastProcessTimer / LXNAV:
+       overload = (empty + crew + water) / reference_mass
+       water    = overload * reference_mass - crew - empty */
+  constexpr double ref = 318;
+  constexpr double empty = 228;
+  constexpr double crew = 90;
+  constexpr double water = 100;
+
+  polar.SetReferenceMass(ref, false);
+  polar.SetEmptyMass(empty, false);
+  polar.SetCrewMass(crew, false);
+  polar.SetMaxBallast(180);
+  polar.SetBallastLitres(water);
+
+  const double overload = polar.GetBallastOverload();
+  ok1(equals(overload, (empty + crew + water) / ref));
+
+  polar.SetBallastLitres(0);
+  polar.SetBallastOverload(overload);
+  ok1(equals(polar.GetBallastLitres(), water));
+
+  /* Decode path used by ApplyExternalSettings for LXWP2 ballast */
+  const double decoded_water =
+    overload * ref - crew - empty;
+  ok1(equals(decoded_water, water));
+
+  /* Restore baseline for subsequent tests */
+  Init();
+  polar.Update();
+}
+
+void
 GlidePolarTest::TestBugs()
 {
   polar.SetBugs(0.75);
@@ -186,19 +223,58 @@ GlidePolarTest::TestDensityRatio()
 }
 
 void
+GlidePolarTest::TestDensityRatioMC()
+{
+  /* With MC > 0 the MacCready setting is a true vertical speed and
+     must not be scaled with the polar: VBestLD has to agree with the
+     analytic ground-polar solution and with the STF solver. */
+  const double dr = 1.1;
+
+  for (const double mc : {0.5, 1.0, 2.0}) {
+    polar.SetDensityRatio(1.0);
+    polar.SetMC(mc);
+    const double vbld_sl = polar.GetVBestLD();
+
+    polar.SetDensityRatio(dr);
+
+    // analytic optimum of w'(v) = (a/DR) v^2 + b v + c DR plus mc
+    const double expected =
+      sqrt((polar.polar.c * dr + mc) * dr / polar.polar.a);
+    ok1(equals(polar.GetVBestLD(), expected));
+
+    // consistent with GetBestGlideRatioSpeed() (no wind)
+    ok1(equals(polar.GetVBestLD(), polar.GetBestGlideRatioSpeed(0)));
+
+    // consistent with the STF solver (no netto, no wind)
+    ok1(equals(polar.GetVBestLD(), polar.SpeedToFly(0, 0), 1000));
+
+    // slower than naive scaling of the sea-level value
+    ok1(polar.GetVBestLD() < vbld_sl * dr);
+
+    // SinkRate at VBestLD is still SBestLD
+    ok1(equals(polar.SinkRate(polar.GetVBestLD()), polar.GetSBestLD()));
+  }
+
+  polar.SetDensityRatio(1.0);
+  polar.SetMC(0);
+}
+
+void
 GlidePolarTest::Run()
 {
   Init();
   TestBasic();
   TestBallast();
+  TestBallastOverload();
   TestBugs();
   TestMC();
   TestDensityRatio();
+  TestDensityRatioMC();
 }
 
 int main()
 {
-  plan_tests(54);
+  plan_tests(69 + 3);
 
   GlidePolarTest test;
   test.Run();

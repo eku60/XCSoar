@@ -90,12 +90,23 @@ TabMenuDisplay::UpdateLayout() noexcept
   const auto window_size = GetSize();
   const unsigned border_width = GetTabLineHeight();
   const unsigned n_main_menu_items = std::max(GetNumMainMenuItems(), 1u);
-  const unsigned menu_button_height =
-    std::min(Layout::GetMaximumControlHeight(),
-             window_size.height / n_main_menu_items);
-  const unsigned menu_button_width = (window_size.width - 2 * border_width) / 2;
+
+  unsigned n_vertical_items = n_main_menu_items;
+  for (unsigned i = 0; i < GetNumMainMenuItems(); ++i)
+    n_vertical_items = std::max(n_vertical_items,
+                                GetMainMenuButton(i).NumSubMenus());
 
   const unsigned offset = Layout::Scale(2);
+  const unsigned vertical_spacing =
+    (n_vertical_items + 1) * border_width + 2 * offset;
+  const unsigned available_height = window_size.height > vertical_spacing
+    ? window_size.height - vertical_spacing
+    : window_size.height;
+  const unsigned menu_button_height =
+    std::min(Layout::GetMaximumControlHeight(),
+             available_height / n_vertical_items);
+  const unsigned menu_button_width = (window_size.width - 2 * border_width) / 2;
+
   const unsigned item_height = menu_button_height + border_width;
 
   for (unsigned main_i = 0, main_y = border_width;
@@ -225,16 +236,24 @@ TabMenuDisplay::OnResize(PixelSize new_size) noexcept
 bool
 TabMenuDisplay::OnKeyCheck(unsigned key_code) const noexcept
 {
- switch (key_code) {
+  switch (key_code) {
+  case KEY_RETURN:
+  case KEY_LEFT:
+  case KEY_RIGHT:
+    return true;
 
- case KEY_RETURN:
- case KEY_LEFT:
- case KEY_RIGHT:
-   return true;
+  case KEY_DOWN:
+    /* Only claim Down while another menu item follows; at the last
+       item, let the dialog move focus to Close / arrows. */
+    return cursor + 1 < GetNumPages();
 
- default:
-   return false;
- }
+  case KEY_UP:
+    /* Same for Up at the first item. */
+    return cursor > 0;
+
+  default:
+    return false;
+  }
 }
 
 bool
@@ -246,10 +265,12 @@ TabMenuDisplay::OnKeyDown(unsigned key_code) noexcept
     return true;
 
   case KEY_RIGHT:
+  case KEY_DOWN:
     HighlightNext();
     return true;
 
   case KEY_LEFT:
+  case KEY_UP:
     HighlightPrevious();
     return true;
 

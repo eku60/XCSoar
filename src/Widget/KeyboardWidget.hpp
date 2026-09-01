@@ -8,6 +8,8 @@
 #include "Form/CharacterButton.hpp"
 #include "Form/Button.hpp"
 
+#include <cstdint>
+
 struct ButtonLook;
 class ContainerWindow;
 class Window;
@@ -66,6 +68,12 @@ public:
    */
   bool FocusSpaceKey() noexcept;
 
+  /**
+   * Focus the first enabled on-screen key (number row first).  Used as
+   * a fallback when Space is unavailable.
+   */
+  bool FocusFirstEnabledInGrid() noexcept;
+
 private:
   void PrepareSize(const PixelRect &rc) noexcept;
   void OnResize(const PixelRect &rc);
@@ -74,6 +82,13 @@ private:
   Button *FindButton(unsigned ch);
 
   void MoveButton(unsigned ch, PixelPoint position) noexcept;
+
+  /**
+   * Move the '-' / '_' key (only one of them exists at a time, see
+   * #UpdateShiftState).
+   */
+  void MoveSymbolKey(PixelPoint position) noexcept;
+
   void ResizeButton(unsigned ch, PixelSize size) noexcept;
   void ResizeButtons();
   void MoveButtonsToRow(const PixelRect &rc, const char *row_keys, unsigned row,
@@ -103,11 +118,10 @@ public:
   /**
    * @param backspace optional backspace @c Button above the key grid.
    * @param action_row_first the first of the main row (usually @em OK);
-   *  @c KEY_UP from @em OK focuses @em Space, then further @c KEY_UP
-   *  follows the key grid to on-screen @em backspace; @c KEY_DOWN from
-   *  the @em Space key focuses it; with no on-screen key below the
-   *  focus, @c KEY_DOWN moves here too; @c KEY_UP from on-screen
-   *  @em backspace also focuses it.
+   *  @c KEY_UP from the action row (@em OK / Cancel / Clear) focuses
+   *  @em Space (or the first enabled key); further @c KEY_UP follows
+   *  the grid to on-screen @em backspace; @c KEY_DOWN from @em Space
+   *  focuses the action row; @c KEY_UP from @em backspace focuses it.
    */
   bool KeyPress(unsigned key_code, Button *backspace,
                 Button *action_row_first = nullptr) noexcept {
@@ -115,8 +129,20 @@ public:
   }
 
 private:
+  enum class FocusArea : uint8_t {
+    Grid,
+    Backspace,
+    ActionRow,
+    Other,
+  };
+
   bool KeyPressImpl(unsigned key_code, Button *backspace,
                     Button *action_row_first) noexcept;
+
+  [[gnu::pure]]
+  FocusArea ClassifyFocusArea(Window *w, int grid_index,
+                              Button *backspace,
+                              Button *action_row_first) const noexcept;
 
   bool RouteSpaceToActionRow(unsigned key_code, Button *action_row,
                             Window *w) noexcept;
@@ -154,5 +180,4 @@ private:
   int FindIndexHorizontalFrom(int from_idx, int dix) const noexcept;
 
   bool FocusFirstEnabledInNumberRow(int prefer_index) noexcept;
-  bool FocusFirstEnabledInGrid() noexcept;
 };

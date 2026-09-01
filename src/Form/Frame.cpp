@@ -6,9 +6,12 @@
 #include "Screen/Layout.hpp"
 #include "Look/DialogLook.hpp"
 
+#include <algorithm>
+
 WndFrame::WndFrame(const DialogLook &_look) noexcept
   :look(_look),
-   text_color(look.text_color)
+   text_color(look.text_color),
+   font(&look.text_font)
 {
 }
 
@@ -16,7 +19,8 @@ WndFrame::WndFrame(ContainerWindow &parent, const DialogLook &_look,
                    PixelRect rc,
                    const WindowStyle style) noexcept
   :look(_look),
-   text_color(look.text_color)
+   text_color(look.text_color),
+   font(&look.text_font)
 {
   Create(parent, rc, style);
 }
@@ -51,7 +55,7 @@ WndFrame::GetTextHeight() const noexcept
   rc.Grow(-padding);
 
   AnyCanvas canvas;
-  canvas.Select(look.text_font);
+  canvas.Select(*font);
 
   return text_renderer.GetHeight(canvas, rc, text.c_str());
 }
@@ -59,13 +63,23 @@ WndFrame::GetTextHeight() const noexcept
 void
 WndFrame::OnPaint(Canvas &canvas) noexcept
 {
-  if (HaveClipping())
+  if (background_color)
+    canvas.Clear(*background_color);
+  else if (HaveClipping())
     canvas.Clear(look.background_brush);
+
+  if (top_separator) {
+    /* Filled strip instead of DrawLine at y=0: OpenGL often clips a
+       1px stroke on the window edge. */
+    const int thickness = (int)std::max(1u, Layout::ScaleFinePenWidth(1));
+    canvas.DrawFilledRectangle({0, 0, (int)canvas.GetWidth(), thickness},
+                               look.dark_mode ? COLOR_GRAY : COLOR_BLACK);
+  }
 
   canvas.SetTextColor(text_color);
   canvas.SetBackgroundTransparent();
 
-  canvas.Select(look.text_font);
+  canvas.Select(*font);
 
   PixelRect rc = GetClientRect();
   const int padding = Layout::GetTextPadding();

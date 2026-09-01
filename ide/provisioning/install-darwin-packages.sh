@@ -25,10 +25,10 @@ install_base() {
 
 install_macOS() {
   echo Installing macOS dependencies...
-  brew install fmt sdl2 \
+  brew install fmt \
     libsodium freetype \
     libpng libjpeg-turbo \
-    libtiff libgeotiff \
+    libtiff libgeotiff netcdf \
     proj c-ares \
     curl lua
   echo

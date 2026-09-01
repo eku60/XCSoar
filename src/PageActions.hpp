@@ -10,13 +10,6 @@ class Widget;
 
 namespace PageActions
 {
-  enum class ConfigureWeatherOverlayResult {
-    APPLIED_CURRENT,
-    ADDED_PAGE,
-    NO_CONFIGURED_PAGE,
-    PAGE_LIMIT_REACHED,
-  };
-
   /**
    * Returns the configured #PageLayout that was most recently
    * visible.
@@ -123,24 +116,6 @@ namespace PageActions
   void ShowWeatherPage();
 
   /**
-   * Apply a weather overlay to the currently configured page.
-   *
-   * This mutates configured page settings (not transient special pages),
-   * persists profile changes, and refreshes the active layout.
-   */
-  ConfigureWeatherOverlayResult
-  AddWeatherOverlayToCurrentPage(PageLayout::Overlay overlay,
-                                 int rasp_field=-1);
-
-  /**
-   * Clone the current configured page, apply a weather overlay to the clone,
-   * append it as a new configured page, and activate it.
-   */
-  ConfigureWeatherOverlayResult
-  AddWeatherOverlayToNewPage(PageLayout::Overlay overlay,
-                             int rasp_field=-1);
-
-  /**
    * Preserve active weather overlays across a temporary pan full-screen.
    */
   void SuspendWeatherOverlaysForPan() noexcept;
@@ -155,4 +130,13 @@ namespace PageActions
    * MainWindow::SetBottomWidget().  Call RestoreBottom() to undo this.
    */
   void SetCustomBottom(Widget *widget);
+
+  /**
+   * Whether map overlay buttons (menu, QuickMenu, zoom) should be
+   * shown.  False for most special pages (e.g. pan fullscreen); true
+   * when #special_page is only a #SetCustomBottom() overlay such as a
+   * QuestionWidget on an otherwise normal map page.
+   */
+  [[gnu::pure]]
+  bool AllowMapOverlayButtons() noexcept;
 };

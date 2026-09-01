@@ -328,6 +328,12 @@ FlarmTrafficWindow::PaintRadarTarget(Canvas &canvas,
                                      const FlarmTraffic &traffic,
                                      unsigned i) noexcept
 {
+  /* Absolute traffic (GDL90 / ADS-B) has no relatives until FlarmComputer
+     has ownship GPS.  Distance zero would plot on the aircraft — skip
+     until relatives are usable.  Classic FLARM already sends N/E. */
+  if (traffic.absolute_location && traffic.distance.IsZero())
+    return;
+
   // Save relative East/North
   DoublePoint2D p(traffic.relative_east, -traffic.relative_north);
 
@@ -347,15 +353,15 @@ FlarmTrafficWindow::PaintRadarTarget(Canvas &canvas,
     p.y = 0;
   }
 
-  if ((!enable_north_up) && traffic.relative_east && traffic.relative_north) {
-    // Rotate x and y to have a track up display
+  if (!enable_north_up) {
+    // Track-up: rotate even when east or north is zero (cardinal bearing).
     p = fr.Rotate(p);
   }
 
   // Calculate screen coordinates
   const auto radar_mid = radar_renderer.GetCenter();
-  sc[i].x = radar_mid.x + iround(p.x * scale);
-  sc[i].y = radar_mid.y + iround(p.y * scale);
+  sc[i].x = (traffic.relative_east) ? radar_mid.x + iround(p.x * scale) : radar_mid.x;
+  sc[i].y = (traffic.relative_east) ? radar_mid.y + iround(p.y * scale) : radar_mid.y - scale;
 
   const Color *text_color;
   const Pen *target_pen, *circle_pen;
@@ -503,7 +509,10 @@ FlarmTrafficWindow::PaintRadarTarget(Canvas &canvas,
     canvas.DrawText(ts, traffic.name);
   }
 
-  StaticString<10> side_text;
+  // Value-initialize: an uninitialized StaticString keeps prior stack
+  // contents, so a target without side data would reuse the previous
+  // target's vario/altitude label (#2731).
+  StaticString<10> side_text{};
 
   if (side_display_type == SideInfoType::VARIO) {
     if (traffic.climb_rate_avg30s_available &&

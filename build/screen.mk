@@ -243,7 +243,13 @@ SCREEN_SOURCES += \
 	$(CANVAS_SRC_DIR)/gdi/SubCanvas.cpp \
 	$(CANVAS_SRC_DIR)/gdi/BufferCanvas.cpp \
 	$(CANVAS_SRC_DIR)/gdi/PaintCanvas.cpp \
-	$(CANVAS_SRC_DIR)/gdi/UTF8Win.cpp \
+
+ifeq ($(OPENGL),y)
+SCREEN_SOURCES += $(CANVAS_SRC_DIR)/custom/GeoBitmap.cpp
+ifeq ($(TIFF),y)
+SCREEN_SOURCES += $(CANVAS_SRC_DIR)/custom/LibTiff.cpp
+endif
+endif
 
 GDI_CPPFLAGS = -DUSE_GDI
 WINUSER_CPPFLAGS = -DUSE_WINUSER

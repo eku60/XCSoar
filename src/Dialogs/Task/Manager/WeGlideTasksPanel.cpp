@@ -4,6 +4,7 @@
 #include "WeGlideTasksPanel.hpp"
 #include "Widget/TextWidget.hpp"
 #include "Language/Language.hpp"
+#include "Language/FormatText.hpp"
 
 #ifdef HAVE_HTTP
 #include "Internal.hpp"
@@ -84,6 +85,7 @@ public:
   void CreateButtons(ButtonPanel &buttons) noexcept {
     load_button = buttons.Add(_("Load"), [this](){ LoadTask(); });
     buttons.Add(_("Refresh"), [this](){ ReloadList(); });
+    buttons.EnableCursorSelection();
   }
 
   void UpdateButtons() noexcept {
@@ -365,7 +367,9 @@ CreateWeGlideTasksPanel([[maybe_unused]] TaskManagerDialog &dialog,
                         [[maybe_unused]] bool *task_modified) noexcept
 {
   auto widget = std::make_unique<TextWidget>();
-  widget->SetText(_("WeGlide is not available in this build."));
+  StaticString<128> message;
+  FormatFeatureNotAvailableInThisBuild(message, "WeGlide");
+  widget->SetText(message);
   return widget;
 }
 

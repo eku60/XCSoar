@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "PagesConfigPanel.hpp"
+#include "Dialogs/Message.hpp"
 #include "Look/DialogLook.hpp"
 #include "Renderer/TextRowRenderer.hpp"
 #include "Form/Button.hpp"
@@ -17,11 +18,21 @@
 #include "Weather/Features.hpp"
 #include "Weather/Rasp/FieldControls.hpp"
 #include "Weather/Rasp/RaspStore.hpp"
+#ifdef HAVE_EDL
+#include "Formatter/UserUnits.hpp"
+#include "Weather/EDL/Levels.hpp"
+#include "Weather/EDL/StateController.hpp"
+#endif
 #include "Widget/RowFormWidget.hpp"
 #include "Widget/ListWidget.hpp"
 #include "Widget/TwoWidgets.hpp"
 #include "Widget/ButtonPanelWidget.hpp"
 #include "UIGlobals.hpp"
+#include "util/StaticString.hxx"
+
+#ifdef HAVE_HTTP
+#include "Weather/SkySight/SkySightClient.hpp"
+#endif
 
 /* this macro exists in the WIN32 API */
 #ifdef DELETE
@@ -42,7 +53,7 @@ private:
     INFO_BOX_PANEL,
     BOTTOM,
     OVERLAY,
-    RASP_FIELD,
+    OVERLAY_DETAIL,
   };
 
   static constexpr unsigned IBP_NONE = 0x7000;
@@ -53,7 +64,7 @@ private:
   Listener &listener;
 
   void UpdateOverlayControls() noexcept;
-  void FillRaspFieldControl() noexcept;
+  void FillOverlayDetailControl() noexcept;
   void ApplyValueToForm() noexcept;
 
 public:
@@ -100,7 +111,7 @@ public:
   }
 
   void CreateButtons(ButtonPanel &buttons) {
-    add_button = buttons.Add(_("Add"), [this](){
+    add_button = buttons.Add(C_("Button", "Add"), [this](){
       const unsigned n = GetList().GetLength();
       if (n < PageSettings::MAX_PAGES) {
         auto &page = settings.pages[n];
@@ -110,7 +121,7 @@ public:
       }
     });
 
-    delete_button = buttons.Add(_("Delete"), [this](){
+    delete_button = buttons.Add(C_("Button", "Delete"), [this](){
       const unsigned n = GetList().GetLength();
       const unsigned cursor = GetList().GetCursorIndex();
       if (n >= 2 && GetList().GetCursorIndex() < n) {
@@ -176,27 +187,131 @@ public:
 };
 
 void
-PageLayoutEditWidget::FillRaspFieldControl() noexcept
+PageLayoutEditWidget::FillOverlayDetailControl() noexcept
 {
-  auto &control = GetControl(RASP_FIELD);
+  auto &control = GetControl(OVERLAY_DETAIL);
   auto &df = (DataFieldEnum &)*control.GetDataField();
 
-  const auto rasp = DataGlobals::GetRasp();
-  if (rasp == nullptr || rasp->GetItemCount() == 0) {
-    df.ClearChoices();
-    df.AddChoice(-1, _("No RASP file loaded"));
-    df.SetValue(-1);
-    control.RefreshDisplay();
-    return;
+  df.ClearChoices();
+
+  switch (value.overlay) {
+  case PageLayout::Overlay::RASP: {
+    control.SetCaption(_("RASP Layer"));
+    control.SetHelpText(
+      _("RASP weather layer to display on this map page."));
+
+    const auto rasp = DataGlobals::GetRasp();
+    if (rasp == nullptr || rasp->GetItemCount() == 0) {
+      df.AddChoice(-1, _("No RASP file loaded"));
+      df.SetValue(-1);
+      break;
+    }
+
+    Rasp::FillFieldChoices(df, rasp.get());
+
+    if (value.rasp_field >= 0 &&
+        unsigned(value.rasp_field) < rasp->GetItemCount())
+      df.SetValue(value.rasp_field);
+    else
+      df.SetValue(0U);
+    break;
   }
 
-  Rasp::FillFieldChoices(df, rasp.get());
+#ifdef HAVE_EDL
+  case PageLayout::Overlay::EDL:
+    control.SetCaption(_("EDL Level"));
+    control.SetHelpText(
+      _("EDL pressure level / altitude band for this map page. "
+        "Auto follows aircraft altitude when the page is opened."));
 
-  if (value.rasp_field >= 0 &&
-      unsigned(value.rasp_field) < rasp->GetItemCount())
-    df.SetValue(value.rasp_field);
-  else
+    df.AddChoice(0, C_("Weather control", "Auto"),
+                 _("Follow altitude on page enter (auto level)."));
+
+    for (unsigned i = 0; i < EDL::NUM_ISOBARS; ++i) {
+      const unsigned isobar = EDL::ISOBARS[i];
+      char alt[32];
+      FormatUserAltitude(EDL::GetAltitudeForIsobar(isobar), alt);
+
+      StaticString<64> label;
+      if (alt[0] != '\0')
+        label.Format("%u hPa (%s)", isobar / 100, alt);
+      else
+        label.Format("%u hPa", isobar / 100);
+
+      df.AddChoice(int(isobar), label.c_str());
+    }
+
+    if (value.edl_isobar > 0 &&
+        EDL::IsSupportedIsobar(unsigned(value.edl_isobar)))
+      df.SetValue(unsigned(value.edl_isobar));
+    else
+      df.SetValue(0U);
+    break;
+#endif
+
+  case PageLayout::Overlay::SKYSIGHT: {
+    control.SetCaption(C_("Setting", "SkySight layer"));
+    control.SetHelpText(
+      _("SkySight layer used when this page overlay is SkySight."));
+
+#ifdef HAVE_HTTP
+    const auto skysight = DataGlobals::GetSkySight();
+    if (skysight != nullptr) {
+      unsigned selected_value = 1;
+      bool has_choices = false;
+      bool stored_layer_is_selected = false;
+
+      for (std::size_t i = 0; i < skysight->NumSelectedLayers(); ++i)
+        if (const auto *layer = skysight->GetSelectedLayer(i);
+            layer != nullptr &&
+            layer->id == value.skysight_overlay.c_str()) {
+          stored_layer_is_selected = true;
+          selected_value = unsigned(i + 1);
+          break;
+        }
+
+      if (!value.skysight_overlay.empty() && !stored_layer_is_selected) {
+        df.AddChoice(0, value.skysight_overlay.c_str(),
+                     value.skysight_overlay.c_str());
+        has_choices = true;
+        selected_value = 0;
+      }
+
+      for (std::size_t i = 0; i < skysight->NumSelectedLayers(); ++i) {
+        const auto *layer = skysight->GetSelectedLayer(i);
+        if (layer == nullptr)
+          continue;
+
+        df.AddChoice(unsigned(i + 1), layer->name.c_str());
+        has_choices = true;
+      }
+
+      if (has_choices) {
+        df.SetValue(selected_value);
+        break;
+      }
+    }
+#endif
+
+    df.AddChoice(0, _("No SkySight layers selected"));
     df.SetValue(0U);
+    break;
+  }
+
+  case PageLayout::Overlay::NONE:
+  case PageLayout::Overlay::XCTHERM:
+#ifndef HAVE_EDL
+  case PageLayout::Overlay::EDL:
+#endif
+  case PageLayout::Overlay::MAX:
+    control.SetCaption(C_("Setting", "Layer / Level"));
+    control.SetHelpText(
+      _("Select a RASP or EDL map overlay to configure its "
+        "layer or level for this page."));
+    df.AddChoice(-1, _("N/A"));
+    df.SetValue(-1);
+    break;
+  }
 
   control.RefreshDisplay();
 }
@@ -205,12 +320,37 @@ void
 PageLayoutEditWidget::UpdateOverlayControls() noexcept
 {
   const bool map_page = value.IsMapMain();
-  const auto rasp = DataGlobals::GetRasp();
-  const bool rasp_available = rasp != nullptr && rasp->GetItemCount() > 0;
-  const bool rasp_overlay = value.overlay == PageLayout::Overlay::RASP;
+  bool detail_enabled = false;
+
+  if (map_page) {
+    switch (value.overlay) {
+    case PageLayout::Overlay::RASP: {
+      const auto rasp = DataGlobals::GetRasp();
+      detail_enabled = rasp != nullptr && rasp->GetItemCount() > 0;
+      break;
+    }
+#ifdef HAVE_EDL
+    case PageLayout::Overlay::EDL:
+      detail_enabled = true;
+      break;
+#endif
+    case PageLayout::Overlay::SKYSIGHT:
+#ifdef HAVE_HTTP
+      detail_enabled = DataGlobals::GetSkySight() != nullptr;
+#endif
+      break;
+    case PageLayout::Overlay::NONE:
+    case PageLayout::Overlay::XCTHERM:
+#ifndef HAVE_EDL
+    case PageLayout::Overlay::EDL:
+#endif
+    case PageLayout::Overlay::MAX:
+      break;
+    }
+  }
 
   SetRowEnabled(OVERLAY, map_page);
-  SetRowEnabled(RASP_FIELD, map_page && rasp_overlay && rasp_available);
+  SetRowEnabled(OVERLAY_DETAIL, detail_enabled);
 }
 
 void
@@ -220,7 +360,7 @@ PageLayoutEditWidget::ApplyValueToForm() noexcept
   GetControl(BOTTOM).RefreshDisplay();
   LoadValueEnum(OVERLAY, value.overlay);
   GetControl(OVERLAY).RefreshDisplay();
-  FillRaspFieldControl();
+  FillOverlayDetailControl();
   UpdateOverlayControls();
 }
 
@@ -233,8 +373,8 @@ PageLayoutEditWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_
   static constexpr StaticEnumChoice main_list[] = {
     { PageLayout::Main::MAP, N_("Map") },
     { PageLayout::Main::MAP_NORTH_UP, N_("Map (north-up)") },
-    { PageLayout::Main::FLARM_RADAR, N_("FLARM radar") },
-    { PageLayout::Main::THERMAL_ASSISTANT, N_("Thermal assistant") },
+    { PageLayout::Main::FLARM_RADAR, N_("FLARM Radar") },
+    { PageLayout::Main::THERMAL_ASSISTANT, N_("Thermal Assistant") },
     { PageLayout::Main::HORIZON, N_("Horizon") },
     nullptr
   };
@@ -244,7 +384,7 @@ PageLayoutEditWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_
           (unsigned)PageLayout::Main::MAP, this);
 
   static constexpr StaticEnumChoice ib_list[] = {
-    { IBP_AUTO, N_("Auto"), N_("Displays either the Circling, Cruise, or Final glide InfoBoxes.") },
+    { IBP_AUTO, NC_("Setting", "Auto"), N_("Displays either the Circling, Cruise, or Final glide InfoBoxes.") },
     { IBP_NONE, N_("None"), N_("Show fullscreen (no InfoBoxes)") },
     nullptr
   };
@@ -278,36 +418,42 @@ PageLayoutEditWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_
   static constexpr StaticEnumChoice bottom_list[] = {
     { PageLayout::Bottom::NOTHING, N_("Nothing") },
     { PageLayout::Bottom::CROSS_SECTION, N_("Cross section") },
-#if defined(HAVE_EDL) || defined(ENABLE_OPENGL)
-    { PageLayout::Bottom::WEATHER_CONTROLS, N_("Weather controls") },
-#endif
+    /* Always available: RASP does not require OpenGL, and the shared
+       weather cursor bar works for RASP on memory canvas / Kobo. */
+    { PageLayout::Bottom::WEATHER_CONTROLS, NC_("Setting", "Weather controls") },
     nullptr
   };
   AddEnum(_("Bottom area"),
           _("Specifies what should be displayed below the main area. "
-            "Weather controls require a RASP or EDL map overlay."),
+            "Weather controls require a weather map "
+            "overlay."),
           bottom_list,
           (unsigned)PageLayout::Bottom::NOTHING, this);
 
   static constexpr StaticEnumChoice overlay_list[] = {
     { PageLayout::Overlay::NONE, N_("None") },
-    { PageLayout::Overlay::RASP, N_("RASP") },
+    { PageLayout::Overlay::RASP, NC_("Abbreviation", "RASP") },
 #ifdef HAVE_EDL
-    { PageLayout::Overlay::EDL, N_("EDL") },
+    { PageLayout::Overlay::EDL, NC_("Abbreviation", "EDL") },
+#endif
+#ifdef HAVE_HTTP
+    { PageLayout::Overlay::XCTHERM, "XC Therm" },
+    { PageLayout::Overlay::SKYSIGHT, "SkySight" },
 #endif
     nullptr
   };
-  AddEnum(_("Map overlay"),
+  AddEnum(C_("Setting", "Map overlay"),
           _("Optional weather overlay on map pages. "
             "Use with Weather controls in the bottom area for in-flight adjustment."),
           overlay_list,
           (unsigned)PageLayout::Overlay::NONE, this);
 
-  AddEnum(_("RASP layer"),
-          _("RASP weather layer to display on this map page."),
+  AddEnum(C_("Setting", "Layer / Level"),
+          _("Select a weather map overlay to configure its "
+            "layer or level for this page."),
           this);
-  GetControl(RASP_FIELD).GetDataField()->EnableItemHelp(true);
-  FillRaspFieldControl();
+  GetControl(OVERLAY_DETAIL).GetDataField()->EnableItemHelp(true);
+  FillOverlayDetailControl();
   UpdateOverlayControls();
 }
 
@@ -334,7 +480,7 @@ PageLayoutEditWidget::SetValue(const PageLayout &_value)
 
   LoadValueEnum(INFO_BOX_PANEL, ib);
 
-  FillRaspFieldControl();
+  FillOverlayDetailControl();
   UpdateOverlayControls();
 }
 
@@ -379,10 +525,82 @@ PageLayoutEditWidget::OnModified(DataField &df) noexcept
     }
   } else if (&df == &GetDataField(OVERLAY)) {
     const DataFieldEnum &dfe = (const DataFieldEnum &)df;
-    value.overlay = (PageLayout::Overlay)dfe.GetValue();
-  } else if (&df == &GetDataField(RASP_FIELD)) {
+    const auto overlay = (PageLayout::Overlay)dfe.GetValue();
+    if (overlay == PageLayout::Overlay::SKYSIGHT) {
+#ifdef HAVE_HTTP
+      const auto skysight = DataGlobals::GetSkySight();
+      const SkySight::Layer *layer = nullptr;
+      if (skysight != nullptr) {
+        if (!value.skysight_overlay.empty() &&
+            skysight->IsSelectedLayer(value.skysight_overlay.c_str()))
+          layer = skysight->GetSelectedLayer(value.skysight_overlay.c_str());
+
+        for (std::size_t i = 0; layer == nullptr &&
+             i < skysight->NumSelectedLayers(); ++i)
+          layer = skysight->GetSelectedLayer(i);
+      }
+
+      if (layer != nullptr) {
+        value.skysight_overlay = layer->id;
+      } else if (value.skysight_overlay.empty()) {
+        const char *message;
+        if (skysight == nullptr)
+          message = _("SkySight is unavailable.");
+        else if (skysight->IsThrottled())
+          message = _("SkySight API rate-limited. Retrying shortly.");
+        else if (!skysight->HasForecastLayers())
+          message = _("Loading SkySight catalog...");
+        else
+          message = _("No SkySight layers selected");
+
+        ShowMessageBox(message, "SkySight", MB_OK | MB_ICONINFORMATION);
+        ApplyValueToForm();
+        return;
+      }
+
+      if (layer == nullptr)
+        value.skysight_overlay.clear();
+#else
+      value.skysight_overlay.clear();
+#endif
+    }
+    value.overlay = overlay;
+  } else if (&df == &GetDataField(OVERLAY_DETAIL)) {
     const DataFieldEnum &dfe = (const DataFieldEnum &)df;
-    value.rasp_field = dfe.GetValue();
+    if (value.overlay == PageLayout::Overlay::RASP)
+      value.rasp_field = dfe.GetValue();
+#ifdef HAVE_EDL
+    else if (value.overlay == PageLayout::Overlay::EDL)
+      value.edl_isobar = dfe.GetValue();
+#endif
+    else if (value.overlay == PageLayout::Overlay::SKYSIGHT) {
+#ifdef HAVE_HTTP
+      if (auto skysight = DataGlobals::GetSkySight(); skysight != nullptr) {
+        const unsigned selected = dfe.GetValue();
+
+        bool stored_layer_is_selected = false;
+        for (std::size_t i = 0; i < skysight->NumSelectedLayers(); ++i)
+          if (const auto *layer = skysight->GetSelectedLayer(i);
+              layer != nullptr &&
+              layer->id == value.skysight_overlay.c_str()) {
+            stored_layer_is_selected = true;
+            break;
+          }
+
+        if (selected == 0 && !stored_layer_is_selected)
+          return;
+
+        if (selected > 0)
+          if (const auto *layer =
+                skysight->GetSelectedLayer(selected - 1);
+              layer != nullptr &&
+              value.skysight_overlay != layer->id.c_str()) {
+            value.skysight_overlay = layer->id;
+            value.skysight_time = PageLayout::SKYSIGHT_TIME_AUTO;
+          }
+      }
+#endif
+    }
   } else {
     gcc_unreachable();
   }

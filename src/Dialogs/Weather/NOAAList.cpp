@@ -5,6 +5,7 @@
 #include "NOAADetails.hpp"
 #include "Dialogs/Message.hpp"
 #include "Language/Language.hpp"
+#include "Language/FormatText.hpp"
 #include "Weather/Features.hpp"
 
 #ifdef HAVE_NOAA
@@ -95,7 +96,7 @@ void
 NOAAListWidget::CreateButtons(ButtonPanel &buttons)
 {
   details_button = buttons.Add(_("Details"), [this](){ DetailsClicked(); });
-  add_button = buttons.Add(_("Add"), [this](){ AddClicked(); });
+  add_button = buttons.Add(C_("Button", "Add"), [this](){ AddClicked(); });
   update_button = buttons.Add(_("Update"), [this](){ UpdateClicked(); });
   remove_button = buttons.Add(_("Remove"), [this](){ RemoveClicked(); });
 
@@ -216,8 +217,7 @@ NOAAListWidget::RemoveClicked()
   assert(index < stations.size());
 
   StaticString<256> tmp;
-  tmp.Format(_("Do you want to remove station %s?"),
-             stations[index].code.c_str());
+  FormatRemoveStationPrompt(tmp, stations[index].code.c_str());
 
   if (ShowMessageBox(tmp, _("Remove"), MB_YESNO) == IDNO)
     return;

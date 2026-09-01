@@ -64,7 +64,7 @@ class PlaneListWidget final
     }
   };
 
-  WndForm *form;
+  WidgetDialog *form;
   Button *edit_button, *copy_button, *delete_button, *load_button;
 
   std::vector<ListItem> list;
@@ -123,6 +123,9 @@ PlaneListWidget::UpdateList() noexcept
   edit_button->SetEnabled(!empty);
   copy_button->SetEnabled(!empty);
   delete_button->SetEnabled(!empty);
+
+  if (form != nullptr)
+    form->ResyncButtonPanelSelection();
 }
 
 void
@@ -133,7 +136,7 @@ PlaneListWidget::CreateButtons(WidgetDialog &dialog) noexcept
   dialog.AddButton(_("New"), [this](){ NewClicked(); });
   edit_button = dialog.AddButton(_("Edit"), [this](){ EditClicked(false); });
   copy_button = dialog.AddButton(_("Copy"), [this](){ EditClicked(true); });
-  delete_button = dialog.AddButton(_("Delete"), [this](){ DeleteClicked(); });
+  delete_button = dialog.AddButton(C_("Button", "Delete"), [this](){ DeleteClicked(); });
   load_button = dialog.AddButton(_("Activate"), [this](){ LoadClicked(); });
 }
 
@@ -332,7 +335,7 @@ PlaneListWidget::DeleteClicked() noexcept
 
   tmp.Format(_("Delete plane \"%s\"?"),
              tmp_name.c_str());
-  if (ShowMessageBox(tmp, _("Delete"), MB_YESNO) != IDYES)
+  if (ShowMessageBox(tmp, C_("Button", "Delete"), MB_YESNO) != IDYES)
     return;
 
   File::Delete(list[GetList().GetCursorIndex()].path);
@@ -362,6 +365,8 @@ dlgPlanesShowModal() noexcept
   dialog.SetWidget();
   dialog.GetWidget().CreateButtons(dialog);
   dialog.AddButton(_("Close"), mrOK);
+  /* Like Alternates: list cursor picks the plane; Left/Right arm an
+     action (New/Edit/…); Enter runs it. */
   dialog.EnableCursorSelection();
 
   dialog.ShowModal();

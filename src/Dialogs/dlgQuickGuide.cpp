@@ -60,11 +60,12 @@ struct QuickGuideState {
 static const char *
 GetWelcomeText(bool dark_mode)
 {
-  static StaticString<1024> welcome;
+  static StaticString<1536> welcome;
   welcome.Format(
     "![XCSoar Logo](resource:IDB_LOGO_HD)\n\n"
     "![XCSoar](resource:%s)\n\n"
     "**Version %s**\n\n"
+    "%s"
     "%s\n\n"
     "%s\n\n"
     "- [https://xcsoar.org](https://xcsoar.org)\n"
@@ -73,6 +74,12 @@ GetWelcomeText(bool dark_mode)
     "- [%s](https://github.com/XCSoar/XCSoar/discussions)",
     dark_mode ? "IDB_TITLE_HD_WHITE" : "IDB_TITLE_HD",
     XCSoar_VersionString,
+    is_simulator()
+      ? _("**Simulator mode:** Drag from the glider to set direction "
+          "and speed. Jump with **Sim: Jump to** on a waypoint or map "
+          "point. Fine-tune height and speed with the **Altitude** and "
+          "**Speed Ground** InfoBoxes.\n\n")
+      : "",
     _("To get the most out of XCSoar and to learn about its many "
       "functions in detail, it is highly recommended to read the "
       "Quick Guide or the complete documentation."),
@@ -81,6 +88,7 @@ GetWelcomeText(bool dark_mode)
     _("XCSoar Manual & Quick Guide"),
     _("GitHub - Source Code & Contributions"),
     _("GitHub Discussions - Questions & Community"));
+
   return welcome.c_str();
 }
 
@@ -236,12 +244,12 @@ GetConfigurationHelpText()
     "Show thermal locations from thermalmap.info on the map\n\n"
     "- [%s] [Safety factors](xcsoar://config/safety) - "
     "Set arrival height, terrain clearance and polar degradation\n\n"
-    "- [%s] [Terrain display](xcsoar://config/terrain) - "
+    "- [%s] [Terrain Display](xcsoar://config/terrain) - "
     "Choose terrain colors, shading and contour lines\n\n"
     "- [ ] [Live tracking](xcsoar://config/tracking) *(optional)* - "
     "Share your position via SkyLines or LiveTrack24\n\n"
-    "The easiest way to explore XCSoar is to "
-    "[replay an existing IGC flight](xcsoar://dialog/replay)."),
+    "Explore XCSoar easily by restarting in Simulator mode, or by "
+    "[replaying an IGC flight](xcsoar://dialog/replay)."),
     has_map ? "x" : " ",
     has_polar ? "x" : " ",
     has_pilot ? "x" : " ",
@@ -250,6 +258,7 @@ GetConfigurationHelpText()
     tim_enabled ? "x" : " ",
     has_safety ? "x" : " ",
     has_terrain_display ? "x" : " ");
+
   return text.c_str();
 }
 
@@ -451,15 +460,15 @@ IsQuickGuideHidden() noexcept
 bool
 dlgQuickGuideShowModal(bool force_info)
 {
-  const bool is_simulator = global_simulator_flag;
+  const bool simulator = is_simulator();
   const bool warranty_needed =
-    !is_simulator && !IsWarrantyAcknowledged();
+    !simulator && !IsWarrantyAcknowledged();
   const bool news_needed = !IsNewsSeen();
   const bool cloud_needed =
-    !is_simulator && IsCloudConsentNeeded();
+    !simulator && IsCloudConsentNeeded();
 #ifdef ANDROID
   const bool permissions_needed =
-    !is_simulator && (!AreLocationPermissionsGranted() ||
+    !simulator && (!AreLocationPermissionsGranted() ||
                       !IsNotificationPermissionGranted());
 #else
   const bool permissions_needed = false;
@@ -554,9 +563,10 @@ dlgQuickGuideShowModal(bool force_info)
   }
 
   /* ---- What's New page (conditional, shown on version change) ---- */
-  /* Body is Markdown generated at build time from the first block of NEWS.txt
-     (see tools/news_to_quickguide_md.py and QuickGuideNEWS.hpp).  The Credits
-     dialog still loads the full gzipped NEWS history as plain text. */
+  /* Body is Markdown generated at build time from the first block of
+     NEWS.txt (tools/news_to_quickguide_md.py → QuickGuideNEWS.hpp).
+     Each NEWS bullet is one list-item paragraph.  Credits still loads
+     the full gzipped NEWS as plain text. */
   if (news_needed && quick_guide_news_markdown[0] != '\0') {
     state.news_page_index = pager->GetSize();
 
@@ -606,7 +616,7 @@ dlgQuickGuideShowModal(bool force_info)
     advance_or_close();
   };
 
-  if (!is_simulator && !AreLocationPermissionsGranted()) {
+  if (!simulator && !AreLocationPermissionsGranted()) {
     state.location_page_index = pager->GetSize();
 
     auto page = QuickGuidePageWidget::CreateTwoButtonPage(
@@ -626,7 +636,7 @@ dlgQuickGuideShowModal(bool force_info)
     titles.push_back(_("Location Access"));
   }
 
-  if (!is_simulator && !IsNotificationPermissionGranted()) {
+  if (!simulator && !IsNotificationPermissionGranted()) {
     auto page = QuickGuidePageWidget::CreateTwoButtonPage(
       look, GetNotificationDisclosureText(),
       _("Continue"),
@@ -770,12 +780,17 @@ dlgQuickGuideShowModal(bool force_info)
   }
 #endif
 
-  // Save "don't show again" state (both checked and unchecked,
-  // so unticking from the Info menu re-enables the guide)
+  /* Only persist when the checkbox changed vs profile (missing key =
+     show guide). Still writes false when unticking from Info. */
   if (info_pages_needed) {
-    Profile::Set(ProfileKeys::HideQuickGuideDialogOnStartup,
-                 state.hide_guide_checked);
-    Profile::Save();
+    bool previously_hidden = false;
+    Profile::Get(ProfileKeys::HideQuickGuideDialogOnStartup,
+                 previously_hidden);
+    if (state.hide_guide_checked != previously_hidden) {
+      Profile::Set(ProfileKeys::HideQuickGuideDialogOnStartup,
+                   state.hide_guide_checked);
+      Profile::Save();
+    }
   }
 
   (void)result;

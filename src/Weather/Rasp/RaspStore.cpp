@@ -24,16 +24,19 @@
 
 #define RASP_FORMAT "%s.curr.%02u%02ulst.d2.jp2"
 
+static constexpr const char *WSTAR_HELP =
+  N_("Average dry thermal updraft strength near mid-BL height. Subtract glider descent rate to get average vario reading for cloudless thermals. Updraft strengths will be stronger than this forecast if convective clouds are present, since cloud condensation adds buoyancy aloft (i.e. this neglects \"cloudsuck\"). W* depends upon both the surface heating and the BL depth.");
+
 static constexpr RaspStore::MapInfo WeatherDescriptors[] = {
   {
     "wstar",
     N_("W*"),
-    N_("Average dry thermal updraft strength near mid-BL height. Subtract glider descent rate to get average vario reading for cloudless thermals. Updraft strengths will be stronger than this forecast if convective clouds are present, since cloud condensation adds buoyancy aloft (i.e. this neglects \"cloudsuck\"). W* depends upon both the surface heating and the BL depth."),
+    WSTAR_HELP,
   },
   {
     "wstar_bsratio",
     N_("W*"),
-    N_("Average dry thermal updraft strength near mid-BL height. Subtract glider descent rate to get average vario reading for cloudless thermals. Updraft strengths will be stronger than this forecast if convective clouds are present, since cloud condensation adds buoyancy aloft (i.e. this neglects \"cloudsuck\"). W* depends upon both the surface heating and the BL depth."),
+    WSTAR_HELP,
   },
   {
     "blwindspd",
@@ -48,7 +51,7 @@ static constexpr RaspStore::MapInfo WeatherDescriptors[] = {
   {
     "dwcrit",
     N_("dwcrit"),
-    N_("This parameter estimates the height above ground at which the average dry updraft strength drops below 225 fpm and is expected to give better quantitative numbers for the maximum cloudless thermalling height than the BL Top height, especially when mixing results from vertical wind shear rather than thermals. (Note: the present assumptions tend to underpredict the max. thermalling height for dry conditions.) In the presence of clouds the maximum thermalling height may instead be limited by the cloud base. Being for \"dry\" thermals, this parameter omits the effect of \"cloudsuck\"."),
+    nullptr,
   },
   {
     "blcloudpct",
@@ -63,7 +66,7 @@ static constexpr RaspStore::MapInfo WeatherDescriptors[] = {
   {
     "hwcrit",
     N_("hwcrit"),
-    N_("This parameter estimates the height at which the average dry updraft strength drops below 225 fpm and is expected to give better quantitative numbers for the maximum cloudless thermalling height than the BL Top height, especially when mixing results from vertical wind shear rather than thermals. (Note: the present assumptions tend to underpredict the max. thermalling height for dry conditions.) In the presence of clouds the maximum thermalling height may instead be limited by the cloud base. Being for \"dry\" thermals, this parameter omits the effect of \"cloudsuck\"."),
+    nullptr,
   },
   {
     "wblmaxmin",
@@ -112,6 +115,19 @@ RaspStore::TimeToIndex(BrokenTime t) noexcept
   return unsigned(t.hour) * 4u + unsigned(t.minute) / 15u;
 }
 
+unsigned
+RaspStore::CountAvailableTimes(unsigned item_index) const noexcept
+{
+  if (item_index >= maps.size())
+    return 0;
+
+  unsigned n = 0;
+  for (unsigned i = 0; i < MAX_WEATHER_TIMES; ++i)
+    if (maps[item_index].times[i])
+      ++n;
+  return n;
+}
+
 bool
 RaspStore::HasSelectedTimeData(unsigned item_index, bool auto_advance,
                                BrokenTime manual_time,
@@ -119,6 +135,11 @@ RaspStore::HasSelectedTimeData(unsigned item_index, bool auto_advance,
 {
   if (item_index >= maps.size())
     return false;
+
+  /* All-day / single-slot fields always have displayable raster data;
+     RaspCache snaps to that slot via GetNearestTime. */
+  if (IsSingleTimeField(item_index))
+    return true;
 
   const BrokenTime forecast = (auto_advance || !manual_time.IsPlausible())
     ? auto_local_time

@@ -43,6 +43,33 @@ IconStretchFixed10(unsigned source_dpi) noexcept
   return Layout::VptScale(72 * 1024 * 3 / 2) / source_dpi;
 }
 
+#ifdef ENABLE_OPENGL
+/**
+ * The icons are rendered at this multiple of the resolution their
+ * density bucket needs, so the GPU has enough texels where they are
+ * magnified (list rows).  Keep in sync with build/resource.mk.
+ */
+static constexpr unsigned ICON_SUPERSAMPLE = 3;
+#endif
+
+/* nominal densities of the icon variants (Android density buckets);
+   ldpi is the 96 dpi desktop baseline rather than Android's 120 */
+static constexpr unsigned ICON_LDPI = 96;
+static constexpr unsigned ICON_MDPI = 160;
+static constexpr unsigned ICON_XHDPI = 320;
+static constexpr unsigned ICON_XXHDPI = 480;
+
+/**
+ * The physical display density: Layout::vdpi with the small-screen
+ * viewing distance adjustment undone.
+ */
+[[gnu::pure]]
+static unsigned
+DisplayDensity() noexcept
+{
+  return Layout::small_screen ? Layout::vdpi * 3 / 2 : Layout::vdpi;
+}
+
 #ifndef ENABLE_OPENGL
 
 [[gnu::const]]
@@ -56,36 +83,42 @@ IconStretchInteger(unsigned source_dpi) noexcept
 #endif
 
 void
-MaskedIcon::LoadResource(ResourceId id, ResourceId big_id,
-                         ResourceId ultra_id,
+MaskedIcon::LoadResource(ResourceId id, ResourceId mdpi_id,
+                         ResourceId xhdpi_id, ResourceId xxhdpi_id,
                          bool center)
 {
+  /* pick the variant whose density bucket is nearest to the display;
+     boundaries are midway between the buckets */
+  const unsigned density = DisplayDensity();
+
 #ifdef ENABLE_OPENGL
-  /* On OpenGL the GPU scales textures efficiently, so always load
-     the highest-resolution variant for maximum quality (especially
-     beneficial when icons are scaled up in list views). */
-  unsigned source_dpi = 96;
-  if (ultra_id.IsDefined()) {
-    id = ultra_id;
-    source_dpi = 300;
-  } else if (big_id.IsDefined()) {
-    id = big_id;
-    source_dpi = 192;
+  unsigned source_dpi = ICON_LDPI;
+  if (density >= 400 && xxhdpi_id.IsDefined()) {
+    id = xxhdpi_id;
+    source_dpi = ICON_XXHDPI;
+  } else if (density >= 240 && xhdpi_id.IsDefined()) {
+    id = xhdpi_id;
+    source_dpi = ICON_XHDPI;
+  } else if (density >= 128 && mdpi_id.IsDefined()) {
+    id = mdpi_id;
+    source_dpi = ICON_MDPI;
   }
 
-  const unsigned stretch = IconStretchFixed10(source_dpi);
+  const unsigned stretch =
+    IconStretchFixed10(source_dpi * ICON_SUPERSAMPLE);
   bitmap.Load(id);
 #else
-  if (Layout::vdpi >= 120) {
-    /* switch to larger 160dpi icons at 120dpi */
-
-    unsigned source_dpi = 96;
-    if (Layout::vdpi >= 220 && ultra_id.IsDefined()) {
-      id = ultra_id;
-      source_dpi = 300;
-    } else if (big_id.IsDefined()) {
-      id = big_id;
-      source_dpi = 192;
+  if (density >= (ICON_LDPI + ICON_MDPI) / 2) {
+    unsigned source_dpi = ICON_LDPI;
+    if (density >= 400 && xxhdpi_id.IsDefined()) {
+      id = xxhdpi_id;
+      source_dpi = ICON_XXHDPI;
+    } else if (density >= 240 && xhdpi_id.IsDefined()) {
+      id = xhdpi_id;
+      source_dpi = ICON_XHDPI;
+    } else if (mdpi_id.IsDefined()) {
+      id = mdpi_id;
+      source_dpi = ICON_MDPI;
     }
 
     bitmap.LoadStretch(id, IconStretchInteger(source_dpi));

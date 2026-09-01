@@ -18,15 +18,16 @@
 #include "Storage/StorageDevice.hpp"
 #include "system/FileUtil.hpp"
 #include "Language/Language.hpp"
+#include "Language/FormatText.hpp"
 #include "Form/CheckBox.hpp"
 #include "Screen/Layout.hpp"
 #include "IGC/IgcMetaCache.hpp"
 #include "Job/Job.hpp"
 #include "Operation/Operation.hpp"
+#include "util/StaticString.hxx"
 #include "net/client/WeGlide/UploadIGCFile.hpp"
 #include "net/client/WeGlide/Settings.hpp"
 #include "Interface.hpp"
-#include "util/StaticString.hxx"
 #include "ui/event/Notify.hpp"
 
 #include <vector>
@@ -39,17 +40,10 @@ static constexpr char EXPORT_FLIGHTS_SUBFOLDER[] = "xcsoar_flights";
 
 static IgcMetaCache igc_cache;
 
-/**
- * Check if WeGlide is properly configured for uploads.
- * Requires pilot ID and birthdate to be set.
- */
-static bool
-IsWeGlideConfigured() noexcept
+void
+ShutdownExportFlightsPanel() noexcept
 {
-  const WeGlideSettings &settings = CommonInterface::GetComputerSettings().weglide;
-  return settings.enabled &&
-         settings.pilot_id != 0 &&
-         settings.pilot_birthdate.IsPlausible();
+  igc_cache.Shutdown();
 }
 
 // Export job that runs in background thread
@@ -146,8 +140,10 @@ PerformExport(FileMultiSelectWidget *file_widget)
 
   auto device = FindDeviceByName(target);
   if (!device) {
-    ShowMessageBox(_("Target device not found."),
-                   _("Export flights"), MB_OK | MB_ICONERROR);
+    StaticString<64> message;
+    FormatDeviceNotFound(message, N_("Target"));
+    ShowMessageBox(message,
+                   C_("Menu", "Export flights"), MB_OK | MB_ICONERROR);
     return;
   }
 
@@ -155,7 +151,7 @@ PerformExport(FileMultiSelectWidget *file_widget)
   ExportJob job(selected, std::move(device), completed, skipped, failed);
 
   if (!JobDialog(UIGlobals::GetMainWindow(), UIGlobals::GetDialogLook(),
-                 _("Export flights"), job, true)) {
+                 C_("Menu", "Export flights"), job, true)) {
     return;
   }
 
@@ -170,14 +166,14 @@ PerformExport(FileMultiSelectWidget *file_widget)
       msg.AppendFormat("\n- %s", name.c_str());
   }
 
-  ShowMessageBox(msg, _("Export flights"),
+  ShowMessageBox(msg, C_("Menu", "Export flights"),
                  MB_OK | (failed ? MB_ICONERROR : MB_ICONINFORMATION));
 }
 
 static void
 PerformWeGlideUpload(FileMultiSelectWidget *file_widget)
 {
-  if (!IsWeGlideConfigured()) {
+  if (!CommonInterface::GetComputerSettings().weglide.IsConfigured()) {
     ShowMessageBox(_("WeGlide is not configured. Please set your pilot ID and birthdate in the settings."),
                    _("WeGlide Upload"), MB_OK | MB_ICONERROR);
     return;
@@ -234,7 +230,7 @@ struct FlightContainer : public PropertyWidgetContainer {
 
   explicit FlightContainer(MultiFileDataField &df)
     : PropertyWidgetContainer(_("Target")),
-      file_list(std::make_unique<FileMultiSelectWidget>(df, nullptr, _("Flights"), nullptr))
+      file_list(std::make_unique<FileMultiSelectWidget>(df, nullptr, C_("Setting", "Flights"), nullptr))
   {
     file_metadata.Build(df.GetAllPaths());
     file_list->SetSecondRightProvider([this](const FileMultiSelectWidget::FileItem &it) noexcept {
@@ -365,7 +361,7 @@ ShowExportFlightsDialog()
   const DialogLook &look = UIGlobals::GetDialogLook();
 
   WidgetDialog dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
-                      look, _("Export flights"));
+                      look, C_("Menu", "Export flights"));
 
   /**
    * Prepare MultiFileDataField with available log files from the XCSoar
@@ -389,17 +385,17 @@ ShowExportFlightsDialog()
     }
   }
 
-  dialog.AddButton(_("Choose location"), [&flight_container]() {
+  dialog.AddButton(C_("Button", "Choose location"), [&flight_container]() {
     PickStorageLocationAndApply([&flight_container](AllocatedPath chosen) {
       flight_container.SetTargetDevice(std::move(chosen));
     });
   });
 
   dialog.AddButton(_("WeGlide Upload"), [&file_list]() { PerformWeGlideUpload(&file_list); });
-  dialog.AddButton(_("Export"), [&file_list]() { PerformExport(&file_list); });
-  dialog.AddButton(_("Select all"), [&file_list]() { file_list.SelectAll(); });
-  dialog.AddButton(_("Select none"), [&file_list]() { file_list.ClearSelection(); });
-  dialog.AddButton(_("Back"), mrCancel);
+  dialog.AddButton(C_("Button", "Export"), [&file_list]() { PerformExport(&file_list); });
+  dialog.AddButton(C_("Button", "Select all"), [&file_list]() { file_list.SelectAll(); });
+  dialog.AddButton(C_("Button", "Select none"), [&file_list]() { file_list.ClearSelection(); });
+  dialog.AddButton(C_("Button", "Back"), mrCancel);
 
   dialog.FinishPreliminary(std::move(container));
   dialog.ShowModal();

@@ -8,8 +8,6 @@
 #include "Profile/InfoBoxConfig.hpp"
 #include "Form/Button.hpp"
 #include "Interface.hpp"
-#include "InfoBoxes/InfoBoxManager.hpp"
-#include "InfoBoxes/InfoBoxLayout.hpp"
 #include "Widget/RowFormWidget.hpp"
 #include "Language/Language.hpp"
 #include "UIGlobals.hpp"
@@ -40,7 +38,7 @@ InfoBoxesConfigPanel::OnAction(int id) noexcept
     dlgConfigInfoboxesShowModal(UIGlobals::GetMainWindow(),
                                 UIGlobals::GetDialogLook(),
                                 UIGlobals::GetLook().info_box,
-                                InfoBoxManager::layout.geometry, data,
+                                settings.geometry, data,
                                 i >= InfoBoxSettings::PREASSIGNED_PANELS);
   if (changed) {
     Profile::Save(Profile::map, data, i);

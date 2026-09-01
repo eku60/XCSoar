@@ -24,8 +24,6 @@
 using namespace std::chrono;
 
 enum ControlIndex {
-  UIScale,
-  CustomDPI,
   InputFile,
 #ifdef HAVE_NLS
   LanguageFile,
@@ -75,33 +73,6 @@ InterfaceConfigPanel::Prepare(ContainerWindow &parent,
   const UISettings &settings = CommonInterface::GetUISettings();
 
   RowFormWidget::Prepare(parent, rc);
-
-  AddInteger(_("Text size"),
-             nullptr,
-             "%d %%", "%d", 75, 200, 5,
-             settings.scale);
-
-  WndProperty *wp_dpi = AddEnum(_("Display Resolution"),
-                                _("The display resolution is used to adapt line widths, "
-                                  "font size, landable size and more."));
-  if (wp_dpi != nullptr) {
-    static constexpr unsigned dpi_choices[] = {
-      120, 160, 240, 260, 280, 300, 340, 360, 400, 420, 520,
-    };
-    const unsigned *dpi_choices_end =
-      dpi_choices + sizeof(dpi_choices) / sizeof(dpi_choices[0]);
-
-    DataFieldEnum &df = *(DataFieldEnum *)wp_dpi->GetDataField();
-    df.AddChoice(0, _("Automatic"));
-    for (const unsigned *dpi = dpi_choices; dpi != dpi_choices_end; ++dpi) {
-      StaticString<20> buffer;
-      buffer.Format(_("%u dpi"), *dpi);
-      df.AddChoice(*dpi, buffer);
-    }
-    df.SetValue(settings.custom_dpi);
-    wp_dpi->RefreshDisplay();
-  }
-  SetExpertRow(CustomDPI);
 
   AddFile(_("Events"),
           _("The Input Events file defines the menu system and how XCSoar responds to "
@@ -193,7 +164,7 @@ InterfaceConfigPanel::Prepare(ContainerWindow &parent,
   bool hide_quick_guide = false;
   Profile::Get(ProfileKeys::HideQuickGuideDialogOnStartup,
                hide_quick_guide);
-  AddBoolean(_("Show Quick Guide"),
+  AddBoolean(C_("Setting", "Show Quick Guide"),
              _("If enabled, the Quick Guide is shown when XCSoar starts."),
              !hide_quick_guide);
 
@@ -201,7 +172,7 @@ InterfaceConfigPanel::Prepare(ContainerWindow &parent,
     Profile::Get(ProfileKeys::LastSeenNewsVersion);
   const bool news_seen = last_seen_news != nullptr &&
     StringIsEqual(last_seen_news, XCSoar_Version);
-  AddBoolean(_("Show release notes"),
+  AddBoolean(C_("Setting", "Show release notes"),
              _("If enabled, the What's New page is shown on the next "
                "startup."),
              !news_seen);
@@ -232,14 +203,6 @@ InterfaceConfigPanel::Save(bool &_changed) noexcept
   UISettings &settings = CommonInterface::SetUISettings();
   bool changed = false;
 
-  if (SaveValueInteger(UIScale, ProfileKeys::UIScale,
-                       settings.scale))
-    require_restart = changed = true;
-
-  if (SaveValueEnum(CustomDPI, ProfileKeys::CustomDPI,
-                    settings.custom_dpi))
-    require_restart = changed = true;
-
   if (SaveValueFileReader(InputFile, ProfileKeys::InputFile))
     require_restart = changed = true;
 
@@ -248,10 +211,15 @@ InterfaceConfigPanel::Save(bool &_changed) noexcept
   if (wp != nullptr) {
     DataFieldEnum &df = *(DataFieldEnum *)wp->GetDataField();
 
+    /* Use AllocatedPath here: Path::empty() null-dereferences, while
+       AllocatedPath::empty() is safe. Missing / empty LanguageFile means
+       automatic — same as ReadLanguageFile(); do not persist "auto" just
+       because the key was absent (#1793). */
     const auto old_value_buffer = Profile::GetPath(ProfileKeys::LanguageFile);
-    Path old_value = old_value_buffer;
-    if (old_value == nullptr)
-      old_value = Path("");
+    const bool old_is_auto =
+      old_value_buffer == nullptr || old_value_buffer.empty() ||
+      old_value_buffer == Path("auto");
+    Path old_value = old_is_auto ? Path("auto") : Path(old_value_buffer);
 
     auto old_base = old_value.GetBase();
     if (old_base == nullptr)

@@ -7,7 +7,9 @@
 #include "Interface.hpp"
 #include "ActionInterface.hpp"
 #include "MainWindow.hpp"
+#include "util/ScopeExit.hxx"
 #include "CrossSection/CrossSectionWidget.hpp"
+#include "DataGlobals.hpp"
 #include "Dialogs/Weather/WeatherDialog.hpp"
 #include "InfoBoxes/InfoBoxSettings.hpp"
 #include "Pan.hpp"
@@ -17,18 +19,20 @@
 #include "Components.hpp"
 #include "Weather/MapOverlay/ControlsFactory.hpp"
 #include "Weather/MapOverlay/ControlsWidget.hpp"
-#include "Weather/MapOverlay/PagePlacement.hpp"
 #include "Weather/Rasp/FieldControls.hpp"
-#include "Profile/Current.hpp"
-#include "Profile/PageProfile.hpp"
 #ifdef HAVE_DOWNLOAD_MANAGER
 #include "Weather/Rasp/DownloadGlue.hpp"
 #endif
 #ifdef HAVE_EDL
+#include "Weather/EDL/FieldControls.hpp"
 #include "Weather/EDL/Glue.hpp"
+#include "Weather/EDL/Levels.hpp"
 #include "Weather/EDL/StateController.hpp"
 #endif
 #ifdef HAVE_HTTP
+#include "Weather/SkySight/FieldControls.hpp"
+#include "Weather/SkySight/SkySightClient.hpp"
+#include "Weather/xctherm/FieldControls.hpp"
 #include "Weather/xctherm/XCThermMapOverlay.hpp"
 #endif
 
@@ -64,18 +68,16 @@ namespace PageActions {
   static void LeaveRaspOverlay() noexcept;
   static void LeaveEdlOverlay() noexcept;
   static void LeaveXcthermOverlay() noexcept;
+  static void LeaveSkySightOverlay() noexcept;
 
   static void LeaveWeatherOverlayPage(const PageLayout &layout) noexcept;
 
   static void ApplyRaspOverlay(const PageLayout &layout) noexcept;
-  static void ApplyEdlOverlay() noexcept;
-  static void ApplyXcthermOverlay() noexcept;
+  static void ApplyEdlOverlay(const PageLayout &layout) noexcept;
+  static void ApplyXcthermOverlay(const PageLayout &layout) noexcept;
+  static void ApplySkySightOverlay(const PageLayout &layout) noexcept;
 
   static void ApplyPageOverlay(const PageLayout &layout) noexcept;
-
-  static void ResetOverlayCursorSession(PageLayout::Overlay overlay) noexcept;
-  static ConfigureWeatherOverlayResult ConfigureWeatherOverlayPage(
-    PageLayout::Overlay overlay, bool add_new_page, int rasp_field);
 };
 
 const PageLayout &
@@ -98,6 +100,13 @@ PageActions::ClearPageOverlays() noexcept
 #ifdef HAVE_EDL
   if (!weather.edl.session.IsSuspendedForPan())
     EDL::ClearOverlay();
+#endif
+
+#ifdef HAVE_HTTP
+  if (!weather.skysight.IsSuspendedForPan())
+    if (auto skysight = DataGlobals::GetSkySight(); skysight != nullptr)
+      if (!skysight->GetActiveLayerId().empty())
+        skysight->DeactivateLayer();
 #endif
 }
 
@@ -139,6 +148,21 @@ PageActions::LeaveXcthermOverlay() noexcept
 }
 
 void
+PageActions::LeaveSkySightOverlay() noexcept
+{
+#ifdef HAVE_HTTP
+  auto &session = CommonInterface::SetUIState().weather.skysight;
+  if (session.IsSuspendedForPan())
+    return;
+
+  session.LeavePage();
+  if (auto skysight = DataGlobals::GetSkySight(); skysight != nullptr)
+    if (!skysight->GetActiveLayerId().empty())
+      skysight->DeactivateLayer();
+#endif
+}
+
+void
 PageActions::LeaveWeatherOverlayPage(const PageLayout &layout) noexcept
 {
   if (layout.UsesEdlOverlay())
@@ -147,6 +171,8 @@ PageActions::LeaveWeatherOverlayPage(const PageLayout &layout) noexcept
     LeaveRaspOverlay();
   else if (layout.UsesXcthermOverlay())
     LeaveXcthermOverlay();
+  else if (layout.UsesSkySightOverlay())
+    LeaveSkySightOverlay();
 }
 
 void
@@ -154,6 +180,7 @@ PageActions::ApplyRaspOverlay(const PageLayout &layout) noexcept
 {
   WeatherUIState &weather = CommonInterface::SetUIState().weather;
   weather.map = Rasp::GetFieldIndex(layout);
+  Rasp::ApplyTimeFromPageLayout(layout);
 
   if (!weather.time_auto_advance)
     weather.rasp.cursor_initialized = true;
@@ -161,10 +188,11 @@ PageActions::ApplyRaspOverlay(const PageLayout &layout) noexcept
   const bool first_enter = weather.rasp.EnterPage();
 
   if (!weather.rasp.cursor_initialized) {
+    /* Page still uses Auto: resync effective time from GPS. */
     weather.ResetRaspForDedicatedPage();
-  } else if (first_enter) {
-    ActionInterface::ScheduleSendUIState();
   }
+
+  ActionInterface::ScheduleSendUIState();
 
 #ifdef HAVE_DOWNLOAD_MANAGER
   if (!weather.rasp.cursor_initialized || first_enter)
@@ -173,12 +201,23 @@ PageActions::ApplyRaspOverlay(const PageLayout &layout) noexcept
 }
 
 void
-PageActions::ApplyEdlOverlay() noexcept
+PageActions::ApplyEdlOverlay(const PageLayout &layout) noexcept
 {
 #ifdef HAVE_EDL
   auto &edl = CommonInterface::SetUIState().weather.edl;
-  if (!edl.forecast_auto_advance || !edl.level_auto_advance)
-    edl.session.cursor_initialized = true;
+  EDL::ApplyTimeFromPageLayout(layout);
+
+  if (layout.edl_isobar > 0 &&
+      EDL::IsSupportedIsobar(unsigned(layout.edl_isobar))) {
+    edl.SelectIsobar(unsigned(layout.edl_isobar));
+    edl.level_auto_advance = false;
+  } else {
+    edl.level_auto_advance = true;
+    EDL::UpdateCurrentLevel();
+  }
+
+  edl.session.cursor_initialized =
+    !edl.forecast_auto_advance || !edl.level_auto_advance;
 
   const bool first_enter = edl.session.EnterPage();
 
@@ -189,19 +228,39 @@ PageActions::ApplyEdlOverlay() noexcept
     EDL::ApplyOverlayFromSession();
     EDL::RequestOverlayRefresh();
   }
+#else
+  (void)layout;
 #endif
 }
 
 void
-PageActions::ApplyXcthermOverlay() noexcept
+PageActions::ApplyXcthermOverlay(const PageLayout &layout) noexcept
 {
   auto &xctherm = CommonInterface::SetUIState().weather.xctherm;
   const bool first_enter = xctherm.EnterPage();
 #ifdef HAVE_HTTP
-  if (!xctherm.cursor_initialized)
+  XCTherm::ApplyCursorFromPageLayout(layout);
+  if (first_enter)
     XCTherm::ActivatePageOverlay();
-  else if (first_enter)
+  else
     XCTherm::ApplyCursorOverlayFromSession();
+#else
+  (void)layout;
+  (void)first_enter;
+#endif
+}
+
+void
+PageActions::ApplySkySightOverlay(const PageLayout &layout) noexcept
+{
+#ifdef HAVE_HTTP
+  auto &session = CommonInterface::SetUIState().weather.skysight;
+  session.cursor_initialized =
+    layout.skysight_time != PageLayout::SKYSIGHT_TIME_AUTO;
+  session.EnterPage();
+  SkySight::ApplyCursorFromPageLayout(layout);
+#else
+  (void)layout;
 #endif
 }
 
@@ -217,6 +276,8 @@ PageActions::SuspendWeatherOverlaysForPan() noexcept
     weather.rasp.SuspendForPan();
   if (layout.UsesXcthermOverlay())
     weather.xctherm.SuspendForPan();
+  if (layout.UsesSkySightOverlay())
+    weather.skysight.SuspendForPan();
 }
 
 void
@@ -226,11 +287,26 @@ PageActions::ResumeWeatherOverlaysAfterPan() noexcept
   weather.edl.session.ResumeAfterPan();
   weather.rasp.ResumeAfterPan();
   weather.xctherm.ResumeAfterPan();
+  weather.skysight.ResumeAfterPan();
 }
 
 void
 PageActions::ApplyPageOverlay(const PageLayout &layout) noexcept
 {
+  /*
+   * Update() may reload a page after its layout was edited in place.  In
+   * that case, LeavePage() has not seen the old overlay, so retire any
+   * stale overlay session before applying the replacement.
+   */
+  if (!layout.UsesRaspOverlay())
+    LeaveRaspOverlay();
+  if (!layout.UsesEdlOverlay())
+    LeaveEdlOverlay();
+  if (!layout.UsesXcthermOverlay())
+    LeaveXcthermOverlay();
+  if (!layout.UsesSkySightOverlay())
+    LeaveSkySightOverlay();
+
   ClearPageOverlays();
 
   switch (layout.overlay) {
@@ -242,11 +318,15 @@ PageActions::ApplyPageOverlay(const PageLayout &layout) noexcept
     break;
 
   case PageLayout::Overlay::EDL:
-    ApplyEdlOverlay();
+    ApplyEdlOverlay(layout);
     break;
 
   case PageLayout::Overlay::XCTHERM:
-    ApplyXcthermOverlay();
+    ApplyXcthermOverlay(layout);
+    break;
+
+  case PageLayout::Overlay::SKYSIGHT:
+    ApplySkySightOverlay(layout);
     break;
 
   case PageLayout::Overlay::MAX:
@@ -476,7 +556,7 @@ LoadBottom(const PageLayout &layout)
     break;
 
   case PageLayout::Bottom::WEATHER_CONTROLS:
-    if (auto model = WeatherMapOverlay::CreateControlsModel(layout.overlay)) {
+    if (auto model = WeatherMapOverlay::CreateControlsModel(layout)) {
       CommonInterface::main_window->SetBottomWidget(
         new WeatherMapOverlay::ControlsWidget(std::move(model)));
       break;
@@ -523,6 +603,12 @@ PageActions::LoadLayout(const PageLayout &layout)
   PageLayout active = layout;
   active.Normalise();
 
+  /* InfoBoxes and the bottom widget each resize the map; coalesce so
+     the map jumps once to the final rectangle. */
+  auto &main_window = *CommonInterface::main_window;
+  main_window.BeginCoalesceMapLayout();
+  AtScopeExit(&main_window) { main_window.EndCoalesceMapLayout(); };
+
   DisablePan();
 
   LoadInfoBoxes(active.infobox_config);
@@ -535,8 +621,7 @@ PageActions::LoadLayout(const PageLayout &layout)
 
   ActionInterface::UpdateDisplayMode();
   ActionInterface::SendUIState(false);
-  if (CommonInterface::main_window != nullptr)
-    CommonInterface::main_window->ScheduleRefreshInfoBoxes();
+  main_window.ScheduleRefreshInfoBoxes();
 }
 
 void
@@ -671,84 +756,16 @@ PageActions::SetCustomBottom(Widget *widget)
   CommonInterface::main_window->SetBottomWidget(widget);
 }
 
-void
-PageActions::ResetOverlayCursorSession(PageLayout::Overlay overlay) noexcept
+bool
+PageActions::AllowMapOverlayButtons() noexcept
 {
-  auto &weather = CommonInterface::SetUIState().weather;
+  const PageLayout &special_page =
+    CommonInterface::GetUIState().pages.special_page;
+  if (!special_page.IsDefined())
+    return true;
 
-  switch (overlay) {
-  case PageLayout::Overlay::NONE:
-  case PageLayout::Overlay::MAX:
-    break;
-
-  case PageLayout::Overlay::RASP:
-    weather.rasp.cursor_initialized = false;
-    break;
-
-  case PageLayout::Overlay::EDL:
-    weather.edl.session.cursor_initialized = false;
-    break;
-
-  case PageLayout::Overlay::XCTHERM:
-    weather.xctherm.cursor_initialized = false;
-    break;
-  }
-}
-
-PageActions::ConfigureWeatherOverlayResult
-PageActions::ConfigureWeatherOverlayPage(PageLayout::Overlay overlay,
-                                         bool add_new_page,
-                                         int rasp_field)
-{
-  auto &settings = CommonInterface::SetUISettings().pages;
-  auto &pages = CommonInterface::SetUIState().pages;
-  if (settings.n_pages == 0)
-    return ConfigureWeatherOverlayResult::NO_CONFIGURED_PAGE;
-
-  if (pages.current_index >= settings.n_pages)
-    pages.current_index = 0;
-
-  unsigned target_page_index = pages.current_index;
-  ConfigureWeatherOverlayResult result =
-    ConfigureWeatherOverlayResult::APPLIED_CURRENT;
-  const bool current_is_map_main =
-    settings.pages[pages.current_index].IsMapMain();
-
-  /* Preserve non-map pages: "add to page" should not rewrite a task/list page
-     into a map page; create a new weather page instead. */
-  if (add_new_page || !current_is_map_main) {
-    const auto add_result = WeatherMapOverlay::AddWeatherOverlayPage(
-      settings, pages.current_index, overlay, target_page_index, rasp_field);
-    if (add_result == WeatherMapOverlay::AddPageResult::PAGE_LIMIT_REACHED)
-      return ConfigureWeatherOverlayResult::PAGE_LIMIT_REACHED;
-    if (add_result != WeatherMapOverlay::AddPageResult::SUCCESS)
-      return ConfigureWeatherOverlayResult::NO_CONFIGURED_PAGE;
-
-    result = ConfigureWeatherOverlayResult::ADDED_PAGE;
-  } else if (!WeatherMapOverlay::ApplyWeatherOverlayToPage(
-               settings, pages.current_index, overlay, rasp_field))
-    return ConfigureWeatherOverlayResult::NO_CONFIGURED_PAGE;
-
-  pages.current_index = target_page_index;
-  pages.special_page.SetUndefined();
-  ResetOverlayCursorSession(overlay);
-
-  Profile::Save(Profile::map, settings);
-  Update();
-
-  return result;
-}
-
-PageActions::ConfigureWeatherOverlayResult
-PageActions::AddWeatherOverlayToCurrentPage(PageLayout::Overlay overlay,
-                                            int rasp_field)
-{
-  return ConfigureWeatherOverlayPage(overlay, false, rasp_field);
-}
-
-PageActions::ConfigureWeatherOverlayResult
-PageActions::AddWeatherOverlayToNewPage(PageLayout::Overlay overlay,
-                                        int rasp_field)
-{
-  return ConfigureWeatherOverlayPage(overlay, true, rasp_field);
+  /* SetCustomBottom() marks special_page so RestoreBottom() can undo
+     it; the map remains active and overlay buttons should stay. */
+  return special_page.IsMapMain() &&
+    special_page.bottom == PageLayout::Bottom::CUSTOM;
 }

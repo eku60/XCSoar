@@ -4,10 +4,10 @@ MORE_SCREEN_SOURCES = \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
 	$(SRC)/Look/FontDescription.cpp \
 	$(SRC)/Screen/Layout.cpp \
-	$(SRC)/Hardware/DisplayDPI.cpp
+	$(SRC)/Hardware/DisplayDPI.cpp \
+	$(SRC)/Hardware/CPU.cpp
 ifeq ($(TARGET_IS_KOBO),y)
 MORE_SCREEN_SOURCES += \
-	$(SRC)/Hardware/CPU.cpp \
 	$(SRC)/Hardware/RotateDisplay.cpp
 endif
 
@@ -79,7 +79,7 @@ TEST_NAMES = \
 	test_task \
 	TestInputTransformMode \
 	TestOverwritingRingBuffer \
-	TestDateTime TestISO8601 TestRoughTime TestWrapClock \
+	TestDateTime TestISO8601 TestRoughTime TestRoughSpeed TestWrapClock \
 	TestPolylineDecoder \
 	TestTransponderCode \
 	TestMath \
@@ -90,12 +90,14 @@ TEST_NAMES = \
 	TestValidity TestUTM \
 	TestAllocatedGrid \
 	TestRadixTree TestGeoBounds TestGeoClip \
-	TestLogger TestGRecord TestClimbAvCalc TestFilteredVarioComputer \
+	TestLogger TestGRecord TestClimbAvCalc TestCirclingWind \
+	TestFilteredVarioComputer \
 	TestVarioSynthesiser TestAudioVario \
 	TestWaypointReader TestThermalBase \
 	TestFlarmNet TestFlarmMessaging \
 	TestColorRamp TestXCThermBandQuery TestGeoPoint TestDiffFilter \
 	TestFileUtil TestRepository TestFileType TestPath TestPolars TestCSVLine TestGlidePolar \
+	TestLXNAVPolarConversion \
 	test_replay_task TestProjection TestFlatPoint TestFlatLine TestFlatGeoPoint \
 	TestMacCready TestOrderedTask TestAATPoint TestTaskSave \
 	TestTaskFileSeeYouParsing \
@@ -121,6 +123,8 @@ TEST_NAMES = \
 	TestFileMetadataFormatter \
 	TestIGCFilenameFormatter \
 	TestNMEAFormatter \
+	TestGDL90 \
+	TestGDL90Driver \
 	TestLXNToIGC \
 	TestLeastSquares \
 	TestHexString \
@@ -179,6 +183,24 @@ TEST_CRC8_SOURCES = \
 	$(TEST_SRC_DIR)/TestCRC8.cpp
 $(eval $(call link-program,TestCRC8,TEST_CRC8))
 
+TEST_GDL90_SOURCES = \
+	$(SRC)/util/CRC16CCITT.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestGDL90.cpp
+$(eval $(call link-program,TestGDL90,TEST_GDL90))
+
+TEST_GDL90_DRIVER_SOURCES = \
+	$(SRC)/util/CRC16CCITT.cpp \
+	$(SRC)/Atmosphere/AirDensity.cpp \
+	$(SRC)/Computer/ClimbAverageCalculator.cpp \
+	$(TEST_SRC_DIR)/FakeFlarmGlue.cpp \
+	$(TEST_SRC_DIR)/FakeGeoidNonZero.cpp \
+	$(TEST_SRC_DIR)/FakeLanguage.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestGDL90Driver.cpp
+TEST_GDL90_DRIVER_DEPENDS = DRIVER NMEA FLARM GLIDE GEO TIME MATH UTIL UNITS
+$(eval $(call link-program,TestGDL90Driver,TEST_GDL90_DRIVER))
+
 TEST_LEASTSQUARES_SOURCES = \
 	$(SRC)/Math/LeastSquares.cpp \
 	$(SRC)/Math/XYDataStore.cpp \
@@ -224,6 +246,46 @@ TEST_WEATHER_UI_STATE_SOURCES = \
 TEST_WEATHER_UI_STATE_DEPENDS = TIME UTIL
 $(eval $(call link-program,TestWeatherUIState,TEST_WEATHER_UI_STATE))
 
+TEST_NAMES += TestSkySightForecastUtils
+
+TEST_SKYSIGHT_FORECAST_UTILS_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestSkySightForecastUtils.cpp
+TEST_SKYSIGHT_FORECAST_UTILS_DEPENDS = TIME UTIL
+$(eval $(call link-program,TestSkySightForecastUtils,TEST_SKYSIGHT_FORECAST_UTILS))
+
+TEST_NAMES += TestSkySightLegendMapping
+
+TEST_SKYSIGHT_LEGEND_MAPPING_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestSkySightLegendMapping.cpp
+TEST_SKYSIGHT_LEGEND_MAPPING_DEPENDS = TIME UTIL
+$(eval $(call link-program,TestSkySightLegendMapping,TEST_SKYSIGHT_LEGEND_MAPPING))
+
+TEST_NAMES += TestSkySightRegionTime
+
+TEST_SKYSIGHT_REGION_TIME_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestSkySightRegionTime.cpp
+TEST_SKYSIGHT_REGION_TIME_DEPENDS = TIME UTIL
+$(eval $(call link-program,TestSkySightRegionTime,TEST_SKYSIGHT_REGION_TIME))
+
+TEST_NAMES += TestSkySightRequestPolicy
+
+TEST_SKYSIGHT_REQUEST_POLICY_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestSkySightRequestPolicy.cpp
+TEST_SKYSIGHT_REQUEST_POLICY_DEPENDS = TIME UTIL
+$(eval $(call link-program,TestSkySightRequestPolicy,TEST_SKYSIGHT_REQUEST_POLICY))
+
+TEST_NAMES += TestSkySightLiveTileUtils
+
+TEST_SKYSIGHT_LIVE_TILE_UTILS_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestSkySightLiveTileUtils.cpp
+TEST_SKYSIGHT_LIVE_TILE_UTILS_DEPENDS = TIME UTIL
+$(eval $(call link-program,TestSkySightLiveTileUtils,TEST_SKYSIGHT_LIVE_TILE_UTILS))
+
 TEST_NAMES += TestWeatherOverlayPagePlacement
 
 TEST_WEATHER_OVERLAY_PAGE_PLACEMENT_SOURCES = \
@@ -258,6 +320,10 @@ TEST_NOTAM_SOURCES = \
 	$(SRC)/NOTAM/Delta.cpp \
 	$(SRC)/NOTAM/NOTAMCache.cpp \
 	$(SRC)/NOTAM/Filter.cpp \
+	$(SRC)/Profile/Map.cpp \
+	$(SRC)/Profile/NotamConfig.cpp \
+	$(SRC)/Profile/NumericValue.cpp \
+	$(SRC)/Profile/StringValue.cpp \
 	$(SRC)/Repository/FileType.cpp \
 	$(TEST_SRC_DIR)/FakeLocalPath.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -331,6 +397,12 @@ TEST_ROUGH_TIME_SOURCES = \
 TEST_ROUGH_TIME_DEPENDS = MATH TIME
 $(eval $(call link-program,TestRoughTime,TEST_ROUGH_TIME))
 
+TEST_ROUGH_SPEED_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestRoughSpeed.cpp
+TEST_ROUGH_SPEED_DEPENDS = MATH
+$(eval $(call link-program,TestRoughSpeed,TEST_ROUGH_SPEED))
+
 TEST_WRAP_CLOCK_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestWrapClock.cpp
@@ -339,9 +411,14 @@ $(eval $(call link-program,TestWrapClock,TEST_WRAP_CLOCK))
 
 TEST_PROFILE_SOURCES = \
 	$(SRC)/LocalPath.cpp \
+	$(SRC)/PageSettings.cpp \
+	$(SRC)/Profile/PageProfile.cpp \
 	$(SRC)/Profile/Profile.cpp \
+	$(SRC)/Profile/WeatherProfile.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(TEST_SRC_DIR)/FakeLanguage.cpp \
+	$(TEST_SRC_DIR)/PageOverlayTitleStub.cpp \
 	$(TEST_SRC_DIR)/TestProfile.cpp
 TEST_PROFILE_DEPENDS = PROFILE MATH IO OS UTIL
 $(eval $(call link-program,TestProfile,TEST_PROFILE))
@@ -575,6 +652,15 @@ TEST_CLIMB_AV_CALC_SOURCES = \
 TEST_CLIMB_AV_CALC_DEPENDS = MATH
 $(eval $(call link-program,TestClimbAvCalc,TEST_CLIMB_AV_CALC))
 
+TEST_CIRCLING_WIND_SOURCES = \
+	$(SRC)/Computer/Wind/CirclingWind.cpp \
+	$(SRC)/Atmosphere/AirDensity.cpp \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestCirclingWind.cpp
+TEST_CIRCLING_WIND_DEPENDS = LIBNMEA GEO MATH UTIL TIME FMT UNITS
+$(eval $(call link-program,TestCirclingWind,TEST_CIRCLING_WIND))
+
 TEST_FILTERED_VARIO_COMPUTER_SOURCES = \
 	$(SRC)/Atmosphere/AirDensity.cpp \
 	$(SRC)/Computer/FilteredVarioComputer.cpp \
@@ -632,14 +718,13 @@ $(eval $(call link-program,TestByteSizeFormatter,TEST_BYTE_SIZE_FORMATTER))
 TEST_FILE_METADATA_FORMATTER_SOURCES = \
 	$(SRC)/Formatter/ByteSizeFormatter.cpp \
 	$(SRC)/Formatter/TimeFormatter.cpp \
-	$(SRC)/system/FileUtil.cpp \
-	$(SRC)/system/Path.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestFileMetadataFormatter.cpp
-TEST_FILE_METADATA_FORMATTER_DEPENDS = MATH UTIL TIME
+TEST_FILE_METADATA_FORMATTER_DEPENDS = MATH UTIL TIME OS
 $(eval $(call link-program,TestFileMetadataFormatter,TEST_FILE_METADATA_FORMATTER))
 
 TEST_TIME_FORMATTER_SOURCES = \
+	$(SRC)/Formatter/LocalTimeFormatter.cpp \
 	$(SRC)/Formatter/TimeFormatter.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestTimeFormatter.cpp
@@ -702,9 +787,8 @@ $(eval $(call link-program,TestWrapText,TEST_WRAP_TEXT))
 ifeq ($(HAVE_WIN32),y)
 TEST_UTF8WIN_SOURCES = \
 	$(TEST_SRC_DIR)/tap.c \
-	$(TEST_SRC_DIR)/TestUTF8Win.cpp \
-	$(SRC)/ui/canvas/gdi/UTF8Win.cpp
-TEST_UTF8WIN_DEPENDS = UTIL
+	$(TEST_SRC_DIR)/TestUTF8Win.cpp
+TEST_UTF8WIN_DEPENDS = IO OS UTIL
 $(eval $(call link-program,TestUTF8Win,TEST_UTF8WIN))
 endif
 
@@ -747,12 +831,16 @@ TEST_GLIDE_POLAR_SOURCES = \
 TEST_GLIDE_POLAR_DEPENDS = GEO MATH IO UNITS
 $(eval $(call link-program,TestGlidePolar,TEST_GLIDE_POLAR))
 
+TEST_LXNAV_POLAR_CONVERSION_SOURCES = \
+	$(TEST_SRC_DIR)/tap.c \
+	$(TEST_SRC_DIR)/TestLXNAVPolarConversion.cpp
+TEST_LXNAV_POLAR_CONVERSION_DEPENDS = MATH UTIL GLIDE
+$(eval $(call link-program,TestLXNAVPolarConversion,TEST_LXNAV_POLAR_CONVERSION))
+
 TEST_FILE_UTIL_SOURCES = \
-	$(SRC)/system/FileUtil.cpp \
-	$(SRC)/system/Path.cpp \
 	$(TEST_SRC_DIR)/tap.c \
 	$(TEST_SRC_DIR)/TestFileUtil.cpp
-TEST_FILE_UTIL_DEPENDS = UTIL
+TEST_FILE_UTIL_DEPENDS = OS UTIL
 $(eval $(call link-program,TestFileUtil,TEST_FILE_UTIL))
 
 TEST_PATH_SOURCES = \
@@ -1091,7 +1179,7 @@ DEBUG_PROGRAM_NAMES += \
 	FlightPath \
 	ReadProfileString ReadProfileInt \
 	KeyCodeDumper \
-	ReadPort RunPortHandler LogPort \
+	ReadPort RunPortHandler LogPort RunLXNAVPolarEcho \
 	SplicePorts \
 	RunDeviceDriver RunDeclare RunFlightList RunDownloadFlight \
 	RunEnableNMEA \
@@ -1538,6 +1626,7 @@ $(eval $(call link-program,EnumeratePorts,ENUMERATE_PORTS))
 
 READ_PORT_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Config.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -1549,6 +1638,7 @@ $(eval $(call link-program,ReadPort,READ_PORT))
 
 RUN_PORT_HANDLER_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Config.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -1560,6 +1650,7 @@ $(eval $(call link-program,RunPortHandler,RUN_PORT_HANDLER))
 
 LOG_PORT_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Config.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -1570,8 +1661,24 @@ LOG_PORT_SOURCES = \
 LOG_PORT_DEPENDS = PORT ASYNC LIBNET OPERATION IO OS THREAD TIME UTIL
 $(eval $(call link-program,LogPort,LOG_PORT))
 
+RUN_LXNAV_POLAR_ECHO_SOURCES = \
+	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
+	$(SRC)/Device/Config.cpp \
+	$(SRC)/Device/Util/NMEAWriter.cpp \
+	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
+	$(SRC)/Version.cpp \
+	$(SRC)/system/StandardVersion.cpp \
+	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(TEST_SRC_DIR)/FakeLanguage.cpp \
+	$(TEST_SRC_DIR)/DebugPort.cpp \
+	$(TEST_SRC_DIR)/RunLXNAVPolarEcho.cpp
+RUN_LXNAV_POLAR_ECHO_DEPENDS = PORT ASYNC LIBNET OPERATION IO OS THREAD TIME UTIL MATH GLIDE EVENT
+$(eval $(call link-program,RunLXNAVPolarEcho,RUN_LXNAV_POLAR_ECHO))
+
 SPLICE_PORTS_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Config.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -1722,6 +1829,7 @@ RUN_FLIGHT_LIST_SOURCES = \
 	$(TEST_SRC_DIR)/FakeMessage.cpp \
 	$(TEST_SRC_DIR)/FakeDialogs.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(TEST_SRC_DIR)/FakeGeoid.cpp \
 	$(TEST_SRC_DIR)/DebugPort.cpp \
 	$(TEST_SRC_DIR)/RunFlightList.cpp
 RUN_FLIGHT_LIST_DEPENDS = DRIVER PORT LIBNMEA ASYNC LIBNET OPERATION IO OS THREAD GEO TIME MATH UTIL
@@ -1745,6 +1853,7 @@ RUN_DOWNLOAD_FLIGHT_SOURCES = \
 	$(TEST_SRC_DIR)/FakeMessage.cpp \
 	$(TEST_SRC_DIR)/FakeDialogs.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
+	$(TEST_SRC_DIR)/FakeGeoid.cpp \
 	$(TEST_SRC_DIR)/DebugPort.cpp \
 	$(TEST_SRC_DIR)/RunDownloadFlight.cpp
 RUN_DOWNLOAD_FLIGHT_DEPENDS = DRIVER PORT ASYNC LIBNMEA LIBNET OPERATION IO OS THREAD GEO TIME MATH UTIL
@@ -2091,7 +2200,9 @@ RUN_MAP_WINDOW_SOURCES = \
 	$(SRC)/Weather/Rasp/RaspStore.cpp \
 	$(SRC)/Weather/Rasp/RaspCache.cpp \
 	$(SRC)/Weather/Rasp/RaspRenderer.cpp \
+	$(SRC)/Weather/Rasp/ColorMap.cpp \
 	$(SRC)/Weather/Rasp/RaspStyle.cpp \
+	$(SRC)/Weather/Rasp/RaspStylesData.cpp \
 	$(SRC)/Renderer/FAITriangleAreaRenderer.cpp \
 	$(SRC)/Renderer/OZRenderer.cpp \
 	$(SRC)/Renderer/TaskRenderer.cpp \
@@ -2181,6 +2292,11 @@ RUN_MAP_WINDOW_SOURCES += \
 	$(SRC)/Profile/NotamConfig.cpp \
 	$(SRC)/Weather/NOAAGlue.cpp \
 	$(SRC)/Weather/NOAAStore.cpp
+endif
+
+ifeq ($(HAVE_HTTP),y)
+RUN_MAP_WINDOW_SOURCES += \
+	$(TEST_SRC_DIR)/FakeSkySight.cpp
 endif
 
 RUN_MAP_WINDOW_DEPENDS = \
@@ -2624,6 +2740,7 @@ RUN_AIRSPACE_WARNING_DIALOG_SOURCES = \
 	$(SRC)/Look/CheckBoxLook.cpp \
 	$(SRC)/Renderer/TwoTextRowsRenderer.cpp \
 	$(SRC)/Renderer/AirspacePreviewRenderer.cpp \
+	$(SRC)/Renderer/AirspaceWarningStatusRenderer.cpp \
 	$(SRC)/Renderer/AirspaceRendererSettings.cpp \
 	$(SRC)/Projection/Projection.cpp \
 	$(SRC)/Projection/WindowProjection.cpp \
@@ -2767,6 +2884,7 @@ $(eval $(call link-program,TestNotify,TEST_NOTIFY))
 
 FEED_NMEA_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Config.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -2778,6 +2896,7 @@ $(eval $(call link-program,FeedNMEA,FEED_NMEA))
 
 FEED_VEGA_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Config.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \
@@ -2789,6 +2908,7 @@ $(eval $(call link-program,FeedVega,FEED_VEGA))
 
 EMULATE_DEVICE_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Util/LineSplitter.cpp \
 	$(SRC)/Device/Util/NMEAWriter.cpp \
 	$(SRC)/Device/Util/NMEAReader.cpp \
@@ -2810,6 +2930,7 @@ $(eval $(call link-program,EmulateDevice,EMULATE_DEVICE))
 
 FEED_FLYNET_DATA_SOURCES = \
 	$(SRC)/Device/Port/ConfiguredPort.cpp \
+	$(TEST_SRC_DIR)/FakeSpectateFilePort.cpp \
 	$(SRC)/Device/Config.cpp \
 	$(SRC)/Operation/ConsoleOperationEnvironment.cpp \
 	$(TEST_SRC_DIR)/FakeLogFile.cpp \

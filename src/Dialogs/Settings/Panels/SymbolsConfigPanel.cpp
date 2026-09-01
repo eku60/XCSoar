@@ -65,7 +65,7 @@ SymbolsConfigPanel::OnModified(DataField &df) noexcept
 static constexpr StaticEnumChoice ground_track_mode_list[] = {
   { DisplayGroundTrack::OFF, N_("Off"), N_("Disable display of ground track line.") },
   { DisplayGroundTrack::ON, N_("On"), N_("Always display ground track line.") },
-  { DisplayGroundTrack::AUTO, N_("Auto"), N_("Display ground track line if there is a significant difference to plane heading.") },
+  { DisplayGroundTrack::AUTO, NC_("Setting", "Auto"), N_("Display ground track line if there is a significant difference to plane heading.") },
   nullptr
 };
 
@@ -107,7 +107,7 @@ static constexpr StaticEnumChoice  aircraft_symbol_list[] = {
     N_("Detailed rendered aircraft graphics.") },
   { AircraftSymbol::HANGGLIDER, N_("HangGlider"),
     N_("Simplified hang glider as line graphics, white with black contours.") },
-  { AircraftSymbol::PARAGLIDER, N_("ParaGlider"),
+  { AircraftSymbol::PARAGLIDER, N_("Paraglider"),
     N_("Simplified para glider as line graphics, white with black contours.") },
   nullptr
 };
@@ -136,7 +136,7 @@ SymbolsConfigPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
           _("Display the ground track as a grey line on the map."),
           ground_track_mode_list, (unsigned)settings_map.display_ground_track);
 
-  AddBoolean(_("FLARM traffic"), _("This enables the display of FLARM traffic on the map window."),
+  AddBoolean(_("FLARM Traffic"), _("This enables the display of FLARM traffic on the map window."),
              settings_map.show_flarm_on_map);
 
   AddBoolean(_("Fade traffic"), _("Keep showing traffic for a while after it has disappeared."),
@@ -149,9 +149,9 @@ SymbolsConfigPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
   SetExpertRow(TRAIL_LENGTH);
 
   AddBoolean(_("Trail drift"),
-             _("Determines whether the snail trail is drifted with the wind when displayed in "
-               "circling mode. Switched Off, "
-               "the snail trail stays uncompensated for wind drift."),
+             _("Determines whether the snail trail is drifted with the wind "
+               "when displayed in circling mode at near map scales. Switched "
+               "Off, the snail trail stays uncompensated for wind drift."),
              settings_map.trail.wind_drift_enabled);
   SetExpertRow(TRAIL_DRIFT);
 
@@ -179,12 +179,12 @@ SymbolsConfigPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
           wind_arrow_list, (unsigned)settings_map.wind_arrow_style);
   SetExpertRow(WIND_ARROW_STYLE);
 
-  AddEnum(_("Online traffic on map"),
+  AddEnum(C_("Setting", "Online traffic on map"),
           _("Show traffic from SkyLines and XCSoar Cloud on the map."),
           online_traffic_map_mode_list,
           (unsigned)settings_map.online_traffic_map_mode);
 
-  AddBoolean(_("Distance rings"),
+  AddBoolean(C_("Setting", "Distance rings"),
              _("Display distance rings around the aircraft on the map."),
              settings_map.distance_rings_enabled);
 

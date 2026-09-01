@@ -50,7 +50,7 @@ ManageLXNAVVarioWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[mayb
   if (!info.hardware_version.empty())
     buffer.UnsafeAppendASCII(info.hardware_version.c_str());
   else
-    buffer.SetASCII(_("unknown"));
+    buffer.SetASCII(_("Unknown"));
   AddReadOnly(_("Hardware version"), NULL, buffer.c_str());
 
   if (!info.software_version.empty()) {
@@ -64,7 +64,7 @@ ManageLXNAVVarioWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[mayb
     AddReadOnly(_("License"), NULL, buffer.c_str());
   }
 
-  AddButton(_("Setup"), [this](){
+  AddButton(C_("Button", "Setup"), [this](){
     LXNAVVarioConfigWidget widget(GetLook(), device);
     DefaultWidgetDialog(UIGlobals::GetMainWindow(), GetLook(),
                         "LXNAV Vario", widget);

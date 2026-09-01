@@ -11,14 +11,17 @@
 
 #ifdef ENABLE_OPENGL
 #include "ui/opengl/Features.hpp"
-#include <cstdint>
 #endif
 
 #include "ui/canvas/Features.hpp" // for DRAW_MOUSE_CURSOR
 
+#if defined(ENABLE_OPENGL) || defined(ENABLE_SDL) || \
+  defined(DRAW_REDRAW_COUNTER)
+#include <cstdint>
+#endif
+
 #ifdef DRAW_REDRAW_COUNTER
 #include <chrono>
-#include <cstdint>
 #endif
 
 #ifdef ANDROID
@@ -69,6 +72,7 @@ struct zxdg_toplevel_decoration_v1;
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
+#include <cmath>
 #endif
 
 namespace UI {
@@ -242,6 +246,39 @@ public:
 
   DoubleClick double_click;
 
+#if defined(ENABLE_SDL) && defined(HAVE_MULTI_TOUCH)
+  /**
+   * Number of fingers currently touching the screen.
+   */
+  unsigned touch_fingers = 0;
+
+  /**
+   * Were two or more fingers down during the current touch sequence?
+   */
+  bool touch_multi = false;
+
+  /**
+   * Stable SDL finger ids for the active two-finger gesture.  Indices
+   * into SDL's finger array are not stable across up/down events.
+   */
+  bool touch_pair_valid = false;
+  std::int64_t touch_finger_a = 0;
+  std::int64_t touch_finger_b = 0;
+
+  /**
+   * Is an emulated mouse button release waiting for the last finger to
+   * be lifted?
+   */
+  bool touch_mouse_up_pending = false;
+
+  PixelPoint touch_mouse_up_point{0, 0};
+
+  /**
+   * Deliver a postponed emulated mouse button release, if any.
+   */
+  bool FlushTouchMouseUp() noexcept;
+#endif
+
 #else /* USE_WINUSER */
 
   /**
@@ -261,6 +298,13 @@ public:
   uint32_t GetRenderStateToken() const noexcept {
     return render_state_token;
   }
+
+  /**
+   * Swap-chain depth.  Used to erase an OpenGL gesture trail from
+   * every presentation buffer.
+   */
+  [[gnu::pure]]
+  unsigned GetPresentationBufferCount() const noexcept;
 #endif
 
 #ifdef ANDROID
@@ -361,35 +405,38 @@ public:
   [[gnu::pure]]
   const PixelRect GetClientRect() const noexcept override {
     assert(IsDefined());
-    
-    // Get screen bounds
-    CGRect screenBounds = [UIScreen mainScreen].bounds;
-    // Get screen scale factor. We need to use nativeScale instead of scale
-    // to correctly account for downsampling on mini and Plus devices.
-    CGFloat scale = [UIScreen mainScreen].nativeScale;
-    int width = (int)(screenBounds.size.width * scale);
-    int height = (int)(screenBounds.size.height * scale);
-    
+
+    /* Start from this window's real size (which was derived from the
+       OpenGL drawable) instead of computing the screen size from
+       UIScreen again: two independent conversions from points to
+       pixels can be rounded differently, and a client rect which is
+       one pixel smaller than the framebuffer makes full-screen dialogs
+       look non-maximised. */
+    PixelRect rc = ContainerWindow::GetClientRect();
+
     UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
     if (window == nullptr) {
       // Fallback to full screen if window is not available
-      return PixelRect(0, 0, width, height);
+      return rc;
     }
-    
-    UIEdgeInsets insets = window.safeAreaInsets;
-    insets.top *= scale;
-    insets.left *= scale;
-    insets.bottom *= scale;
-    insets.right *= scale;
 
-    PixelRect result(
-        static_cast<int>(insets.left),
-        static_cast<int>(insets.top),
-        static_cast<int>(width - insets.right),
-        static_cast<int>(height - insets.bottom)
-    );
+    /* Get the scale factor of the screen this window is on.  We need
+       nativeScale instead of scale to correctly account for
+       downsampling on mini and Plus devices; it is also the scale the
+       window size was derived from. */
+    const CGFloat scale = window.screen.nativeScale;
 
-    return result;
+    /* The safe area is expressed in points.  Round the scaled insets
+       instead of truncating them, which would bias them towards being
+       too small. */
+    const UIEdgeInsets insets = window.safeAreaInsets;
+
+    rc.left += (int)std::lround(insets.left * scale);
+    rc.top += (int)std::lround(insets.top * scale);
+    rc.right -= (int)std::lround(insets.right * scale);
+    rc.bottom -= (int)std::lround(insets.bottom * scale);
+
+    return rc;
   }
 #endif
 

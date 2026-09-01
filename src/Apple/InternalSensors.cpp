@@ -6,8 +6,10 @@
 #include "Apple/InternalSensors.hpp"
 #include "Device/SensorListener.hpp"
 #include "Geo/GeoPoint.hpp"
+#include "Language/Language.hpp"
 #include "time/FloatDuration.hxx"
 #include "time/SystemClock.hxx"
+#include "LogFile.hpp"
 
 #include <TargetConditionals.h>
 
@@ -108,7 +110,13 @@
 - (void)locationManager:(CLLocationManager *)manager
     didFailWithError:(NSError *)error
 {
+  LogFmt("CoreLocation failed: domain={} code={} description={}",
+         [[error domain] UTF8String], [error code],
+         [[error localizedDescription] UTF8String]);
   self->listener->OnConnected(0);
+
+  if ([error code] == kCLErrorDenied)
+    self->listener->OnSensorError(_("Location access denied"));
 }
 
 #if TARGET_OS_IPHONE

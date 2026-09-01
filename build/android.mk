@@ -80,10 +80,12 @@ $(MANIFEST_PACKAGE_STAMP): FORCE | $(ANDROID_OUTPUT_DIR)/dirstamp
 		echo "$(MANIFEST_PACKAGE)" > $@.tmp && mv $@.tmp $@; \
 	fi
 
-$(MANIFEST_PROCESSED): $(MANIFEST_TEMPLATE) $(MANIFEST_PACKAGE_STAMP) | $(ANDROID_OUTPUT_DIR)/dirstamp
+$(MANIFEST_PROCESSED): $(MANIFEST_TEMPLATE) $(MANIFEST_PACKAGE_STAMP) $(topdir)/VERSION.txt | $(ANDROID_OUTPUT_DIR)/dirstamp
 	@$(NQ)echo "  PROCESS $@"
 	$(Q)sed -e 's/@PACKAGE_NAME@/$(MANIFEST_PACKAGE)/g' \
 		-e 's|@APP_LABEL@|$(MANIFEST_APP_LABEL)|g' \
+		-e 's/android:versionCode="[0-9][0-9]*"/android:versionCode="$(ANDROID_VERSION_CODE)"/' \
+		-e 's/android:versionName="[^"]*"/android:versionName="$(ANDROID_VERSION_NAME)"/' \
 		$< > $@
 
 NATIVE_CLASSES := \
@@ -307,7 +309,7 @@ $(PNG8a): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics2/%.png | $(DRAWABLE_DIR)/dirst
 	$(Q)cp $< $@
 
 ####### title PNGs with alpha (normal + white)
-PNG8 := $(patsubst $(DATA)/graphics2/%.png,$(DRAWABLE_DIR)/%.png,$(PNG_TITLE_320_RGBA) $(PNG_TITLE_WHITE_320_RGBA) $(PNG_TITLE_WHITE_640_RGBA))
+PNG8 := $(patsubst $(DATA)/graphics2/%.png,$(DRAWABLE_DIR)/%.png,$(PNG_TITLE_110_RGBA) $(PNG_TITLE_320_RGBA) $(PNG_TITLE_640_RGBA) $(PNG_TITLE_WHITE_320_RGBA) $(PNG_TITLE_WHITE_640_RGBA))
 $(PNG8): $(DRAWABLE_DIR)/%.png: $(DATA)/graphics2/%.png | $(DRAWABLE_DIR)/dirstamp
 	$(Q)cp $< $@
 

@@ -48,7 +48,7 @@ TabWidget::Layout::Layout(Orientation orientation, PixelRect rc,
       if (extra_width > max_width)
         extra_width = max_width;
 
-      extra = tab_display.CutLeftSafe(extra_width);
+      extra = tab_display.CutRightSafe(extra_width);
     }
   }
 }
@@ -139,6 +139,20 @@ PixelSize
 TabWidget::GetMaximumSize() const noexcept
 {
   auto size = PagerWidget::GetMaximumSize();
+  if (tab_display != nullptr) {
+    if (tab_display->IsVertical())
+      size.width += tab_display->GetRecommendedColumnWidth();
+    else
+      size.height += tab_display->GetRecommendedRowHeight();
+  }
+
+  return size;
+}
+
+PixelSize
+TabWidget::GetCurrentMaximumSize() const noexcept
+{
+  auto size = GetCurrentWidget().GetMaximumSize();
   if (tab_display != nullptr) {
     if (tab_display->IsVertical())
       size.width += tab_display->GetRecommendedColumnWidth();

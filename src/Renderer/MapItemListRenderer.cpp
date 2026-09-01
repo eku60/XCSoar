@@ -9,17 +9,21 @@
 #include "MapWindow/Items/RaspMapItem.hpp"
 #include "Look/DialogLook.hpp"
 #include "Look/MapLook.hpp"
-#include "Renderer/AircraftRenderer.hpp"
 #include "Renderer/AirspaceListRenderer.hpp"
 #include "Renderer/WaypointListRenderer.hpp"
 #include "Engine/Waypoint/Waypoint.hpp"
 #include "Formatter/UserUnits.hpp"
+#include "Units/Units.hpp"
+#include "Units/System.hpp"
+#include "Units/Descriptor.hpp"
+#include "Units/Unit.hpp"
 #include "Formatter/UserGeoPointFormatter.hpp"
 #include "Formatter/TimeFormatter.hpp"
 #include "Formatter/LocalTimeFormatter.hpp"
 #include "Formatter/AngleFormatter.hpp"
 #include "Dialogs/Task/dlgTaskHelpers.hpp"
 #include "Renderer/OZPreviewRenderer.hpp"
+#include "Renderer/AircraftRenderer.hpp"
 #include "Language/Language.hpp"
 #include "util/StringCompare.hxx"
 #include "util/Macros.hpp"
@@ -195,16 +199,24 @@ static void
 Draw(Canvas &canvas, PixelRect rc,
      const SelfMapItem &item,
      const TwoTextRowsRenderer &row_renderer,
-     const AircraftLook &look,
-     const MapSettings &settings)
+     const AircraftLook &look)
 {
   const unsigned line_height = rc.GetHeight();
   const unsigned text_padding = Layout::GetTextPadding();
+  if (line_height > 2 * text_padding) {
+    const unsigned icon_size = line_height - 2 * text_padding;
 
-  const PixelPoint pt(rc.left + line_height / 2, rc.top + line_height / 2);
-  AircraftRenderer::Draw(canvas, settings, look, item.bearing, pt);
+    const PixelPoint pt(rc.left + icon_size / 2, rc.top + line_height / 2);
 
-  rc.left += line_height + text_padding;
+    /* Wingspan of AircraftSmall is ~28 in +/-50 PolygonRotateShift units. */
+    constexpr unsigned aircraft_span = 28;
+    const int aircraft_scale =
+      std::max(int(icon_size) * 50 / int(aircraft_span), 1);
+    AircraftRenderer::DrawSimple(canvas, look, item.bearing, pt,
+                                 aircraft_scale);
+
+    rc.left += icon_size + text_padding;
+  }
 
   row_renderer.DrawFirstRow(canvas, rc, _("Your Position"));
   row_renderer.DrawSecondRow(canvas, rc, FormatGeoPoint(item.location));
@@ -229,7 +241,8 @@ Draw(Canvas &canvas, const PixelRect rc,
      const WaypointRendererSettings &renderer_settings)
 {
   WaypointListRenderer::Draw(canvas, rc, *item.waypoint,
-                             row_renderer, look, renderer_settings);
+                             row_renderer, look, renderer_settings,
+                             item.reachable);
 }
 
 #ifdef HAVE_NOAA
@@ -386,7 +399,7 @@ Draw(Canvas &canvas, PixelRect rc,
     else if (traffic != nullptr && traffic->HasName())
       title_string = traffic->name.c_str();
     else
-      title_string = _("FLARM Traffic");
+      title_string = _("Traffic");
 
     if (!info.registration.empty() &&
         !title_string.equals(info.registration.c_str())) {
@@ -436,6 +449,10 @@ Draw(Canvas &canvas, PixelRect rc,
      const RaspMapItem &item,
      const TwoTextRowsRenderer &row_renderer)
 {
+  const auto value = FormatRaspValue(item.value);
+  if (!value.empty())
+    rc.right = row_renderer.DrawRightFirstRow(canvas, rc, value);
+
   row_renderer.DrawFirstRow(canvas, rc, item.label.c_str());
 }
 
@@ -454,7 +471,7 @@ MapItemListRenderer::Draw(Canvas &canvas, const PixelRect rc,
     break;
   case MapItem::Type::SELF:
     ::Draw(canvas, rc, (const SelfMapItem &)item,
-           row_renderer, look.aircraft, settings);
+           row_renderer, look.aircraft);
     break;
   case MapItem::Type::AIRSPACE:
     ::Draw(canvas, rc, (const AirspaceMapItem &)item,

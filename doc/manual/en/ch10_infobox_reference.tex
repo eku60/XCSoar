@@ -201,8 +201,11 @@ maintaining altitude. In final glide mode, this speed-to-fly is calculated for
 descent. In climb mode, this switches to the speed for minimum sink at the
 current load factor (if an accelerometer is connected). When `Block' mode speed to
 fly is selected, this InfoBox displays the MacCready speed.}
-\ibi{Thermal next leg equivalent}{T Next Leg}{Thermal rate of climb on next 
-leg which is equivalent to a thermal equal to the MacCready setting on current leg.}
+\ibi{Thermal next leg equivalent}{T Next Leg}{Climb on the next task
+leg that gives the same average cross-country speed as flying the
+current leg at the MacCready setting, using the polar and the headwind
+on each track.  The box is invalid when there is no next leg, wind, or
+polar.  See Section~\ref{sec:t-next-leg}.}
 \ibi{Task cruise efficiency}{Cruise Eff}{Efficiency of cruise. 100 indicates perfect 
 MacCready performance. This value estimates your cruise efficiency according to the 
 current flight history with the set MC value.  Calculation begins after task is started.}
@@ -356,11 +359,10 @@ best automatic alternate (AUTO, default) or a manually selected alternate
 chosen from the alternates list during flight. Manual selections are
 runtime-only and remain active until changed again or switched back to AUTO.
 The value is shown in red when the glide computer marks the alternate as not
-achievable at the current MacCready setting.  In AUTO mode, blue indicates
-final glide and grey that further climb is required.  In MANUAL mode, light
-green indicates the chosen alternate is on final glide; red is also used
-when the solution is achievable but still below final glide (further climb
-needed).
+achievable at the current MacCready setting.  Blue indicates final glide,
+as for Next waypoint.  In AUTO mode, the default colour means further climb
+is required.  In MANUAL mode, red is also used when the solution is
+achievable but still below final glide.
 
 \ibi{Alternate 1}{Altn 1}{Name and bearing to the best alternate
 landing location.}
