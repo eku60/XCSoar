@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "NanoLogger.hpp"
+#include "Device/Error.hpp"
 #include "Device/Port/Port.hpp"
 #include "Device/RecordedFlight.hpp"
 #include "Device/Util/NMEAWriter.hpp"
@@ -18,11 +19,16 @@
 #include "system/FileUtil.hpp"
 #include "util/TextFile.hxx"
 #include "io/FileLineReader.hpp"
-#include "util/StaticString.hxx"
 #include "LogFile.hpp"
-#include "Language/Language.hpp"
+#include "IGC/IGCExtensions.hpp"
+#include "IGC/IGCParser.hpp"
+#include "NanoFileTransfer.hpp"
+#include "util/NumberParser.hxx"
 
 #include <algorithm>
+#include <string>
+#include <string_view>
+#include <chrono>
 #include <stdlib.h>
 #include <fstream>
 #include <exception>
@@ -31,12 +37,72 @@
 
 using std::string_view_literals::operator""sv;
 
+namespace {
+
+/**
+ * The lengths the file's own "I" and "J" records give its B and K
+ * records.
+ *
+ * A row can arrive with a correct checksum and still be wrong: an
+ * LXNAV S100 has been seen to splice the head of one row onto the tail
+ * of another and checksum the result (#3229).  The row number matches
+ * and the checksum matches; only the length gives it away, since every
+ * B record of a file is as long as its I record says.
+ */
+struct RecordLengths {
+  /** 0 until the I / J record has been seen */
+  unsigned b = 0, k = 0;
+
+  void Learn(std::string_view row) noexcept {
+    if (row.empty() || (row.front() != 'I' && row.front() != 'J'))
+      return;
+
+    /* IGCParseExtensions() reads the "I" layout, which "J" shares */
+    std::string declaration{row};
+    const bool is_j = declaration.front() == 'J';
+    declaration.front() = 'I';
+
+    IGCExtensions extensions;
+    if (!IGCParseExtensions(declaration.c_str(), extensions))
+      return;
+
+    if (is_j)
+      k = IGCRecordLength(extensions, 7);
+    else
+      b = IGCRecordLength(extensions, 35);
+  }
+
+  [[gnu::pure]]
+  bool Fits(std::string_view row) const noexcept {
+    if (row.empty())
+      return true;
+
+    switch (row.front()) {
+    case 'B':
+      return b == 0 || row.size() == b;
+    case 'K':
+      return k == 0 || row.size() == k;
+    default:
+      return true;
+    }
+  }
+};
+
+} // anonymous namespace
+
+/**
+ * Count the rows already in a partial download, and learn the record
+ * lengths from its I and J records, which a resumed download will not
+ * receive again.
+ */
 static unsigned
-CountLinesInFile(Path path)
+CountLinesInFile(Path path, RecordLengths &lengths)
 {
   FileLineReaderA reader(path);
   unsigned line_count = 0;
-  while (reader.ReadLine() != nullptr) {
+  const char *line;
+  while ((line = reader.ReadLine()) != nullptr) {
+    lengths.Learn(line);
     line_count++;
   }
   // Return next line number to download (1-indexed)
@@ -161,18 +227,29 @@ ReadFilename(NMEAInputLine &line, RecordedFlightInfo &info)
   return info.internal.lx.nano_filename[0] != 0;
 }
 
-static bool
-ParseLogbookContent(const char *_line, RecordedFlightInfo &info)
+bool
+Nano::ParseLogbookContent(const char *_line, RecordedFlightInfo &info)
 {
   NMEAInputLine line(_line);
   line.Skip();
 
   unsigned n;
-  return line.ReadChecked(n) &&
-    ReadFilename(line, info) > 0 &&
-    ReadDate(line, info.date) &&
-    ReadTime(line, info.start_time) &&
-    ReadTime(line, info.end_time);
+  if (!line.ReadChecked(n) ||
+      !ReadFilename(line, info) ||
+      !ReadDate(line, info.date) ||
+      !ReadTime(line, info.start_time) ||
+      !ReadTime(line, info.end_time))
+    return false;
+
+  /* An S10 (firmware 9.41) reports 00:00:00 as the end of nearly
+     every flight: the end was not recorded, it is not midnight */
+  if (info.end_time == BrokenTime::Midnight())
+    info.end_time = BrokenTime::Invalid();
+
+  /* the file size; old firmware versions may not send it */
+  unsigned size;
+  info.internal.lx.nano_file_size = line.ReadChecked(size) ? size : 0;
+  return true;
 }
 
 /**
@@ -191,7 +268,7 @@ ReadLogbookContents(PortNMEAReader &reader, RecordedFlightList &flight_list,
       return false;
 
     RecordedFlightInfo info;
-    if (ParseLogbookContent(line, info) && !flight_list.full())
+    if (Nano::ParseLogbookContent(line, info) && !flight_list.full())
       flight_list.append() = info;
   }
 
@@ -265,9 +342,17 @@ RequestFlight(Port &port, const char *filename,
   PortWriteNMEA(port, cmd.c_str(), env);
 }
 
-static bool
+/**
+ * Write one flight row.  Returns the number of bytes written, or 0
+ * when the row is rejected.
+ *
+ * @param rejected the last row rejected for its length; a row that
+ * comes back the same when asked again is kept
+ */
+static unsigned
 HandleFlightLine(const char *_line, BufferedOutputStream &os,
-                 unsigned &i, unsigned &row_count_r)
+                 unsigned &i, unsigned &row_count_r,
+                 RecordLengths &lengths, std::string &rejected)
 {
   NMEAInputLine line(_line);
 
@@ -278,44 +363,64 @@ HandleFlightLine(const char *_line, BufferedOutputStream &os,
   unsigned row, row_count;
   if (!line.ReadChecked(row) || !line.ReadChecked(row_count) ||
       row < 1 || row > row_count)
-    return false;
+    return 0;
 
   if (row != i)
     /* wrong row index, what happened here? */
-    return false;
+    return 0;
 
   if (row_count_r == 0)
     row_count_r = row_count;
   else if (row_count != row_count_r)
     /* don't allow changes in file size */
-    return false;
+    return 0;
 
-  os.Write(AsBytes(line.Rest()));
+  const std::string_view payload = line.Rest();
+  if (!lengths.Fits(payload)) {
+    if (payload != rejected) {
+      LogFormat("NanoLogger: row %u is %u characters, its record type"
+                " declares %u; rejecting it",
+                row, unsigned(payload.size()),
+                payload.front() == 'B' ? lengths.b : lengths.k);
+      rejected.assign(payload);
+      return 0;
+    }
+
+    /* A splice does not happen twice the same way.  The logger
+       stored this row like that: an LXNAV S10 has been seen to write
+       a 4-digit wind direction into a 3-digit K record field. */
+    LogFormat("NanoLogger: row %u came back unchanged; keeping it as"
+              " the logger stored it", row);
+  }
+
+  rejected.clear();
+  lengths.Learn(payload);
+  os.Write(AsBytes(payload));
   os.Write("\r\n");
   ++i;
-  return true;
+  return unsigned(payload.size() + 2);
 }
 
 static bool
 DownloadFlightInner(Port &port, const char *filename, BufferedOutputStream &os,
-                    OperationEnvironment &env, unsigned *resume_row = nullptr)
+                    OperationEnvironment &env, RecordLengths &lengths,
+                    unsigned *resume_row = nullptr)
 {
   PortNMEAReader reader(port, env);
   unsigned row_count = 0, i = (resume_row && *resume_row > 0) ? *resume_row : 1;
   const unsigned FLUSH_INTERVAL = 500;  // Flush to disk every 500 lines
   unsigned lines_since_last_flush = 0;
+  unsigned bytes_written = 0;
   bool range_set = false;
-
-  StaticString<60> text;
-  if (resume_row && *resume_row > 1) {
-    text.Format("%s: %s.", _("Resuming flight log download"),
-                "LXNAV");
-    env.SetText(text);
-  }
+  std::string rejected;
 
   while (true) {
-    /* read up to 50 lines at a time */
-    unsigned nrequest = row_count == 0 ? 1 : 50;
+    /* The first request is one line, so the record length is known.
+       Later requests are 50 lines.  On BLE that burst overruns the
+       short buffer, so ask for 7 (#3296).  Classic Bluetooth and
+       serial stay at 50. */
+    const unsigned chunk = port.IsBleSerial() ? 7u : 50u;
+    unsigned nrequest = row_count == 0 ? 1 : chunk;
     if (row_count > 0) {
       assert(i <= row_count);
       const unsigned remaining = row_count - i + 1;
@@ -350,7 +455,10 @@ DownloadFlightInner(Port &port, const char *filename, BufferedOutputStream &os,
         LogError(std::current_exception(), "NanoLogger: download failing");
       }
 
-      if (line == nullptr || !HandleFlightLine(line, os, i, row_count)) {
+      const unsigned wrote = line == nullptr
+        ? 0
+        : HandleFlightLine(line, os, i, row_count, lengths, rejected);
+      if (wrote == 0) {
         if (request_retry_count > MAX_REQUEST_RETRY_COUNT) {
           /* Update resume point before throwing - but note that buffered data
              may not be flushed to disk yet, so resume will restart from last flush */
@@ -372,7 +480,12 @@ DownloadFlightInner(Port &port, const char *filename, BufferedOutputStream &os,
         /* No valid reply received (i==start) - request same range again */
       } else {
         /* Line was successfully processed and written to buffer */
+        bytes_written += wrote;
         lines_since_last_flush++;
+
+        /* This range has delivered a row.  A later bad line must
+           start a new range instead of tripping the retry limit. */
+        request_retry_count = 0;
 
         /* Periodic flush: write buffered data to disk */
         if (lines_since_last_flush >= FLUSH_INTERVAL) {
@@ -403,6 +516,13 @@ DownloadFlightInner(Port &port, const char *filename, BufferedOutputStream &os,
                  "NanoLogger: failed to flush final data to disk");
         throw;
       }
+
+      if (row_count > 0) {
+        if (!range_set)
+          env.SetProgressRange(row_count);
+        env.SetProgressBytes(bytes_written);
+        env.SetProgressPosition(row_count);
+      }
       /* finished successfully */
       return true;
     }
@@ -414,13 +534,175 @@ DownloadFlightInner(Port &port, const char *filename, BufferedOutputStream &os,
       range_set = true;
     }
 
+    env.SetProgressBytes(bytes_written);
     env.SetProgressPosition(i - 1);
+  }
+}
+
+static void
+WriteFileCommand(Port &port, std::string_view command,
+                 OperationEnvironment &env)
+{
+  const std::string line = fmt::format("PLXVC,{}", command);
+  PortWriteNMEA(port, line.c_str(), env);
+}
+
+/**
+ * Download a flight with the LXNAV file transfer protocol: base64
+ * blocks of #PAYLOAD bytes, acknowledged in windows of @p window
+ * blocks, each with a CRC-32 chained over all blocks so far, and a
+ * CRC-32 of the whole file at the end.  Unlike the "FLIGHT" rows, a
+ * block which lost bytes on the way cannot pass these checks (#3229).
+ *
+ * @return false if the logger does not answer the request, i.e. does
+ * not know the protocol; throws once the transfer has started and
+ * then fails
+ */
+static bool
+DownloadFlightFile(Port &port, const char *filename, unsigned file_size,
+                   unsigned window,
+                   BufferedOutputStream &os, OperationEnvironment &env)
+{
+  constexpr unsigned PAYLOAD = 140;
+  constexpr unsigned MAX_TIMEOUTS = 5;
+
+  PortNMEAReader reader(port, env);
+  reader.Flush();
+
+  std::string request = fmt::format("FILE_INFO,R,/{},{},{}",
+                                    filename, window, PAYLOAD);
+  WriteFileCommand(port, request, env);
+
+  env.SetProgressRange(file_size);
+
+  Nano::FileTransferCrc chain, file_crc;
+  /* the logger sends blocks up to window_end - 1, then waits for
+     FILE_OK; a resend does not move that boundary */
+  unsigned next_block = 0, window_end = window, received = 0,
+    timeouts = 0;
+  bool answered = false, lost_reported = false;
+  std::byte data[PAYLOAD];
+
+  while (true) {
+    const char *line;
+    try {
+      line = reader.ExpectLine("PLXVC,FILE_",
+                               TimeoutClock(std::chrono::seconds(2)));
+    } catch (const DeviceTimeout &) {
+      line = nullptr;
+    }
+
+    if (line == nullptr) {
+      if (!answered)
+        /* no answer at all: the logger does not know FILE_INFO */
+        return false;
+
+      if (++timeouts > MAX_TIMEOUTS) {
+        if (received == 0)
+          /* not one block passed the checks; let the row protocol
+             try instead */
+          return false;
+
+        throw std::runtime_error("Flight download failed:"
+                                 " no reply from the logger");
+      }
+
+      /* repeat the request, as the logger may have missed it.  At
+         the end of a window, that is the acknowledgement.  For a
+         block missing inside the window, the loggers understand
+         different requests: a Nano sends it again after
+         FILE_DATA_LOST, but ignores an acknowledgement that does not
+         end its window; an S series vario ignores FILE_DATA_LOST and
+         starts a new window at the block an acknowledgement names.
+         So alternate between the two. */
+      if (answered) {
+        if (next_block != window_end && timeouts % 2 == 1)
+          request = fmt::format("FILE_DATA_LOST,R,{}", next_block);
+        else {
+          request = fmt::format("FILE_OK,R,{}", next_block);
+          window_end = next_block + window;
+        }
+      }
+
+      WriteFileCommand(port, request, env);
+      continue;
+    }
+
+    if (const char *crc_s = StringAfterPrefix(line, "CRC32,A,"sv)) {
+      const auto crc = Nano::ParseFileTransferCrc(crc_s);
+      if (received != file_size || crc != file_crc.Get())
+        throw std::runtime_error("Flight download failed:"
+                                 " file checksum does not match");
+
+      WriteFileCommand(port, "FILE_CRC_OK,R", env);
+      os.Flush();
+      return true;
+    }
+
+    const char *data_s = StringAfterPrefix(line, "DATA,A,"sv);
+    if (data_s == nullptr)
+      continue;
+
+    const auto block = Nano::ParseFileDataBlock(data_s);
+    if (!block)
+      continue;
+
+    /* only a data block proves that the logger knows the protocol */
+    answered = true;
+
+    if (block->number < next_block)
+      /* left over from before a resend */
+      continue;
+
+    Nano::FileTransferCrc crc = chain;
+    crc.Update(block->base64);
+
+    const auto size = block->number == next_block &&
+      crc.Get() == block->crc
+      ? Nano::DecodeBase64(block->base64, data)
+      : std::nullopt;
+    const unsigned expected_size =
+      std::min(PAYLOAD, file_size - received);
+    if (!size || *size != expected_size) {
+      /* ask once for a resend from the missing block.  An S series
+         vario (firmware 9.41) ignores FILE_DATA_LOST: it finishes the
+         window and waits for the acknowledgement, so the request
+         repeated after a timeout acknowledges up to the missing
+         block instead, which starts the next window there. */
+      if (!lost_reported) {
+        LogFormat("NanoLogger: block %u is missing or damaged,"
+                  " requesting it again", next_block);
+        WriteFileCommand(port,
+                         fmt::format("FILE_DATA_LOST,R,{}", next_block),
+                         env);
+        lost_reported = true;
+      }
+      continue;
+    }
+
+    chain = crc;
+    file_crc.Update(std::span{data, *size});
+    os.Write(std::span{data, *size});
+    received += *size;
+    ++next_block;
+    timeouts = 0;
+    lost_reported = false;
+
+    env.SetProgressBytes(received);
+    env.SetProgressPosition(received);
+
+    if (next_block == window_end || received == file_size) {
+      window_end = next_block + window;
+      request = fmt::format("FILE_OK,R,{}", next_block);
+      WriteFileCommand(port, request, env);
+    }
   }
 }
 
 bool
 Nano::DownloadFlight(Port &port, const RecordedFlightInfo &flight,
-                     Path path, OperationEnvironment &env)
+                     Path path, unsigned file_window,
+                     OperationEnvironment &env)
 {
   port.StopRxThread();
   port.FullFlush(env, std::chrono::milliseconds(200), std::chrono::seconds(2));
@@ -443,12 +725,53 @@ Nano::DownloadFlight(Port &port, const RecordedFlightInfo &flight,
   
   const auto partial_path = AllocatedPath::Build(path.GetParent(), partial_filename);
 
+  /* BLE uses the block transfer.  Classic serial and classic
+     Bluetooth stay on the rows.  A partial file left by the rows is
+     resumed with that protocol on every link. */
+  const unsigned file_size = flight.internal.lx.nano_file_size;
+  if (port.IsBleSerial() && file_size > 0 && !File::Exists(partial_path)) {
+    FileOutputStream fos(path);
+    BufferedOutputStream bos(fos);
+    try {
+      if (DownloadFlightFile(port, filename, file_size, file_window,
+                             bos, env)) {
+        fos.Commit();
+        LogFormat("NanoLogger: download complete (file transfer)");
+        return true;
+      }
+
+      LogFormat("NanoLogger: file transfer not available,"
+                " falling back to the row protocol");
+    } catch (const OperationCancelled &) {
+      /* stop the logger from sending the rest; the uncommitted file
+         is discarded.  The cancelled environment refuses every
+         further write, so send this one without it. */
+      try {
+        NullOperationEnvironment cancel_env;
+        WriteFileCommand(port, "FILE_CANCEL,R", cancel_env);
+      } catch (...) {
+      }
+      throw;
+    } catch (...) {
+      /* the rows carry the same flight and check each line's
+         length, so a transfer that broke off is not the end */
+      LogError(std::current_exception(),
+               "NanoLogger: file transfer failed,"
+               " falling back to the row protocol");
+    }
+
+    WriteFileCommand(port, "FILE_CANCEL,R", env);
+    port.FullFlush(env, std::chrono::milliseconds(200),
+                   std::chrono::seconds(2));
+  }
+
   // Check if partial file exists and count lines to determine resume point
   unsigned calculated_resume_row = 1;
+  RecordLengths lengths;
   if (File::Exists(partial_path)) {
     try {
       // Count lines in existing partial file
-      calculated_resume_row = CountLinesInFile(partial_path);
+      calculated_resume_row = CountLinesInFile(partial_path, lengths);
       if (calculated_resume_row > 1) {
         LogFormat("NanoLogger: resuming download from line %u",
                   calculated_resume_row);
@@ -460,6 +783,7 @@ Nano::DownloadFlight(Port &port, const RecordedFlightInfo &flight,
       // If we can't count, delete partial and start fresh
       File::Delete(partial_path);
       calculated_resume_row = 1;
+      lengths = {};
     }
   }
 
@@ -471,7 +795,8 @@ Nano::DownloadFlight(Port &port, const RecordedFlightInfo &flight,
   BufferedOutputStream bos(fos);
   try {
     bool success = DownloadFlightInner(port, filename,
-                                      bos, env, &calculated_resume_row);
+                                      bos, env, lengths,
+                                      &calculated_resume_row);
 
     if (success) {
       bos.Flush();

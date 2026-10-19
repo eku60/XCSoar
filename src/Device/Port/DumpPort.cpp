@@ -106,6 +106,24 @@ DumpPort::SetBaudrate(unsigned baud_rate)
 }
 
 bool
+DumpPort::SetConnectionPriority(ConnectionPriority priority) noexcept
+{
+  return port->SetConnectionPriority(priority);
+}
+
+bool
+DumpPort::RequestMtu(unsigned mtu) noexcept
+{
+  return port->RequestMtu(mtu);
+}
+
+bool
+DumpPort::IsBleSerial() const noexcept
+{
+  return port->IsBleSerial();
+}
+
+bool
 DumpPort::StopRxThread()
 {
   if (CheckEnabled())

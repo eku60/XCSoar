@@ -5,72 +5,48 @@
 #include "Profile/Keys.hpp"
 #include "Profile/Profile.hpp"
 #include "Form/DataField/Enum.hpp"
+#include "InfoBoxes/InfoBoxGeometryList.hpp"
 #include "Interface.hpp"
 #include "MainWindow.hpp"
 #include "Language/Language.hpp"
 #include "Widget/RowFormWidget.hpp"
 #include "UIGlobals.hpp"
+#include "UtilsSettings.hpp"
 #include "Asset.hpp"
 #include "Menu/ShowButton.hpp"
+#include "util/Macros.hpp"
 
 enum ControlIndex {
+  DarkMode,
+  UIScale,
+  ViewingDistance,
+  TabDialogStyle,
+  SPACER_INFOBOX,
   AppInfoBoxGeom,
   InfoBoxTitleScale,
-  TabDialogStyle,
-  AppStatusMessageAlignment,
   AppInfoBoxColors,
   AppInfoBoxTheme,
   AppInfoBoxBorder,
+  SPACER_MAP,
+  AppStatusMessageAlignment,
   ShowMenuButton,
   ShowZoomButton,
   ShowQuickMenuButton,
 };
 
-static constexpr StaticEnumChoice info_box_geometry_list[] = {
-  { InfoBoxSettings::Geometry::SPLIT_8,
-    N_("8 Split") },
-  { InfoBoxSettings::Geometry::SPLIT_10,
-    N_("10 Split") },
-  { InfoBoxSettings::Geometry::SPLIT_3X4,
-    N_("12 Split in 3 rows") },
-  { InfoBoxSettings::Geometry::SPLIT_3X5,
-    N_("15 Split in 3 rows") },
-  { InfoBoxSettings::Geometry::SPLIT_3X6,
-    N_("18 Split in 3 rows") },
-  { InfoBoxSettings::Geometry::BOTTOM_RIGHT_8,
-    N_("8 Bottom or Right") },
-  { InfoBoxSettings::Geometry::BOTTOM_8_VARIO,
-    N_("8 Bottom + Vario (Portrait)") },
-  { InfoBoxSettings::Geometry::TOP_LEFT_8,
-    N_("8 Top or Left") },
-  { InfoBoxSettings::Geometry::TOP_8_VARIO,
-    N_("8 Top + Vario (Portrait)") },
-  { InfoBoxSettings::Geometry::RIGHT_9_VARIO,
-    N_("9 Right + Vario (Landscape)") },
-  { InfoBoxSettings::Geometry::LEFT_6_RIGHT_3_VARIO,
-    N_("9 Left + Right + Vario (Landscape)") },
-  { InfoBoxSettings::Geometry::LEFT_12_RIGHT_3_VARIO,
-    N_("12 Left + 3 Right Vario (Landscape)") },
-  { InfoBoxSettings::Geometry::RIGHT_5,
-    N_("5 Right (Square)") },
-  { InfoBoxSettings::Geometry::BOTTOM_RIGHT_10,
-    N_("10 Bottom or Right") },
-  { InfoBoxSettings::Geometry::BOTTOM_RIGHT_12,
-    N_("12 Bottom or Right") },
-  { InfoBoxSettings::Geometry::TOP_LEFT_10,
-    N_("10 Top or Left") },
-  { InfoBoxSettings::Geometry::TOP_LEFT_12,
-    N_("12 Top or Left") },
-  { InfoBoxSettings::Geometry::RIGHT_16,
-    N_("16 Right (Landscape)") },
-  { InfoBoxSettings::Geometry::RIGHT_24,
-    N_("24 Bottom or Right") },
-  { InfoBoxSettings::Geometry::TOP_LEFT_4,
-    N_("4 Top or Left") },
-  { InfoBoxSettings::Geometry::BOTTOM_RIGHT_4,
-    N_("4 Bottom or Right") },
+static constexpr StaticEnumChoice viewing_distance_list[] = {
+  { unsigned(Layout::ViewingDistance::AUTO), NC_("Setting", "Auto"),
+    N_("Shrink type when the short edge is under 3.2 inches.") },
+  { unsigned(Layout::ViewingDistance::HANDHELD), N_("Handheld"),
+    N_("Always use the closer-view size.") },
+  { unsigned(Layout::ViewingDistance::PANEL), N_("Panel"),
+    N_("Keep full-size type, for a screen read at arm's length.") },
   nullptr
 };
+
+static_assert(ARRAY_SIZE(viewing_distance_list) ==
+              unsigned(Layout::ViewingDistance::COUNT) + 1,
+              "viewing_distance_list must match ViewingDistance::COUNT");
 
 static constexpr StaticEnumChoice tabdialog_style_list[] = {
   { DialogSettings::TabStyle::Text, N_("Text"),
@@ -110,6 +86,16 @@ static constexpr StaticEnumChoice infobox_theme_list[] = {
   nullptr
 };
 
+static constexpr StaticEnumChoice dark_mode_list[] = {
+  { UISettings::DarkMode::AUTO, N_("Auto"),
+    N_("Use the system-wide setting") },
+  { UISettings::DarkMode::OFF, N_("Off"),
+    N_("Black text on white background") },
+  { UISettings::DarkMode::ON, N_("On"),
+    N_("White text on black background") },
+  nullptr
+};
+
 class LayoutConfigPanel final : public RowFormWidget {
   /** Geometry when this panel was opened; restored if Settings is cancelled. */
   InfoBoxSettings::Geometry original_geometry{};
@@ -136,6 +122,28 @@ LayoutConfigPanel::Prepare(ContainerWindow &parent,
 
   RowFormWidget::Prepare(parent, rc);
 
+  AddEnum(_("Dark mode"), nullptr, dark_mode_list,
+          (unsigned)ui_settings.dark_mode);
+
+  AddInteger(_("Text size"),
+             nullptr,
+             "%d %%", "%d",
+             UISettings::SCALE_MIN, UISettings::SCALE_MAX,
+             UISettings::SCALE_STEP,
+             ui_settings.scale);
+
+  AddEnum(_("Viewing distance"),
+          _("Auto shrinks type when the short edge is under 3.2 inches. "
+            "Handheld always uses that closer size. Panel keeps "
+            "full-size type."),
+          viewing_distance_list,
+          unsigned(ui_settings.viewing_distance));
+
+  AddEnum(_("Tab dialog style"), nullptr,
+          tabdialog_style_list, (unsigned)ui_settings.dialog.tab_style);
+
+  AddSpacer();
+
   AddEnum(_("InfoBox geometry"),
           _("A list of possible InfoBox layouts. Do some trials to find the best for your screen size."),
           info_box_geometry_list, (unsigned)ui_settings.info_boxes.geometry);
@@ -145,22 +153,14 @@ LayoutConfigPanel::Prepare(ContainerWindow &parent,
              ui_settings.info_boxes.scale_title_font);
   SetExpertRow(InfoBoxTitleScale);
 
-  AddEnum(_("Tab dialog style"), nullptr,
-          tabdialog_style_list, (unsigned)ui_settings.dialog.tab_style);
-
-  AddEnum(_("Message display"), nullptr,
-          popup_msg_position_list,
-          (unsigned)ui_settings.popup_message_position);
-  SetExpertRow(AppStatusMessageAlignment);
-
-  if (HasColors()) {
+  if (HasColors())
     AddBoolean(_("Colored InfoBoxes"),
                _("If true, certain InfoBoxes will have coloured text. For example, the active waypoint "
                  "InfoBox will be blue when the glider is above final glide."),
                ui_settings.info_boxes.use_colors);
-    SetExpertRow(AppInfoBoxColors);
-  } else
+  else
     AddDummy();
+  SetExpertRow(AppInfoBoxColors);
 
   AddEnum(_("InfoBox theme"), nullptr, infobox_theme_list,
           (unsigned)ui_settings.info_boxes.theme);
@@ -169,6 +169,14 @@ LayoutConfigPanel::Prepare(ContainerWindow &parent,
   AddEnum(_("InfoBox border"), nullptr, infobox_border_list,
           unsigned(ui_settings.info_boxes.border_style));
   SetExpertRow(AppInfoBoxBorder);
+
+  AddSpacer();
+  SetExpertRow(SPACER_MAP);
+
+  AddEnum(_("Message display"), nullptr,
+          popup_msg_position_list,
+          (unsigned)ui_settings.popup_message_position);
+  SetExpertRow(AppStatusMessageAlignment);
 
   AddBoolean(_("Show Menu button"), _("Show the Menu button"),
              ui_settings.show_menu_button);
@@ -209,6 +217,23 @@ LayoutConfigPanel::Save(bool &_changed) noexcept
 
   UISettings &ui_settings = CommonInterface::SetUISettings();
   saved = true;
+
+  changed |= SaveValueEnum(DarkMode, ProfileKeys::DarkMode,
+                           ui_settings.dark_mode);
+
+  if (SaveValueInteger(UIScale, ProfileKeys::UIScale,
+                       ui_settings.scale))
+    require_restart = changed = true;
+
+  if (SaveValueEnum(ViewingDistance, ProfileKeys::ViewingDistance,
+                    ui_settings.viewing_distance)) {
+    changed = true;
+    if (CommonInterface::main_window != nullptr) {
+      CommonInterface::main_window->Initialise();
+      CommonInterface::main_window->ReinitialiseLook();
+      CommonInterface::main_window->ReinitialiseLayout();
+    }
+  }
 
   bool info_box_geometry_changed = false;
 

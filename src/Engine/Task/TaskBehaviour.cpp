@@ -36,7 +36,8 @@ TaskBehaviour::SetDefaults()
   calc_glide_required = true;
   goto_nonlandable = true;
   risk_gamma = 0;
-  safety_mc = 0.5;
+  task_mc = TASK_MC_DEFAULT;
+  safety_mc = SAFETY_MC_DEFAULT;
   safety_height_arrival = 300;
   task_type_default = TaskFactoryType::RACING;
   start_margins.SetDefaults();

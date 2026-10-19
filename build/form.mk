@@ -6,12 +6,14 @@ FORM_SOURCES = \
 	$(SRC)/UIUtil/KineticManager.cpp \
 	$(SRC)/Renderer/TextRenderer.cpp \
 	$(SRC)/Renderer/TabRenderer.cpp \
+	$(SRC)/Renderer/BoxShadowRenderer.cpp \
 	$(SRC)/Renderer/ButtonRenderer.cpp \
 	$(SRC)/Renderer/TextButtonRenderer.cpp \
 	$(SRC)/Renderer/SymbolRenderer.cpp \
 	$(SRC)/Renderer/SymbolButtonRenderer.cpp \
 	$(SRC)/Renderer/BitmapButtonRenderer.cpp \
 	$(SRC)/Renderer/ColorButtonRenderer.cpp \
+	$(SRC)/Renderer/GestureRenderer.cpp \
 	$(FORM_SRC_DIR)/Control.cpp \
 	$(FORM_SRC_DIR)/Panel.cpp \
 	$(FORM_SRC_DIR)/VScrollPanel.cpp \

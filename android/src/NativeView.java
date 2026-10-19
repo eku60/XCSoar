@@ -14,7 +14,9 @@ import android.view.SurfaceView;
 import android.view.SurfaceHolder;
 import android.view.View;
 import android.view.ViewParent;
+import android.view.RoundedCorner;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.os.Build;
 import android.os.Handler;
 import android.net.Uri;
@@ -153,7 +155,17 @@ class NativeView extends SurfaceView
     holder.addCallback(this);
     holder.setType(SurfaceHolder.SURFACE_TYPE_GPU);
 
-    setOnApplyWindowInsetsListener(edgeTouchFilter);
+    /* the insets can change without a surface change, e.g. when the
+       user switches to gesture navigation or rotates the device; keep
+       the native safe area up to date */
+    setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+      @Override
+      public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+        WindowInsets result = edgeTouchFilter.onApplyWindowInsets(v, insets);
+        reportSize();
+        return result;
+      }
+    });
     requestApplyInsets(); // trigger initial inset calculation
 
     rotationListener = new RotationListener(context);
@@ -220,36 +232,199 @@ class NativeView extends SurfaceView
                                        int width, int height) {
     if (thread == null || !thread.isAlive())
       start();
-    else {
-      Context context = getContext();
-      if (!(context instanceof Activity))
-        return;
-      
+
+    Context context = getContext();
+    if (context instanceof Activity) {
       Activity activity = (Activity)context;
       Window window = activity.getWindow();
-      View decorView = window.getDecorView();
-      
-      boolean is_fullscreen = false;
-      if (activity instanceof org.xcsoar.XCSoar) {
-        is_fullscreen = ((org.xcsoar.XCSoar)activity).wantFullScreen();
-      } else {
-        int systemUiVisibility = decorView.getSystemUiVisibility();
-        is_fullscreen = (systemUiVisibility & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0 ||
-                       (systemUiVisibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0;
-      }
-      
-      if (is_fullscreen) {
+
+      if (isFullScreen())
         WindowUtil.enterFullScreenMode(window);
-      } else {
+      else
         WindowUtil.leaveFullScreenMode(window, 0);
-      }
-      
-      int display_width = width;
-      int display_height = height;
-      int inset_left = 0, inset_top = 0, inset_right = 0, inset_bottom = 0;
-      
-      resizedNative(display_width, display_height, inset_left, inset_top, inset_right, inset_bottom);
     }
+
+    reportSize(width, height);
+  }
+
+  /**
+   * Is the surface currently laid out edge to edge, i.e. does it
+   * extend into the areas covered by the system bars and the display
+   * cutout?
+   */
+  private boolean isFullScreen() {
+    Context context = getContext();
+    if (!(context instanceof Activity))
+      return false;
+
+    Activity activity = (Activity)context;
+    if (activity instanceof org.xcsoar.XCSoar)
+      return ((org.xcsoar.XCSoar)activity).wantFullScreen();
+
+    int systemUiVisibility = activity.getWindow().getDecorView()
+      .getSystemUiVisibility();
+    return (systemUiVisibility & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0 ||
+      (systemUiVisibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0;
+  }
+
+  /**
+   * Report the surface size and the area covered by system UI to the
+   * native code.
+   */
+  void reportSize(int width, int height) {
+    if (width <= 0 || height <= 0)
+      return;
+
+    /* Outside full screen mode the view is already laid out inside
+       the system bars and the display cutout, so the whole surface
+       is the safe area.  Only in full screen mode does the surface
+       extend into those areas.  Rounded corners and waterfall
+       edges are a property of the display: they still clip the
+       surface once it is edge-to-edge. */
+    int[] overlay = new int[]{0, 0, 0, 0};
+    int[] shape = new int[]{0, 0, 0, 0};
+    if (isFullScreen()) {
+      overlay = getOverlayInsets();
+      shape = getShapeInsets();
+    }
+
+    resizedNative(width, height,
+                  overlay[0], overlay[1], overlay[2], overlay[3],
+                  shape[0], shape[1], shape[2], shape[3]);
+  }
+
+  /**
+   * Report the current surface size, e.g. after the insets have
+   * changed without a surface change.
+   */
+  void reportSize() {
+    if (thread == null || !thread.isAlive())
+      return;
+
+    reportSize(getWidth(), getHeight());
+  }
+
+  /**
+   * Area reserved for system UI (status bar, navigation bar, display
+   * cutout), as {left, top, right, bottom}.  These edges can be
+   * stretched into.  Rounded corners are not included.  The reserved
+   * bar size is reported even while full screen hides the bars, so
+   * unstretched InfoBoxes still sit above the home indicator.
+   */
+  private int[] getOverlayInsets() {
+    int[] result = new int[]{0, 0, 0, 0};
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+      return result;
+
+    WindowInsets insets = getRootWindowInsets();
+    if (insets == null)
+      return result;
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      /* systemBars() is 0 while the bars are hidden; ignoringVisibility
+         keeps the reserved size so unstretched InfoBoxes stay clear */
+      android.graphics.Insets bars =
+        insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars());
+      android.graphics.Insets cutout =
+        insets.getInsets(WindowInsets.Type.displayCutout());
+      result[0] = Math.max(bars.left, cutout.left);
+      result[1] = Math.max(bars.top, cutout.top);
+      result[2] = Math.max(bars.right, cutout.right);
+      result[3] = Math.max(bars.bottom, cutout.bottom);
+      return result;
+    }
+
+    /* Android 10 and below: getSystemWindowInsets() is 0 in
+       immersive mode; getStableInset*() is the reserved bar size */
+    result[0] = Math.max(insets.getSystemWindowInsetLeft(),
+                         insets.getStableInsetLeft());
+    result[1] = Math.max(insets.getSystemWindowInsetTop(),
+                         insets.getStableInsetTop());
+    result[2] = Math.max(insets.getSystemWindowInsetRight(),
+                         insets.getStableInsetRight());
+    result[3] = Math.max(insets.getSystemWindowInsetBottom(),
+                         insets.getStableInsetBottom());
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      android.view.DisplayCutout cutout = insets.getDisplayCutout();
+      if (cutout != null) {
+        result[0] = Math.max(result[0], cutout.getSafeInsetLeft());
+        result[1] = Math.max(result[1], cutout.getSafeInsetTop());
+        result[2] = Math.max(result[2], cutout.getSafeInsetRight());
+        result[3] = Math.max(result[3], cutout.getSafeInsetBottom());
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Inset so the corner of an axis-aligned rectangle sits on a
+   * quarter-circle of the given radius: R * (1 - 1/sqrt(2)).
+   */
+  private static int roundedCornerInset(int radius) {
+    if (radius <= 0)
+      return 0;
+    return (int)Math.ceil(radius * (1.0 - 1.0 / Math.sqrt(2.0)));
+  }
+
+  private static void applyRoundedCorner(WindowInsets insets, int position,
+                                         int[] result,
+                                         boolean left, boolean top) {
+    RoundedCorner corner = insets.getRoundedCorner(position);
+    if (corner == null)
+      return;
+
+    final int inset = roundedCornerInset(corner.getRadius());
+    if (inset <= 0)
+      return;
+
+    if (left)
+      result[0] = Math.max(result[0], inset);
+    else
+      result[2] = Math.max(result[2], inset);
+    if (top)
+      result[1] = Math.max(result[1], inset);
+    else
+      result[3] = Math.max(result[3], inset);
+  }
+
+  /**
+   * Physical display shape: waterfall edges and rounded corners.
+   * Stretching into these only clips the pixels; they are never
+   * optional.
+   */
+  private int[] getShapeInsets() {
+    int[] result = new int[]{0, 0, 0, 0};
+
+    WindowInsets insets = getRootWindowInsets();
+    if (insets == null)
+      return result;
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      android.view.DisplayCutout cutout = insets.getDisplayCutout();
+      if (cutout != null) {
+        android.graphics.Insets w = cutout.getWaterfallInsets();
+        result[0] = Math.max(result[0], w.left);
+        result[1] = Math.max(result[1], w.top);
+        result[2] = Math.max(result[2], w.right);
+        result[3] = Math.max(result[3], w.bottom);
+      }
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      applyRoundedCorner(insets, RoundedCorner.POSITION_TOP_LEFT,
+                         result, true, true);
+      applyRoundedCorner(insets, RoundedCorner.POSITION_TOP_RIGHT,
+                         result, false, true);
+      applyRoundedCorner(insets, RoundedCorner.POSITION_BOTTOM_LEFT,
+                         result, true, false);
+      applyRoundedCorner(insets, RoundedCorner.POSITION_BOTTOM_RIGHT,
+                         result, false, false);
+    }
+
+    return result;
   }
 
   @Override public void surfaceDestroyed(SurfaceHolder holder) {
@@ -263,7 +438,6 @@ class NativeView extends SurfaceView
     final Context context = getContext();
 
     android.graphics.Rect r = getHolder().getSurfaceFrame();
-    android.util.Log.d(TAG, "runNative: getSurfaceFrame() size=" + r.width() + "x" + r.height());
     DisplayMetrics metrics = new DisplayMetrics();
     /* Physical display size and xdpi/ydpi; getMetrics() can follow reduced
        application window metrics on some devices (XCSoar #1784). */
@@ -285,7 +459,9 @@ class NativeView extends SurfaceView
       try {
         runNative(context, permissionManager,
                   r.width(), r.height(),
+                  metrics.widthPixels, metrics.heightPixels,
                   (int)metrics.xdpi, (int)metrics.ydpi,
+                  metrics.densityDpi,
                   Build.PRODUCT);
       } finally {
         /* Set shutdown flag before stopping service so it does not
@@ -341,15 +517,57 @@ class NativeView extends SurfaceView
       ? rotationListener.getPhysicalOrientation() : 0;
   }
 
+  /**
+   * How far this view still extends into the system swipe-down band.
+   * A view that already starts below the band reports zero.
+   */
+  int getTopGestureClearance() {
+    if (!isShown())
+      return 0;
+
+    if (getWindowToken() == null)
+      return 0;
+
+    final int[] location = new int[2];
+    getLocationOnScreen(location);
+    return Math.max(0,
+                    edgeTouchFilter.getGestureInsetTop() - location[1]);
+  }
+
   static native String onReceiveXCTrackTask(String data);
+
+  /**
+   * Hand the raw text of a scanned QR code to native code, which
+   * inspects the URI scheme prefix itself.
+   *
+   * @return null on success, or a human-readable error message
+   */
+  static native String onReceiveTaskQRCode(String text);
+
+  /**
+   * Open the camera to scan a task QR code.  Called from native code
+   * when the pilot picks "Scan QR Code".  The scanner Activity
+   * reports its own result, so there is nothing to return here.
+   */
+  void scanQRCode() {
+    final Context ctx = getContext();
+    if (ctx instanceof XCSoar) {
+      ((XCSoar) ctx).scanQRCode();
+    }
+  }
 
   protected native void runNative(Context context,
                                   PermissionManager permissionManager,
                                   int width, int height,
-                                  int xdpi, int ydpi,
+                                  int displayWidth, int displayHeight,
+                                  int xdpi, int ydpi, int densityDpi,
                                   String product);
 
-  protected native void resizedNative(int width, int height, int inset_left, int inset_top, int inset_right, int inset_bottom);
+  protected native void resizedNative(int width, int height,
+                                      int inset_left, int inset_top,
+                                      int inset_right, int inset_bottom,
+                                      int shape_left, int shape_top,
+                                      int shape_right, int shape_bottom);
 
   protected native void surfaceDestroyedNative();
 

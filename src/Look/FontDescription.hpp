@@ -3,59 +3,6 @@
 
 #pragma once
 
-#ifdef USE_GDI
-#include <windef.h>
-#include <wingdi.h>
-class FontDescription {
-  LOGFONT logfont;
-
-public:
-  FontDescription() = default;
-
-  /**
-   * @param _height the character (="em") height of the font
-   */
-  explicit FontDescription(unsigned _height,
-                           bool _bold=false, bool _italic=false,
-                           bool _monospace=false);
-
-  explicit operator const LOGFONT &() const {
-    return logfont;
-  }
-
-  unsigned GetHeight() const {
-    return -logfont.lfHeight;
-  }
-
-  void SetHeight(unsigned _height) {
-    logfont.lfHeight = -int(_height);
-  }
-
-  FontDescription WithHeight(unsigned _height) const {
-    FontDescription result(*this);
-    result.SetHeight(_height);
-    return result;
-  }
-
-  void SetBold(bool bold=true) {
-    logfont.lfWeight = bold ? FW_BOLD : FW_MEDIUM;
-  }
-
-  FontDescription WithBold(bool bold=true) const {
-    FontDescription result(*this);
-    result.SetBold(bold);
-    return result;
-  }
-
-private:
-  void Init(const char *face,
-            int height,
-            bool bold, bool italic,
-            bool monospace);
-};
-
-#else
-
 /**
  * A description for a font that shall be loaded.
  */
@@ -63,6 +10,7 @@ class FontDescription {
   unsigned height;
   bool bold, italic;
   bool monospace;
+  float letter_spacing_em;
 
 public:
   FontDescription() = default;
@@ -72,8 +20,10 @@ public:
    */
   explicit constexpr FontDescription(unsigned _height,
                                      bool _bold=false, bool _italic=false,
-                                     bool _monospace=false)
-    :height(_height), bold(_bold), italic(_italic), monospace(_monospace) {}
+                                     bool _monospace=false,
+                                     float _letter_spacing_em=0.f)
+    :height(_height), bold(_bold), italic(_italic), monospace(_monospace),
+     letter_spacing_em(_letter_spacing_em) {}
 
   constexpr unsigned GetHeight() const {
     return height;
@@ -84,7 +34,8 @@ public:
   }
 
   constexpr FontDescription WithHeight(unsigned _height) const {
-    return FontDescription(_height, bold, italic, monospace);
+    return FontDescription(_height, bold, italic, monospace,
+                           letter_spacing_em);
   }
 
   constexpr bool IsBold() const {
@@ -96,7 +47,16 @@ public:
   }
 
   constexpr FontDescription WithBold(bool _bold=true) const {
-    return FontDescription(height, _bold, italic, monospace);
+    return FontDescription(height, _bold, italic, monospace,
+                           letter_spacing_em);
+  }
+
+  constexpr float GetLetterSpacing() const {
+    return letter_spacing_em;
+  }
+
+  void SetLetterSpacing(float em) {
+    letter_spacing_em = em;
   }
 
   constexpr bool IsItalic() const {
@@ -107,5 +67,3 @@ public:
     return monospace;
   }
 };
-
-#endif

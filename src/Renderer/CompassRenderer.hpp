@@ -15,6 +15,36 @@ class CompassRenderer {
 public:
   CompassRenderer(const MapLook &_look) noexcept:look(_look) {}
 
+  /**
+   * The position at which Draw(Canvas &, Angle, PixelRect) draws the
+   * compass within the given map rectangle; also used for tap
+   * hit-testing.
+   */
+  [[gnu::pure]]
+  static PixelPoint GetPosition(PixelRect rc) noexcept;
+
   void Draw(Canvas &canvas, Angle screen_angle, PixelPoint pos) noexcept;
   void Draw(Canvas &canvas, Angle screen_angle, PixelRect rc) noexcept;
+
+  /**
+   * How far the arrow centre sits in from the top-right of the
+   * content rectangle.
+   */
+  [[gnu::const]]
+  static unsigned GetCenterInset() noexcept;
+
+  /**
+   * How far the arrow glyph reaches past its centre.
+   */
+  [[gnu::const]]
+  static unsigned GetGlyphRadius() noexcept;
+
+  /**
+   * Height of the slot the pan readout leaves free below the
+   * content-rect top while the arrow is drawn.
+   */
+  [[gnu::const]]
+  static unsigned GetSlotHeight() noexcept {
+    return GetCenterInset() + GetGlyphRadius();
+  }
 };

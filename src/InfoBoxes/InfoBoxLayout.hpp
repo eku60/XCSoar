@@ -22,6 +22,20 @@ struct Layout {
 
   PixelRect remaining;
 
+  /**
+   * The area this layout was calculated for.
+   */
+  PixelRect rc;
+
+  /**
+   * Border flags for the InfoBoxes at the outer edge of #rc.  Those
+   * edges usually coincide with the screen border and need no border
+   * of their own; while the InfoBox area is kept clear of it, they do.
+   *
+   * @see DisplaySettings::infobox_area_stretch
+   */
+  unsigned outer_border = 0;
+
   constexpr bool HasVario() const noexcept {
     return vario.right > vario.left && vario.bottom > vario.top;
   }
@@ -31,10 +45,19 @@ struct Layout {
   }
 };
 
+/**
+ * Lay the InfoBoxes out in @p rc.
+ *
+ * @param orientation_size the screen the geometry was chosen for.
+ * An empty size uses @p rc.  Pass the full screen when @p rc is a
+ * smaller page, so a short page does not switch between rows and
+ * columns.
+ */
 [[gnu::pure]]
 Layout
 Calculate(PixelRect rc, InfoBoxSettings::Geometry geometry,
-          unsigned scale_title_font=100) noexcept;
+          unsigned scale_title_font = 100,
+          PixelSize orientation_size = {}) noexcept;
 
 [[gnu::const]]
 int

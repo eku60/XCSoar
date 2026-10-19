@@ -24,9 +24,10 @@
 #include "Interface.hpp"
 #include "ActionInterface.hpp"
 #include "Language/Language.hpp"
+#include "Asset.hpp"
+#include "Look/Colors.hpp"
 #include "Widget/ListWidget.hpp"
 #include "UIGlobals.hpp"
-#include "Audio/Sound.hpp"
 #include "LogFile.hpp"
 #include "util/StringFormat.hpp"
 #include <Message.hpp>
@@ -37,6 +38,33 @@
 #include <vector>
 
 #include <stdio.h>
+
+bool
+IsAirspaceClearanceAllowed(AirspaceClass type) noexcept
+{
+  return CommonInterface::GetComputerSettings().airspace.warnings
+    .IsClassClearanceAllowed(type);
+}
+
+bool
+TrySetAirspaceClearance(ProtectedAirspaceWarningManager &manager,
+                        ConstAirspacePtr airspace,
+                        bool set) noexcept
+{
+  try {
+    manager.SetCleared(std::move(airspace), set);
+    return true;
+  } catch (const std::exception &e) {
+    LogFmt("Failed to update airspace clearance: {}", e.what());
+    Message::AddMessage(_("Failed to update airspace clearance"));
+    return false;
+  } catch (...) {
+    LogError(std::current_exception(),
+             "Failed to update airspace clearance");
+    Message::AddMessage(_("Failed to update airspace clearance"));
+    return false;
+  }
+}
 
 class AirspaceWarningListWidget final
   : public ListWidget {
@@ -54,6 +82,8 @@ class AirspaceWarningListWidget final
   Button *ack_button;
   Button *ack_day_button;
   Button *enable_button;
+  Button *clearance_button;
+  Button *revoke_clearance_button;
   Button *radio_button;
   Button *details_button;
 
@@ -66,15 +96,9 @@ class AirspaceWarningListWidget final
 
   TwoTextRowsRenderer row_renderer;
 
-  /**
-   * Airspace repetitive warning sound interval counter.
-   */
-  unsigned sound_interval_counter;
-
 public:
   AirspaceWarningListWidget(ProtectedAirspaceWarningManager &aw)
-    :airspace_warnings(aw),
-     sound_interval_counter(1)
+    :airspace_warnings(aw)
   {}
 
   void CreateButtons(WidgetDialog &dialog) {
@@ -82,6 +106,10 @@ public:
     ack_button = dialog.AddButton(_("ACK"), [this](){ Ack(); });
     ack_day_button = dialog.AddButton(_("Ack Day"), [this](){ AckDay(); });
     enable_button = dialog.AddButton(_("Enable"), [this](){ Enable(); });
+    clearance_button = dialog.AddButton(_("Clearance"),
+                                         [this](){ ChangeClearance(true); });
+    revoke_clearance_button = dialog.AddButton(_("Revoke Clearance"),
+                                         [this](){ ChangeClearance(false); });
     radio_button = dialog.AddButton(_("Radio"), [this](){ Radio(); });
     details_button = dialog.AddButton(_("Details"), [this](){ Details(); });
   }
@@ -99,6 +127,7 @@ public:
   void Ack();
   void AckDay();
   void Enable();
+  void ChangeClearance(bool set);
   void Radio() noexcept;
   void Details() noexcept;
 
@@ -142,6 +171,8 @@ AirspaceWarningListWidget::UpdateButtons()
     ack_button->SetEnabled(false);
     ack_day_button->SetEnabled(false);
     enable_button->SetEnabled(false);
+    clearance_button->SetEnabled(false);
+    revoke_clearance_button->SetEnabled(false);
     radio_button->SetEnabled(false);
     details_button->SetEnabled(false);
     if (self_dialog != nullptr)
@@ -155,6 +186,8 @@ AirspaceWarningListWidget::UpdateButtons()
     ack_button->SetEnabled(false);
     ack_day_button->SetEnabled(false);
     enable_button->SetEnabled(false);
+    clearance_button->SetEnabled(false);
+    revoke_clearance_button->SetEnabled(false);
     radio_button->SetEnabled(airspace->GetRadioFrequency().IsDefined());
     details_button->SetEnabled(true);
     if (self_dialog != nullptr)
@@ -162,9 +195,15 @@ AirspaceWarningListWidget::UpdateButtons()
     return;
   }
 
+  const bool cleared = warning->IsCleared();
+
   ack_button->SetEnabled(warning->IsAckExpired());
   ack_day_button->SetEnabled(!warning->GetAckDay());
   enable_button->SetEnabled(!warning->IsAckExpired());
+  clearance_button->SetEnabled(
+    !cleared &&
+    IsAirspaceClearanceAllowed(airspace->GetTypeOrClass()));
+  revoke_clearance_button->SetEnabled(cleared);
   radio_button->SetEnabled(airspace->GetRadioFrequency().IsDefined());
   details_button->SetEnabled(true);
 
@@ -215,7 +254,6 @@ AirspaceWarningListWidget::OnCursorMoved(unsigned i) noexcept
 void
 AirspaceWarningListWidget::Show(const PixelRect &rc) noexcept
 {
-  sound_interval_counter = 0;
   ListWidget::Show(rc);
   UpdateList();
   update_list_timer.Schedule(std::chrono::milliseconds(500));
@@ -293,6 +331,17 @@ AirspaceWarningListWidget::AckDay()
 }
 
 void
+AirspaceWarningListWidget::ChangeClearance(bool set)
+{
+  if (selected_airspace == nullptr)
+    return;
+  if (!TrySetAirspaceClearance(airspace_warnings, selected_airspace, set))
+    return;
+
+  UpdateList();
+}
+
+void
 AirspaceWarningListWidget::Enable()
 {
   const auto &airspace = selected_airspace;
@@ -300,14 +349,9 @@ AirspaceWarningListWidget::Enable()
     return;
 
   try {
-    ProtectedAirspaceWarningManager::ExclusiveLease lease(airspace_warnings);
-    AirspaceWarning *warning = lease->GetWarningPtr(*airspace);
-
-    lease->AcknowledgeDay(airspace, false);
-    if (warning != NULL) {
-      warning->AcknowledgeInside(false);
-      warning->AcknowledgeWarning(false);
-    }
+    airspace_warnings.AcknowledgeDay(airspace, false);
+    airspace_warnings.AcknowledgeInside(airspace, false);
+    airspace_warnings.AcknowledgeWarning(airspace, false);
   } catch (const std::exception &e) {
     LogFmt("Failed to re-enable airspace warning: {}", e.what());
     Message::AddMessage(_("Failed to re-enable airspace warning"));
@@ -393,7 +437,7 @@ AirspaceWarningListWidget::OnPaintItem(Canvas &canvas,
   }
 
   const Font &list_font = *UIGlobals::GetDialogLook().list.font;
-  const int status_width = AirspaceWarningStatusWidth(canvas, list_font);
+  const int status_width = AirspaceWarningStatusWidth(list_font);
   // "1888" is used in order to have enough space for 4-digit heights with "AGL"
   const int altitude_width = canvas.CalcTextWidth("1888 m AGL");
 
@@ -405,7 +449,11 @@ AirspaceWarningListWidget::OnPaintItem(Canvas &canvas,
     text_altitude_rc.VerticalSplit(text_altitude_rc.right - (padding + altitude_width)).first;
   text_rc.right -= padding;
 
-  if (!warning.IsActive())
+  if (warning.IsCleared() || warning.IsCoveredByClearance()) {
+    if (!IsDithered())
+      canvas.SetTextColor(AirspaceClearanceTextColor(
+        UIGlobals::GetDialogLook().dark_mode, canvas.GetTextColor()));
+  } else if (!warning.IsActive())
     canvas.SetTextColor(COLOR_GRAY);
 
   { // name, altitude info
@@ -448,15 +496,8 @@ AirspaceWarningListWidget::OnPaintItem(Canvas &canvas,
     row_renderer.DrawSecondRow(canvas, text_rc, buffer);
   }
 
-  /* draw the warning state indicator */
-  AirspaceWarningStatusBadge status;
-  if (warning.IsWarning()) {
-    status.active = warning.IsActive();
-    status.kind = warning.IsInside()
-      ? AirspaceWarningStatusBadge::Kind::Inside
-      : AirspaceWarningStatusBadge::Kind::Near;
-  }
-  DrawAirspaceWarningStatus(canvas, list_font, status_rc, status);
+  DrawAirspaceWarningStatus(canvas, list_font, status_rc,
+                            AirspaceWarningStatusFrom(warning));
 }
 
 inline void
@@ -490,34 +531,9 @@ AirspaceWarningListWidget::UpdateList()
       /* the selection may have changed, update CursorAirspace */
       OnCursorMoved(GetList().GetCursorIndex());
 
-    // Process repetitive sound warnings if they are enabled in config
-    const AirspaceWarningConfig &warning_config =
-      CommonInterface::GetComputerSettings().airspace.warnings;
-    if (warning_config.repetitive_sound) {
-      FloatDuration tt_closest_airspace{1000};
-      for (const auto &i : warning_list) {
-        /* Find smallest time to nearest aispace (cannot always rely
-           on fact that closest airspace should be in the beginning of
-           the list) */
-        if (!i.IsInside())
-          tt_closest_airspace = std::min(tt_closest_airspace,
-                                         i.GetSolution().elapsed_time);
-        else
-          tt_closest_airspace = {};
-      }
-
-      const unsigned sound_interval =
-        ((tt_closest_airspace * 3 / warning_config.warning_time) + 1) * 2;
-      if (sound_interval_counter >= sound_interval) {
-        PlayResource("IDR_WAV_BEEPBWEEP");
-        sound_interval_counter = 1;
-      } else
-        ++sound_interval_counter;
-    }
   } else {
     GetList().SetLength(1);
     selected_airspace = NULL;
-    sound_interval_counter = 0;
   }
 
   GetList().Invalidate();

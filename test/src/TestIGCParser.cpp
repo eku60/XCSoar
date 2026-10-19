@@ -58,6 +58,21 @@ TestExtensions()
   ok1(extensions[3].start == 47);
   ok1(extensions[3].finish == 49);
   ok1(strcmp(extensions[3].code, "TRT") == 0);
+  ok1(IGCRecordLength(extensions, 35) == 49);
+
+  /* an LXNAV S100 declaration: every B record it writes is 79
+     characters, the finish byte of the last extension */
+  ok1(IGCParseExtensions("I113638FXA3941ENL4246TAS4751GSP5254TRT5559VAT"
+                         "6063OAT6468NET6972ACZ7376AOR7779AOP", extensions));
+  ok1(IGCRecordLength(extensions, 35) == 79);
+
+  /* a "J" record has the same layout; its K records are 15 here */
+  ok1(IGCParseExtensions("I020810WDI1115WVE", extensions));
+  ok1(IGCRecordLength(extensions, 7) == 15);
+
+  /* without extensions the fixed part is the length */
+  ok1(IGCParseExtensions("I00", extensions));
+  ok1(IGCRecordLength(extensions, 35) == 35);
 }
 
 static void
@@ -139,19 +154,25 @@ TestFix()
   ok1(!IGCParseFix("B1122385163117N00742367EA0049000487", extensions, fix));
   ok1(!IGCParseFix("B1122385103117N00762367EA0049000487", extensions, fix));
 
+  /* FakeGeoidNonZero returns 30 m; B GNSS is ellipsoid, AMSL is GNSS-30 */
+
   ok1(IGCParseFix("B1122385103117N00742367EA0049000487", extensions, fix));
   ok1(fix.time == BrokenTime(11, 22, 38));
   ok1(equals(fix.location, 51.05195, 7.70611667));
   ok1(fix.gps_valid);
   ok1(fix.pressure_altitude == 490);
-  ok1(fix.gps_altitude == 487);
+  ok1(fix.gps_ellipsoid_altitude_available);
+  ok1(fix.gps_ellipsoid_altitude == 487);
+  ok1(fix.gps_altitude == 457);
 
   ok1(IGCParseFix("B1122385103117N00742367EV0049000487", extensions, fix));
   ok1(fix.time == BrokenTime(11, 22, 38));
   ok1(equals(fix.location, 51.05195, 7.70611667));
   ok1(!fix.gps_valid);
   ok1(fix.pressure_altitude == 490);
-  ok1(fix.gps_altitude == 487);
+  ok1(fix.gps_ellipsoid_altitude_available);
+  ok1(fix.gps_ellipsoid_altitude == 487);
+  ok1(fix.gps_altitude == 457);
 
   ok1(!IGCParseFix("B1122385103117N00742367EX0049000487", extensions, fix));
 
@@ -160,7 +181,9 @@ TestFix()
   ok1(fix.time == BrokenTime(11, 22, 43));
   ok1(fix.gps_valid);
   ok1(fix.pressure_altitude == 490);
-  ok1(fix.gps_altitude == 0);
+  ok1(fix.gps_ellipsoid_altitude_available);
+  ok1(fix.gps_ellipsoid_altitude == 0);
+  ok1(fix.gps_altitude == -30);
 
   ok1(IGCParseFix("B1122535103117S00742367WA104900000700000",
                   extensions, fix));
@@ -168,7 +191,9 @@ TestFix()
   ok1(fix.gps_valid);
   ok1(equals(fix.location, -51.05195, -7.70611667));
   ok1(fix.pressure_altitude == 10490);
-  ok1(fix.gps_altitude == 7);
+  ok1(fix.gps_ellipsoid_altitude_available);
+  ok1(fix.gps_ellipsoid_altitude == 7);
+  ok1(fix.gps_altitude == -23);
 }
 
 static void
@@ -251,7 +276,7 @@ TestDeclarationTurnpoint()
 
 int main()
 {
-  plan_tests(148);
+  plan_tests(148 + 8 + 7);
 
   TestHeader();
   TestDate();

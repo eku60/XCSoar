@@ -4,6 +4,7 @@ ifeq ($(HAVE_HTTP),y)
 
 LIBCLIENT_SOURCES = \
 	$(SRC)/net/client/auth/JwtBearerSession.cpp \
+	$(SRC)/net/client/FlarmHub/Client.cpp \
 	$(SRC)/net/client/SyncHttp.cpp \
 	$(SRC)/net/client/tim/Client.cpp \
 	$(SRC)/net/client/xctherm/Http.cpp \
@@ -14,7 +15,10 @@ LIBCLIENT_SOURCES = \
 	$(SRC)/net/client/WeGlide/ListTasks.cpp \
 	$(SRC)/net/client/WeGlide/UploadFlight.cpp
 
-LIBCLIENT_DEPENDS = LIBHTTP FMT JSON
+# ASYNC must follow this library: the progress poll calls
+# FineTimerEvent::Schedule, and the Windows linker does not rescan
+# an archive it has already passed.
+LIBCLIENT_DEPENDS = LIBHTTP FMT JSON ASYNC
 
 $(eval $(call link-library,libclient,LIBCLIENT))
 endif

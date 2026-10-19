@@ -3,7 +3,6 @@
 
 #include "Dialogs/Dialogs.h"
 #include "Dialogs/WidgetDialog.hpp"
-#include "Device/MultipleDevices.hpp"
 #include "Computer/Settings.hpp"
 #include "Units/Units.hpp"
 #include "Units/Group.hpp"
@@ -15,18 +14,25 @@
 #include "Interface.hpp"
 #include "ActionInterface.hpp"
 #include "GlideSolvers/GlidePolar.hpp"
-#include "Task/ProtectedTaskManager.hpp"
 #include "Dialogs/Message.hpp"
 #include "Dialogs/InternalLink.hpp"
+#include "Dialogs/Weather/MosmixTemperature.hpp"
+#include "Weather/MOSMIX/AutoUpdate.hpp"
+#include "time/BrokenDateTime.hpp"
 #include "Widget/RowFormWidget.hpp"
+#include "util/StaticString.hxx"
 #include "Form/Button.hpp"
 #include "Language/Language.hpp"
-#include "Operation/MessageOperationEnvironment.hpp"
 #include "ui/event/PeriodicTimer.hpp"
-#include "Components.hpp"
-#include "BackendComponents.hpp"
 
 #include <math.h>
+
+#include <optional>
+
+/* the enumerator Temperature below hides the class of the same
+   name; give the class a second name while it is still
+   reachable */
+using TemperatureValue = Temperature;
 
 enum ControlIndex {
   Crew,
@@ -48,6 +54,18 @@ class FlightSetupPanel final
 
   double last_altitude;
 
+  /**
+   * The temperature a forecast put into the field, if one arrived.
+   * Save() compares against it to tell a value the pilot typed from
+   * one that was merely accepted.
+   */
+  std::optional<TemperatureValue> offered_temperature;
+
+  /** fetches in the background; cancelled when this panel goes away */
+  ForecastTemperatureFetcher forecast_fetcher;
+
+  void ShowForecastTemperature() noexcept;
+
 public:
   FlightSetupPanel()
     :RowFormWidget(UIGlobals::GetDialogLook()),
@@ -56,35 +74,23 @@ public:
      last_altitude(-2)
   {}
 
+
   void SetDumpButton(Button *_dump_button) {
     dump_button = _dump_button;
   }
 
   void SetButtons();
   void SetCrewMass(double _crew_mass) {
-    polar_settings.glide_polar_task.SetCrewMass(_crew_mass);
-    PublishPolarSettings();
+    ActionInterface::SetCrewMass(_crew_mass);
     SetBallast();
-    
-    // Send to external devices
-    if (backend_components && backend_components->devices) {
-      MessageOperationEnvironment env;
-      backend_components->devices->PutCrewMass(_crew_mass, env);
-    }
   }
 
   void SetBallast();
   void SetBallastTimer(bool active);
   void FlipBallastTimer();
 
-  void PublishPolarSettings() {
-    if (backend_components)
-      backend_components->SetTaskPolar(polar_settings);
-  }
-
   void SetBallastLitres(double ballast_litres) {
-    polar_settings.glide_polar_task.SetBallastLitres(ballast_litres);
-    PublishPolarSettings();
+    ActionInterface::SetBallastLitres(ballast_litres);
     SetButtons();
     SetBallast();
   }
@@ -146,25 +152,30 @@ FlightSetupPanel::SetBallast()
       if (ui_max < db)
         ui_max = 400.0;
       df->SetMax(db * ceil(ui_max / db));
+
+      const double litres =
+        polar_settings.glide_polar_task.GetBallastLitres();
+      /* Leave a value the pilot is editing.  The maximum still
+         follows a plane change. */
+      if (!control.HasFocus() &&
+          fabs(df->GetValue() - litres) >= 0.5)
+        LoadValue(Ballast, litres);
     }
-    LoadValue(Ballast, polar_settings.glide_polar_task.GetBallastLitres());
   }
 
   const auto wl = polar_settings.glide_polar_task.GetWingLoading();
   SetRowVisible(WingLoading, wl > 0);
-  if (wl > 0)
-    LoadValue(WingLoading, wl, UnitGroup::WING_LOADING);
-
-  if (backend_components && backend_components->devices) {
-    const auto &polar = polar_settings.glide_polar_task;
-    const double ref_mass = polar.GetReferenceMass();
-    if (ref_mass > 0) {
-      MessageOperationEnvironment env;
-      backend_components->devices->PutBallast(polar.GetBallastFraction(),
-                                              polar.GetBallastOverload(),
-                                              env);
-    }
+  if (wl > 0) {
+    const auto &df = (const DataFieldFloat &)GetDataField(WingLoading);
+    const Unit unit = Units::GetUserUnitByGroup(UnitGroup::WING_LOADING);
+    if (fabs(df.GetValue() - Units::ToUserUnit(wl, unit)) >= 0.05)
+      LoadValue(WingLoading, wl, UnitGroup::WING_LOADING);
   }
+
+  const auto &plane = CommonInterface::GetComputerSettings().plane;
+  GetControl(WingLoading).SetValueWarning(
+    plane.IsOverMaxTakeoffMass(
+      polar_settings.glide_polar_task.GetTotalMass()));
 }
 
 void
@@ -226,13 +237,7 @@ FlightSetupPanel::RefreshAltitudeControl()
 
 void
 FlightSetupPanel::SetBugs(double bugs) {
-  polar_settings.SetBugs(bugs);
-  PublishPolarSettings();
-
-  if (backend_components && backend_components->devices) {
-    MessageOperationEnvironment env;
-    backend_components->devices->PutBugs(bugs, env);
-  }
+  ActionInterface::SetBugs(bugs);
 }
 
 void
@@ -248,8 +253,38 @@ FlightSetupPanel::OnTimer()
   const PolarSettings &settings = CommonInterface::GetComputerSettings().polar;
 
   if (settings.ballast_timer_active) {
-    /* display the new values on the screen */
-    SetBallast();
+    /* dump updates the polar on the process timer; push that to
+       devices.  The fields below pick up the new litres. */
+    ActionInterface::SetBallastLitres(
+        polar_settings.glide_polar_task.GetBallastLitres());
+  }
+
+  /* A device can change these while the dialog is open.  Leave a
+     field alone while it has the cursor. */
+  const auto &polar = polar_settings.glide_polar_task;
+
+  if (!GetControl(Crew).HasFocus()) {
+    const double crew = polar.GetCrewMass();
+    const auto &df = (const DataFieldFloat &)GetDataField(Crew);
+    if (fabs(df.GetValue() - Units::ToUserMass(crew)) >= 0.5)
+      LoadValue(Crew, crew, UnitGroup::MASS);
+  }
+
+  SetBallast();
+
+  if (!GetControl(Bugs).HasFocus()) {
+    const double bugs_percent = (1 - settings.bugs) * 100;
+    const auto &df = (const DataFieldFloat &)GetDataField(Bugs);
+    if (fabs(df.GetValue() - bugs_percent) >= 0.5)
+      LoadValue(Bugs, bugs_percent);
+  }
+
+  if (!GetControl(QNH).HasFocus()) {
+    const double user_qnh = Units::ToUserPressure(
+      CommonInterface::GetComputerSettings().pressure);
+    const auto &df = (const DataFieldFloat &)GetDataField(QNH);
+    if (fabs(df.GetValue() - user_qnh) >= GetUserPressureStep() / 2)
+      LoadValue(QNH, user_qnh);
   }
 
   RefreshAltitudeControl();
@@ -297,7 +332,7 @@ FlightSetupPanel::Prepare(ContainerWindow &parent,
            this);
 
   WndProperty *wing_loading = AddFloat(_("Wing loading"),
-                                       _("The current wing loading, calculated from the glider's empty weight, crew weight, and ballast."),
+                                       _("The current wing loading, calculated from the glider's empty weight, crew weight, and ballast. Shown in red when the glider is heavier than its MTOW."),
                                        "%.1f %s", "%.0f", 0,
                                        300, 5,
                                        false, UnitGroup::WING_LOADING,
@@ -330,7 +365,13 @@ FlightSetupPanel::Prepare(ContainerWindow &parent,
               UnitGroup::ALTITUDE, 0);
 
   wp = AddFloat(_("Max. temp."),
-                _("Set to forecast ground temperature. Used by convection estimator (temperature trace page of Analysis dialog)."),
+                _("The day's maximum ground temperature. A dry adiabat "
+                  "from it against the outside air temperature measured "
+                  "while climbing gives the estimated thermal ceiling; "
+                  "the cloud base needs a humidity probe as well. Both "
+                  "are drawn on the temperature trace page of the "
+                  "Analysis dialog, once the glider has climbed through "
+                  "the layer."),
                 "%.0f %s", "%.0f",
                 Temperature::FromCelsius(-50).ToUser(),
                 Temperature::FromCelsius(60).ToUser(),
@@ -341,6 +382,57 @@ FlightSetupPanel::Prepare(ContainerWindow &parent,
     df.SetUnits(Units::GetTemperatureName());
     wp->RefreshDisplay();
   }
+
+  /* Started rather than waited for: the dialog opens on the value it
+     has, and the field changes under the pilot only if an answer
+     turns up.  Nothing happens at all when one was already fetched
+     today, or the pilot has set the value by hand today, or there is
+     no fix to pick a station by. */
+  const auto opened_with = settings.forecast_temperature;
+  forecast_fetcher.Start([this, opened_with](TemperatureValue value){
+    if (fabs(GetValueFloat(Temperature) - opened_with.ToUser()) > 0.01)
+      /* the pilot has typed something in the meantime; a forecast
+         does not get to overwrite that */
+      return;
+
+    offered_temperature = value;
+    LoadValue(Temperature, value.ToKelvin(), UnitGroup::TEMPERATURE);
+    ShowForecastTemperature();
+  });
+}
+
+void
+FlightSetupPanel::ShowForecastTemperature() noexcept
+{
+  auto &df = (DataFieldFloat &)GetDataField(Temperature);
+
+  /* The row states the number and names where it came from:
+     "18.6 degC  DWD MOSMIX".  A greyed field says the pilot did not
+     set this, but not who did.
+
+     DataFieldFloat renders its display format with (value, unit), so
+     the unit symbol moves into the literal and the field's own unit is
+     cleared -- the " %s" SetFormat() appends then formats to nothing.
+     A unit symbol cannot carry a per cent sign, so the result is still
+     a safe format string.
+
+     One decimal, because that is what the forecast resolves to.
+     Rounding it to the whole degree the selection list steps in is
+     what made the same number appear twice in that list. */
+  StaticString<64> format;
+  format.Format("%%.1f %s  DWD MOSMIX", Units::GetTemperatureName());
+
+  df.SetUnits("");
+  df.SetFormat(format);
+
+  /* Disabled rather than read-only.  A read-only row still takes the
+     tap and answers it with WndProperty::ShowFullContent() -- a
+     full-screen dialog holding one short number, which is not what
+     pressing a field that says "not yours to set" should do.  A
+     disabled row swallows the tap without answering it, and it cannot
+     be reached with the cursor keys either. */
+  SetRowEnabled(Temperature, false);
+  GetControl(Temperature).RefreshDisplay();
 }
 
 bool
@@ -350,7 +442,20 @@ FlightSetupPanel::Save(bool &changed) noexcept
 
   double forecast_temperature = settings.forecast_temperature.ToKelvin();
   if (SaveValue(Temperature, UnitGroup::TEMPERATURE, forecast_temperature)) {
-    settings.forecast_temperature = Temperature::FromKelvin(forecast_temperature);
+    const auto value =
+      TemperatureValue::FromKelvin(forecast_temperature);
+
+    /* A value the pilot typed outranks the forecast for the rest of
+       the day.  Merely closing the dialog on a value a forecast put
+       there is not that, so the two are told apart by comparison. */
+    if (!offered_temperature.has_value() ||
+        fabs(offered_temperature->ToKelvin() - forecast_temperature) > 0.01) {
+      if (const BrokenDate today = BrokenDateTime::NowUTC();
+          today.IsPlausible())
+        MOSMIX::RememberManualEntry(today);
+    }
+
+    settings.forecast_temperature = value;
     changed = true;
   }
 

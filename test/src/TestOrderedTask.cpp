@@ -2,13 +2,23 @@
 // Copyright The XCSoar Project
 
 #include "Engine/GlideSolvers/GlidePolar.hpp"
+#include "Engine/Navigation/Aircraft.hpp"
 #include "Engine/Task/TaskEvents.hpp"
 #include "Engine/Task/Ordered/Settings.hpp"
 #include "Engine/Task/Ordered/OrderedTask.hpp"
 #include "Engine/Task/Ordered/Points/StartPoint.hpp"
 #include "Engine/Task/Ordered/Points/FinishPoint.hpp"
 #include "Engine/Task/Ordered/Points/ASTPoint.hpp"
+#include "Engine/Task/Ordered/Points/AATPoint.hpp"
+#include "Engine/Task/ObservationZones/Boundary.hpp"
+#include "Engine/Task/ObservationZones/CylinderZone.hpp"
 #include "Engine/Task/ObservationZones/LineSectorZone.hpp"
+#include "Engine/Task/ObservationZones/SectorZone.hpp"
+#include "Engine/Task/ObservationZones/SymmetricSectorZone.hpp"
+#include "Geo/Math.hpp"
+#include "Math/Constants.hpp"
+
+#include <cmath>
 
 #define ACCURACY 500
 
@@ -28,7 +38,7 @@ static Waypoint
 MakeWaypoint(Waypoint wp, double altitude) noexcept
 {
   wp.elevation = altitude;
-  wp.has_elevation = true;
+  wp.elevation_source = Waypoint::ElevationSource::FILE;
   return wp;
 }
 
@@ -162,6 +172,51 @@ CheckTotal(const AircraftState &aircraft, const TaskStats &stats,
              : 0));
 }
 
+static constexpr AircraftState
+MakeTimedAircraft(double longitude, double latitude, double altitude,
+                  FloatDuration time) noexcept
+{
+  AircraftState aircraft = MakeAircraft(longitude, latitude, altitude);
+  aircraft.time = TimeStamp{time};
+  aircraft.flying = true;
+  return aircraft;
+}
+
+static void
+ExitStartCylinder(OrderedTask &task, const GeoPoint &center,
+                  double altitude)
+{
+  const auto state_last = MakeTimedAircraft(center.longitude.Degrees(),
+                                            center.latitude.Degrees(),
+                                            altitude, FloatDuration{3600});
+  const auto state_now = MakeTimedAircraft(center.longitude.Degrees(),
+                                           center.latitude.Degrees() + 0.006,
+                                           altitude, FloatDuration{3660});
+  task.Update(state_now, state_last, glide_polar);
+  ok1(task.GetStats().start.HasStarted());
+}
+
+static void
+CheckTravelledDistance(const TaskStats &stats)
+{
+  ok1(stats.total.planned.IsDefined());
+  ok1(stats.total.remaining.IsDefined());
+  ok1(stats.total.travelled.IsDefined());
+  ok1(equals(stats.total.travelled.GetDistance(),
+             stats.total.planned.GetDistance() -
+             stats.total.remaining.GetDistance()));
+}
+
+static void
+CheckCurrentLegTravelled(const TaskStats &stats)
+{
+  ok1(stats.current_leg.travelled.IsDefined());
+  ok1(stats.current_leg.travelled.GetDistance() > 1000);
+  ok1(stats.current_leg.travelled.GetSpeed() > 0);
+  ok1(equals(stats.current_leg.travelled.GetDistance(),
+             stats.total.travelled.GetDistance()));
+}
+
 static void
 CheckLegEqualsTotal(const GlideResult &leg, const GlideResult &total)
 {
@@ -254,7 +309,7 @@ TestHighFinish()
   task.Append(tp1);
   Waypoint wp2b(*wp2);
   wp2b.elevation = 1000;
-  wp2b.has_elevation = true;
+  wp2b.elevation_source = Waypoint::ElevationSource::FILE;
   const FinishPoint tp2(std::make_unique<LineSectorZone>(wp2b.location),
                         WaypointPtr(new Waypoint(wp2b)), task_behaviour,
                         ordered_task_settings.finish_constraints, false);
@@ -388,6 +443,859 @@ TestLowTPFinal()
 }
 
 static void
+TestTravelledDistance()
+{
+  ordered_task_settings.SetDefaults();
+
+  {
+    OrderedTask task(task_behaviour);
+    const StartPoint tp1(std::make_unique<LineSectorZone>(wp1->location),
+                         WaypointPtr(wp1), task_behaviour,
+                         ordered_task_settings.start_constraints);
+    task.Append(tp1);
+    const FinishPoint tp2(std::make_unique<LineSectorZone>(wp2->location),
+                          WaypointPtr(wp2), task_behaviour,
+                          ordered_task_settings.finish_constraints, false);
+    task.Append(tp2);
+    task.SetActiveTaskPoint(1);
+    task.UpdateGeometry();
+    ok1(!IsError(task.CheckTask()));
+
+    const auto aircraft = MakeAircraft(wp1->location, 2000);
+    task.Update(aircraft, aircraft, glide_polar);
+
+    const TaskStats &stats = task.GetStats();
+    CheckTravelledDistance(stats);
+    ok1(equals(stats.total.travelled.GetDistance(), 0));
+  }
+
+  {
+    const double width(1);
+    OrderedTask task(task_behaviour);
+    task.Append(StartPoint(std::make_unique<CylinderZone>(wp1->location, 500),
+                           WaypointPtr(wp1), task_behaviour,
+                           ordered_task_settings.start_constraints));
+    const ASTPoint tp2(std::make_unique<LineSectorZone>(wp3->location, width),
+                       MakeWaypointPtr(*wp3, 1500), task_behaviour);
+    task.Append(tp2);
+    const FinishPoint tp3(std::make_unique<LineSectorZone>(wp4->location, width),
+                          MakeWaypointPtr(*wp4, 100), task_behaviour,
+                          ordered_task_settings.finish_constraints, false);
+    task.Append(tp3);
+    task.SetActiveTaskPoint(1);
+    task.UpdateGeometry();
+    ok1(!IsError(task.CheckTask()));
+
+    ExitStartCylinder(task, wp1->location, 2000);
+
+    const auto state_last = MakeTimedAircraft(0, 45.05, 2000,
+                                              FloatDuration{3720});
+    const auto state_now = MakeTimedAircraft(0, 45.15, 2000,
+                                             FloatDuration{3780});
+    task.Update(state_now, state_last, glide_polar);
+    CheckTravelledDistance(task.GetStats());
+    CheckCurrentLegTravelled(task.GetStats());
+  }
+
+  {
+    OrderedTask task(task_behaviour);
+    task.Append(StartPoint(std::make_unique<CylinderZone>(wp1->location, 500),
+                           WaypointPtr(wp1), task_behaviour,
+                           ordered_task_settings.start_constraints));
+    task.Append(AATPoint(std::make_unique<CylinderZone>(wp2->location, 10000),
+                         WaypointPtr(wp2), task_behaviour));
+    task.Append(FinishPoint(std::make_unique<CylinderZone>(wp3->location, 500),
+                            WaypointPtr(wp3), task_behaviour,
+                            ordered_task_settings.finish_constraints));
+    task.SetActiveTaskPoint(1);
+    task.UpdateGeometry();
+    ok1(!IsError(task.CheckTask()));
+
+    AATPoint &aat = (AATPoint &)task.GetPoint(1);
+    aat.SetTarget(MakeGeoPoint(0, 45.31), true);
+    task.UpdateGeometry();
+
+    ExitStartCylinder(task, wp1->location, 2000);
+
+    const auto state_last = MakeTimedAircraft(0, 45.05, 2000,
+                                              FloatDuration{3720});
+    const auto state_now = MakeTimedAircraft(0, 45.15, 2000,
+                                             FloatDuration{3780});
+    task.Update(state_now, state_last, glide_polar);
+    CheckTravelledDistance(task.GetStats());
+    CheckCurrentLegTravelled(task.GetStats());
+  }
+}
+
+struct StartLegStats {
+  double remaining, planned, distance_min;
+};
+
+/**
+ * Fly towards a start observation zone, with a finish point due north,
+ * and collect the values the option is supposed to affect.
+ */
+static StartLegStats
+FlyToStart(std::unique_ptr<ObservationZonePoint> start_zone,
+           bool navigate_nearest, const AircraftState &aircraft)
+{
+  OrderedTaskSettings settings = task_behaviour.ordered_defaults;
+  settings.navigate_nearest = navigate_nearest;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+
+  const StartPoint tp1(std::move(start_zone), WaypointPtr(wp1),
+                       task_behaviour, settings.start_constraints);
+  task.Append(tp1);
+  const FinishPoint tp2(std::make_unique<LineSectorZone>(wp3->location),
+                        WaypointPtr(wp3), task_behaviour,
+                        settings.finish_constraints, false);
+  task.Append(tp2);
+  task.UpdateGeometry();
+
+  ok1(!IsError(task.CheckTask()));
+
+  task.Update(aircraft, aircraft, glide_polar);
+
+  const TaskStats &stats = task.GetStats();
+  const StartLegStats result{stats.current_leg.vector_remaining.distance,
+                             stats.total.planned.GetDistance(),
+                             stats.distance_min};
+
+  /* once the start is no longer the active task point, navigation
+     must let go of the observation zone again */
+  task.SetActiveTaskPoint(1);
+  task.Update(aircraft, aircraft, glide_polar);
+  ok1(task.GetPoint(0).GetLocationNavigation() ==
+      task.GetPoint(0).GetLocationRemaining());
+
+  return result;
+}
+
+/**
+ * Fly towards a finish observation zone, with the start already behind,
+ * and return the remaining distance of the current leg.
+ */
+static double
+FlyToFinish(std::unique_ptr<ObservationZonePoint> finish_zone,
+            bool navigate_nearest, const AircraftState &aircraft)
+{
+  OrderedTaskSettings settings = task_behaviour.ordered_defaults;
+  settings.navigate_nearest = navigate_nearest;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+
+  const StartPoint tp1(std::make_unique<LineSectorZone>(wp1->location, 1000),
+                       WaypointPtr(wp1), task_behaviour,
+                       settings.start_constraints);
+  task.Append(tp1);
+  const FinishPoint tp2(std::move(finish_zone), WaypointPtr(wp3),
+                        task_behaviour, settings.finish_constraints, false);
+  task.Append(tp2);
+  task.UpdateGeometry();
+
+  ok1(!IsError(task.CheckTask()));
+
+  task.SetActiveTaskPoint(1);
+  task.Update(aircraft, aircraft, glide_polar);
+
+  return task.GetStats().current_leg.vector_remaining.distance;
+}
+
+/**
+ * With "navigate to nearest point" enabled, a start line and a start
+ * cylinder are navigated to at their nearest point, while the task keeps
+ * referring to the start waypoint.  A sector, and a cylinder the
+ * aircraft is inside of, are left alone.
+ */
+static void
+TestStartNearestPoint()
+{
+  /* the aircraft is behind the start line, well east of its center */
+  const auto aircraft = MakeTimedAircraft(0.05, 44.95, 1500,
+                                          FloatDuration{3600});
+
+  const auto line_off =
+    FlyToStart(std::make_unique<LineSectorZone>(wp1->location, 20000),
+               false, aircraft);
+  const auto line_on =
+    FlyToStart(std::make_unique<LineSectorZone>(wp1->location, 20000),
+               true, aircraft);
+
+  ok1(equals(line_off.remaining, aircraft.location.Distance(wp1->location)));
+
+  /* The line runs east/west through wp1, thus its nearest point is due
+     north of the aircraft.  Its ends follow a great circle and bulge
+     about 7.8 m north of the latitude of wp1, so the expected value is
+     only good to a few tens of metres; ACCURACY 500 would spend most
+     of its relative budget on that. */
+  ok1(equals(line_on.remaining,
+             aircraft.location.Distance(MakeGeoPoint(0.05, 45)), 100));
+
+  /* the option changes navigation only, not the task */
+  ok1(equals(line_off.planned, line_on.planned));
+  ok1(equals(line_off.distance_min, line_on.distance_min));
+
+  /* a start cylinder is navigated to at its near edge, one radius
+     short of the center on the bearing to the aircraft; the radius is
+     small enough to leave the aircraft outside the cylinder */
+  const auto cylinder_off =
+    FlyToStart(std::make_unique<CylinderZone>(wp1->location, 5000),
+               false, aircraft);
+  const auto cylinder_on =
+    FlyToStart(std::make_unique<CylinderZone>(wp1->location, 5000),
+               true, aircraft);
+
+  ok1(equals(cylinder_on.remaining,
+             aircraft.location.Distance(wp1->location) - 5000, 100));
+  ok1(cylinder_on.remaining < cylinder_off.remaining);
+  ok1(equals(cylinder_off.planned, cylinder_on.planned));
+
+  /* a sector covers only part of the circle, so it keeps the node
+     find_best_start() picks for it */
+  const auto sector_off =
+    FlyToStart(std::make_unique<SectorZone>(wp1->location, 10000),
+               false, aircraft);
+  const auto sector_on =
+    FlyToStart(std::make_unique<SectorZone>(wp1->location, 10000),
+               true, aircraft);
+
+  ok1(equals(sector_off.remaining, sector_on.remaining));
+
+  /* inside a start cylinder the nearest point of the rim is behind the
+     aircraft, away from the next task point, so the node
+     find_best_start() picks is kept */
+  const auto inside_off =
+    FlyToStart(std::make_unique<CylinderZone>(wp1->location, 20000),
+               false, aircraft);
+  const auto inside_on =
+    FlyToStart(std::make_unique<CylinderZone>(wp1->location, 20000),
+               true, aircraft);
+
+  ok1(equals(inside_off.remaining, inside_on.remaining));
+}
+
+/**
+ * With "navigate to nearest point" enabled, a finish line is reached at
+ * its nearest point.  A finish cylinder already refers to its rim.
+ */
+static void
+TestFinishNearestPoint()
+{
+  /* the aircraft is short of the finish, well east of its center */
+  const auto aircraft = MakeTimedAircraft(0.05, 45.95, 1500,
+                                          FloatDuration{3600});
+
+  const auto line_off =
+    FlyToFinish(std::make_unique<LineSectorZone>(wp3->location, 20000),
+                false, aircraft);
+  const auto line_on =
+    FlyToFinish(std::make_unique<LineSectorZone>(wp3->location, 20000),
+                true, aircraft);
+
+  ok1(equals(line_off, aircraft.location.Distance(wp3->location), 100));
+  ok1(equals(line_on,
+             aircraft.location.Distance(MakeGeoPoint(0.05, 46)), 100));
+
+  const auto cylinder_on =
+    FlyToFinish(std::make_unique<CylinderZone>(wp3->location, 3000),
+                true, aircraft);
+
+  /* the minimum distance path already picks a point on the rim of a
+     finish cylinder rather than its center, so the option only makes
+     that point the nearest one */
+  ok1(equals(cylinder_on,
+             aircraft.location.Distance(wp3->location) - 3000, 100));
+}
+
+/**
+ * With "navigate to nearest point" enabled, the remaining distance runs
+ * on through the start: before it, the leg after the start begins at
+ * the nearest point of the line, where the glider is going to cross it,
+ * rather than at the point the task refers to.
+ */
+static void
+TestStartNearestPointContinuity()
+{
+  OrderedTaskSettings settings = task_behaviour.ordered_defaults;
+  settings.navigate_nearest = true;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+
+  const StartPoint tp1(std::make_unique<LineSectorZone>(wp1->location, 20000),
+                       WaypointPtr(wp1), task_behaviour,
+                       settings.start_constraints);
+  task.Append(tp1);
+  /* a tiny turn point cylinder, so the leg after the start ends at a
+     fixed point */
+  const ASTPoint tp2(std::make_unique<CylinderZone>(wp2->location, 10),
+                     WaypointPtr(wp2), task_behaviour);
+  task.Append(tp2);
+  const FinishPoint tp3(std::make_unique<LineSectorZone>(wp3->location),
+                        WaypointPtr(wp3), task_behaviour,
+                        settings.finish_constraints, false);
+  task.Append(tp3);
+  task.UpdateGeometry();
+
+  ok1(!IsError(task.CheckTask()));
+
+  /* about 5 km east of the center of the start line, which is still
+     the point making the task shortest; the turn point is close enough
+     for the two start points to be some 300 m apart in distance */
+  const auto before = MakeTimedAircraft(0.06, 44.999, 1500,
+                                        FloatDuration{3600});
+  const auto after = MakeTimedAircraft(0.06, 45.001, 1500,
+                                       FloatDuration{3610});
+
+  task.Update(before, before, glide_polar);
+  ok1(!task.GetStats().start.HasStarted());
+  const auto remaining_before =
+    task.GetStats().total.remaining.GetDistance();
+
+  const auto nearest = MakeGeoPoint(0.06, 45);
+  const auto tail = nearest.Distance(wp2->location) +
+    wp2->location.Distance(wp3->location);
+  ok1(fabs(remaining_before - before.location.Distance(nearest) - tail)
+      < 30);
+
+  task.Update(after, before, glide_polar);
+  ok1(task.GetStats().start.HasStarted());
+  const auto remaining_after = task.GetStats().total.remaining.GetDistance();
+
+  /* the remaining distance drops by the distance flown, without a jump
+     when the start is crossed */
+  ok1(fabs(remaining_before - remaining_after -
+           before.location.Distance(after.location)) < 30);
+}
+
+/**
+ * While the start point is still the active task point, the aircraft
+ * has not started yet: it must still leave through the boundary, so
+ * the samples it collects inside the sector constrain nothing.
+ *
+ * Two things follow, and this checks both.  The origin of the first
+ * leg stays on the boundary, moving by at most one of the nodes the
+ * boundary is sampled at.  The minimum remaining task distance stays
+ * put as the aircraft moves about inside the sector.
+ */
+static void
+TestStartLegOrigin()
+{
+  ordered_task_settings.SetDefaults();
+
+  constexpr double START_RADIUS = 10000;
+
+  /* CylinderZone::GetBoundary() samples the circle at 20 points, so
+     the leg origin can step from one of them to the next as the
+     aircraft drifts; that step grows with the radius */
+  constexpr double BOUNDARY_STEP = M_2PI * START_RADIUS / 20;
+
+  OrderedTask task(task_behaviour);
+  task.Append(StartPoint(std::make_unique<CylinderZone>(wp1->location,
+                                                        START_RADIUS),
+                         WaypointPtr(wp1), task_behaviour,
+                         ordered_task_settings.start_constraints));
+  task.Append(ASTPoint(std::make_unique<CylinderZone>(wp3->location, 500),
+                       WaypointPtr(wp3), task_behaviour));
+  task.Append(FinishPoint(std::make_unique<CylinderZone>(wp4->location, 500),
+                          WaypointPtr(wp4), task_behaviour,
+                          ordered_task_settings.finish_constraints));
+  task.UpdateGeometry();
+
+  ok1(!IsError(task.CheckTask()));
+
+  /* fly a straight line inside the start cylinder, well clear of its
+     boundary, so the aircraft never starts */
+
+  auto state_last = MakeTimedAircraft(0, 44.96, 2000, FloatDuration{3600});
+  GeoPoint previous = GeoPoint::Invalid();
+  double previous_distance_min = -1;
+
+  for (unsigned i = 0; i < 12; ++i) {
+    const auto state = MakeTimedAircraft(0.001 * i, 44.96, 2000,
+                                         FloatDuration{3600 + 5 * i});
+    task.Update(state, state_last, glide_polar);
+    state_last = state;
+
+    const GeoPoint origin = task.GetPoint(0).GetLocationRemaining();
+
+    /* the start has not been crossed yet */
+    ok1(task.GetActiveTaskPointIndex() == 0);
+
+    /* thus the leg origin must be a point where the start can still
+       be crossed, i.e. on the boundary of the start cylinder */
+    ok1(equals(wp1->location.Distance(origin), START_RADIUS));
+
+    /* the origin stays on the boundary and steps by at most one
+       sampled node as the aircraft drifts */
+    ok1(!previous.IsValid() ||
+        previous.Distance(origin) < 1.5 * BOUNDARY_STEP);
+
+    /* the samples collected inside the sector must not shorten the
+       task: the minimum remaining distance does not depend on where
+       inside the start the aircraft happens to be */
+    const double distance_min = task.GetStats().distance_min;
+    ok1(previous_distance_min < 0 ||
+        equals(distance_min, previous_distance_min));
+
+    previous = origin;
+    previous_distance_min = distance_min;
+  }
+}
+
+static void
+AppendStartNavigationTask(OrderedTask &task)
+{
+  task.Append(StartPoint(std::make_unique<CylinderZone>(wp1->location, 3000),
+                         WaypointPtr(wp1), task_behaviour,
+                         ordered_task_settings.start_constraints));
+  task.Append(AATPoint(std::make_unique<CylinderZone>(wp5->location, 20000),
+                       WaypointPtr(wp5), task_behaviour));
+  task.Append(FinishPoint(std::make_unique<CylinderZone>(wp4->location, 500),
+                          WaypointPtr(wp4), task_behaviour,
+                          ordered_task_settings.finish_constraints));
+  task.UpdateGeometry();
+}
+
+/**
+ * The start boundary node which minimises the distance from the
+ * aircraft via that node to the next task point.
+ */
+static GeoPoint
+FindBestStartNode(const OrderedTask &task, const GeoPoint &location)
+{
+  const GeoPoint &next = task.GetPoint(1).GetLocationRemaining();
+
+  GeoPoint best = GeoPoint::Invalid();
+  double best_distance = 0;
+  for (const GeoPoint &node : task.GetPoint(0).GetBoundary()) {
+    const double distance = ::DoubleDistance(location, node, next);
+    if (!best.IsValid() || distance < best_distance) {
+      best = node;
+      best_distance = distance;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * While the start is active, the leg and the bearing use the
+ * boundary node find_best_start() chose.  The minimum-distance
+ * search must not move it.  Reset forgets that node.
+ */
+static void
+TestStartNavigationLocation()
+{
+  ordered_task_settings.SetDefaults();
+
+  OrderedTask task(task_behaviour);
+  AppendStartNavigationTask(task);
+
+  ok1(!IsError(task.CheckTask()));
+
+  /* circle inside the start cylinder, well clear of its boundary, so
+     the aircraft never starts */
+
+  constexpr double CIRCLE_RADIUS = 0.016; // degrees of latitude
+  const double lon_scale = 1 / std::cos(wp1->location.latitude.Radians());
+
+  auto state_last = MakeTimedAircraft(0, 45 + CIRCLE_RADIUS, 2000,
+                                      FloatDuration{3600});
+
+  for (unsigned i = 1; i <= 40; ++i) {
+    const double a = 0.25 * i;
+    const auto state =
+      MakeTimedAircraft(CIRCLE_RADIUS * lon_scale * std::sin(a),
+                        45 + CIRCLE_RADIUS * std::cos(a), 2000,
+                        FloatDuration{3600 + 2 * i});
+    task.Update(state, state_last, glide_polar);
+    state_last = state;
+
+    const GeoPoint &origin = task.GetPoint(0).GetLocationRemaining();
+
+    ok1(task.GetActiveTaskPointIndex() == 0);
+    ok1(FindBestStartNode(task, state.location).Distance(origin) < 1);
+    ok1(task.GetStats().current_leg.location_remaining
+        .Distance(origin) < 1);
+  }
+
+  /* after a reset, the start on the ground is that of a task which
+     was never flown */
+  task.Reset();
+
+  OrderedTask fresh(task_behaviour);
+  AppendStartNavigationTask(fresh);
+
+  auto ground = MakeTimedAircraft(-0.05, 44.96, 2000, FloatDuration{7200});
+  ground.flying = false;
+  task.Update(ground, ground, glide_polar);
+  fresh.Update(ground, ground, glide_polar);
+
+  ok1(task.GetPoint(0).GetLocationRemaining()
+      .Distance(fresh.GetPoint(0).GetLocationRemaining()) < 1);
+  ok1(equals(task.GetStats().total.planned.GetDistance(),
+             fresh.GetStats().total.planned.GetDistance()));
+}
+
+/**
+ * Drift inside a start line or start sector without crossing it.
+ * The leg origin stays on a boundary node, clear of the glider, and
+ * the bearing uses that same node.
+ *
+ * @param latitude track, south of wp1, chosen so every step is inside
+ */
+static void
+TestWaitingInsideStart(std::unique_ptr<ObservationZonePoint> zone,
+                       double latitude)
+{
+  ordered_task_settings.SetDefaults();
+
+  OrderedTask task(task_behaviour);
+  task.Append(StartPoint(std::move(zone), WaypointPtr(wp1),
+                         task_behaviour,
+                         ordered_task_settings.start_constraints));
+  task.Append(ASTPoint(std::make_unique<CylinderZone>(wp3->location, 500),
+                       WaypointPtr(wp3), task_behaviour));
+  task.Append(FinishPoint(std::make_unique<CylinderZone>(wp4->location, 500),
+                          WaypointPtr(wp4), task_behaviour,
+                          ordered_task_settings.finish_constraints));
+  task.UpdateGeometry();
+
+  ok1(!IsError(task.CheckTask()));
+
+  /* about 50 m east per step; six steps stay inside a 1000 m line
+     and inside the 90° FAI start sector */
+  constexpr double LON_STEP = 0.00064;
+  constexpr unsigned STEPS = 6;
+
+  auto state_last = MakeTimedAircraft(0, latitude, 2000, FloatDuration{3600});
+  double previous_distance_min = -1;
+
+  for (unsigned i = 0; i < STEPS; ++i) {
+    const auto state = MakeTimedAircraft(LON_STEP * i, latitude, 2000,
+                                         FloatDuration{3600 + 5 * i});
+    task.Update(state, state_last, glide_polar);
+    state_last = state;
+
+    const GeoPoint &origin = task.GetPoint(0).GetLocationRemaining();
+
+    ok1(task.GetActiveTaskPointIndex() == 0);
+
+    bool on_boundary = false;
+    for (const GeoPoint &node : task.GetPoint(0).GetBoundary())
+      on_boundary |= node.Distance(origin) < 1;
+    ok1(on_boundary);
+
+    /* an interior sample would sit on the glider */
+    ok1(origin.Distance(state.location) > 100);
+
+    ok1(task.GetStats().current_leg.location_remaining
+        .Distance(origin) < 1);
+
+    const double distance_min = task.GetStats().distance_min;
+    ok1(previous_distance_min < 0 ||
+        equals(distance_min, previous_distance_min));
+    previous_distance_min = distance_min;
+  }
+}
+
+/**
+ * A task which begins inside its start cylinder never sees the start
+ * entered, only left.  A finish right after the start must still
+ * count (#3314).
+ */
+static void
+TestFinishAfterStartOnlyLeft()
+{
+  const OrderedTaskSettings &settings = task_behaviour.ordered_defaults;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+  task.Append(StartPoint(std::make_unique<CylinderZone>(wp1->location, 5000),
+                         WaypointPtr(wp1), task_behaviour,
+                         settings.start_constraints));
+  task.Append(FinishPoint(std::make_unique<CylinderZone>(wp3->location, 1000),
+                          WaypointPtr(wp3), task_behaviour,
+                          settings.finish_constraints, false));
+  task.UpdateGeometry();
+  ok1(!IsError(task.CheckTask()));
+
+  /* inside the start cylinder from the first fix, out of it, and into
+     the finish cylinder */
+  static constexpr double route[] = {
+    45.0, 45.03, 45.06, 45.5, 45.95, 45.995,
+  };
+
+  auto state_last = MakeTimedAircraft(0, route[0], 1000, FloatDuration{3600});
+  task.Update(state_last, state_last, glide_polar);
+  for (unsigned i = 1; i < std::size(route); ++i) {
+    const auto state = MakeTimedAircraft(0, route[i], 1000,
+                                         FloatDuration{3600 + 60 * i});
+    task.Update(state, state_last, glide_polar);
+    state_last = state;
+  }
+
+  ok1(task.GetStats().start.HasStarted());
+  ok1(!task.GetTaskPoint(0).HasEntered());
+  ok1(task.GetStats().task_finished);
+}
+
+/**
+ * Fly an out-and-return from the start line at 45 degrees north to the
+ * turn point at 46 degrees north and back, going on to 46.07 degrees
+ * (7.8 km beyond the turn point) before turning back.
+ *
+ * @param deep_planned receives the planned task distance while the
+ * glider is at its deepest point
+ * @return the statistics after the finish
+ */
+static TaskStats
+FlyOutAndReturn(const OrderedTaskPoint &turn, double &deep_planned)
+{
+  const OrderedTaskSettings &settings = task_behaviour.ordered_defaults;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+  task.Append(StartPoint(std::make_unique<LineSectorZone>(wp1->location),
+                         WaypointPtr(wp1), task_behaviour,
+                         settings.start_constraints));
+  task.Append(turn);
+  task.Append(FinishPoint(std::make_unique<LineSectorZone>(wp1->location),
+                          WaypointPtr(wp1), task_behaviour,
+                          settings.finish_constraints, false));
+  task.UpdateGeometry();
+  ok1(!IsError(task.CheckTask()));
+
+  /* across the start line and the finish line 111 m either side of
+     it, and out of the 10 km sector at 45.85 degrees */
+  static constexpr double route[] = {
+    44.999, 45.001, 45.5, 45.95, 46.03, 46.07, 45.85, 45.5, 45.001, 44.999,
+  };
+
+  auto state_last = MakeTimedAircraft(0, route[0], 2000, FloatDuration{3600});
+  task.Update(state_last, state_last, glide_polar);
+  for (unsigned i = 1; i < std::size(route); ++i) {
+    const auto state = MakeTimedAircraft(0, route[i], 2000,
+                                         FloatDuration{3600 + 600 * i});
+    task.Update(state, state_last, glide_polar);
+    state_last = state;
+
+    if (route[i] == 46.07) {
+      deep_planned = task.GetStats().total.planned.GetDistance();
+
+      /* turn back: an AAT area waits for the pilot to arm the
+         advance */
+      task.SetTaskAdvance().SetArmed(true);
+    }
+  }
+
+  return task.GetStats();
+}
+
+/**
+ * The distance of a task through a turn point whose sector is not
+ * scored by the boundary (the "FAI badges/records" task, a racing
+ * task) runs through the turn point itself, however deep the glider
+ * flies into the sector (#1412).  Only an AAT area counts the point
+ * reached.
+ */
+static void
+TestTurnPointDepth()
+{
+  ordered_task_settings.SetDefaults();
+
+  const double nominal = 2 * wp1->location.Distance(wp3->location);
+  const double deep = 2 * wp1->location.Distance(MakeGeoPoint(0, 46.07));
+
+  {
+    double deep_planned = 0;
+    const TaskStats stats =
+      FlyOutAndReturn(ASTPoint(SymmetricSectorZone::CreateFAISectorZone(
+                                 wp3->location),
+                               WaypointPtr(wp3), task_behaviour),
+                      deep_planned);
+
+    ok1(stats.task_finished);
+    ok1(equals(stats.distance_nominal, nominal, 1000));
+    ok1(equals(deep_planned, nominal, 1000));
+    ok1(equals(stats.total.planned.GetDistance(), nominal, 1000));
+    ok1(equals(stats.total.travelled.GetDistance(), nominal, 1000));
+
+    /* the "Speed average" of the Status dialog */
+    ok1(equals(stats.total.travelled.GetSpeed(),
+               nominal / stats.total.time_elapsed.count(), 1000));
+  }
+
+  {
+    double deep_planned = 0;
+    const TaskStats stats =
+      FlyOutAndReturn(AATPoint(std::make_unique<CylinderZone>(wp3->location,
+                                                              10000),
+                               WaypointPtr(wp3), task_behaviour),
+                      deep_planned);
+
+    ok1(stats.task_finished);
+    ok1(equals(deep_planned, deep, 1000));
+    ok1(equals(stats.total.planned.GetDistance(), deep, 1000));
+    ok1(equals(stats.total.travelled.GetDistance(), deep, 1000));
+  }
+}
+
+/**
+ * Unlike a turn point, a start cylinder is not counted at its center:
+ * the task distance is reduced by its radius (Annex A 6.3.1c, "less
+ * the radius of the Start Ring"), wherever the aircraft left it.
+ */
+static void
+TestStartCylinderExit()
+{
+  const OrderedTaskSettings &settings = task_behaviour.ordered_defaults;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+  task.Append(StartPoint(std::make_unique<CylinderZone>(wp1->location, 10000),
+                         WaypointPtr(wp1), task_behaviour,
+                         settings.start_constraints));
+  task.Append(ASTPoint(SymmetricSectorZone::CreateFAISectorZone(wp3->location),
+                       WaypointPtr(wp3), task_behaviour));
+  task.Append(FinishPoint(std::make_unique<LineSectorZone>(wp1->location),
+                          WaypointPtr(wp1), task_behaviour,
+                          settings.finish_constraints, false));
+  task.UpdateGeometry();
+  ok1(!IsError(task.CheckTask()));
+
+  /* leave the cylinder 5.6 km north of its center */
+  const auto inside = MakeTimedAircraft(0, 45.05, 2000, FloatDuration{3600});
+  const auto outside = MakeTimedAircraft(0, 45.1, 2000, FloatDuration{3660});
+  const auto on_leg = MakeTimedAircraft(0, 45.5, 2000, FloatDuration{4200});
+  task.Update(inside, inside, glide_polar);
+  task.Update(outside, inside, glide_polar);
+  ok1(task.GetStats().start.HasStarted());
+  task.Update(on_leg, outside, glide_polar);
+
+  const double expected = 2 * wp1->location.Distance(wp3->location) - 10000;
+  ok1(equals(task.GetStats().total.planned.GetDistance(), expected, 1000));
+}
+
+/**
+ * The point the search picks in an AAT area must suit the next turn
+ * point itself, not the point the aircraft reached deep in that turn
+ * point's sector.  Of the two points flown in the area, the western
+ * one gives the longer task through that deep point, but the eastern
+ * one through the turn point.
+ */
+static void
+TestAreaBeforeTurnPoint()
+{
+  const OrderedTaskSettings &settings = task_behaviour.ordered_defaults;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+  task.Append(StartPoint(std::make_unique<LineSectorZone>(wp1->location),
+                         WaypointPtr(wp1), task_behaviour,
+                         settings.start_constraints));
+  task.Append(AATPoint(std::make_unique<CylinderZone>(wp2->location, 20000),
+                       WaypointPtr(wp2), task_behaviour));
+  task.Append(ASTPoint(SymmetricSectorZone::CreateFAISectorZone(wp3->location),
+                       WaypointPtr(wp3), task_behaviour));
+  task.Append(FinishPoint(std::make_unique<LineSectorZone>(wp1->location),
+                          WaypointPtr(wp1), task_behaviour,
+                          settings.finish_constraints, false));
+  task.UpdateGeometry();
+  ok1(!IsError(task.CheckTask()));
+
+  /* across the start line, west and east in the area, and 7 km deep
+     into the turn point sector, east of the turn point */
+  static constexpr GeoPoint west = MakeGeoPoint(-0.21, 45.35);
+  static constexpr GeoPoint east = MakeGeoPoint(0.23, 45.35);
+  static constexpr GeoPoint route[] = {
+    MakeGeoPoint(0, 44.999), MakeGeoPoint(0, 45.001), west, east,
+    MakeGeoPoint(0.23, 45.6), MakeGeoPoint(0.06, 46.06),
+    MakeGeoPoint(0, 45.5),
+  };
+
+  auto state_last = MakeTimedAircraft(route[0].longitude.Degrees(),
+                                      route[0].latitude.Degrees(), 2000,
+                                      FloatDuration{3600});
+  task.Update(state_last, state_last, glide_polar);
+  for (unsigned i = 1; i < std::size(route); ++i) {
+    const auto state = MakeTimedAircraft(route[i].longitude.Degrees(),
+                                         route[i].latitude.Degrees(), 2000,
+                                         FloatDuration{3600 + 600 * i});
+    task.Update(state, state_last, glide_polar);
+    state_last = state;
+
+    /* leave the area: it waits for the pilot to arm the advance */
+    task.SetTaskAdvance().SetArmed(true);
+  }
+
+  ok1(task.GetActiveIndex() == 3);
+
+  const double through_west = wp1->location.Distance(west) +
+    west.Distance(wp3->location) + wp3->location.Distance(wp1->location);
+  const double through_east = wp1->location.Distance(east) +
+    east.Distance(wp3->location) + wp3->location.Distance(wp1->location);
+  ok1(through_east > through_west);
+  ok1(equals(task.GetStats().total.planned.GetDistance(), through_east,
+             1000));
+}
+
+/**
+ * A turn point the pilot advanced past by hand, without having flown
+ * into it, has samples but was not entered.  Like GetLocationScored(),
+ * the search counts it at the sampled point, not at the turn point.
+ */
+static void
+TestTurnPointSampledNotEntered()
+{
+  const OrderedTaskSettings &settings = task_behaviour.ordered_defaults;
+
+  OrderedTask task(task_behaviour);
+  task.SetOrderedTaskSettings(settings);
+  task.Append(StartPoint(std::make_unique<LineSectorZone>(wp1->location),
+                         WaypointPtr(wp1), task_behaviour,
+                         settings.start_constraints));
+  task.Append(ASTPoint(std::make_unique<CylinderZone>(wp3->location, 10000),
+                       WaypointPtr(wp3), task_behaviour));
+  task.Append(FinishPoint(std::make_unique<LineSectorZone>(wp1->location),
+                          WaypointPtr(wp1), task_behaviour,
+                          settings.finish_constraints, false));
+  task.UpdateGeometry();
+  ok1(!IsError(task.CheckTask()));
+
+  const auto before = MakeTimedAircraft(0, 44.999, 2000, FloatDuration{3600});
+  const auto after = MakeTimedAircraft(0, 45.001, 2000, FloatDuration{3660});
+  task.Update(before, before, glide_polar);
+  task.Update(after, before, glide_polar);
+  ok1(task.GetActiveIndex() == 1);
+
+  /* in the cylinder, 7.8 km beyond the turn point, with the fix
+     before also in it (a gap in the fixes) */
+  const auto in_cylinder = MakeTimedAircraft(0, 46.06, 2000,
+                                             FloatDuration{7140});
+  const auto deep = MakeTimedAircraft(0, 46.07, 2000, FloatDuration{7200});
+  task.Update(deep, in_cylinder, glide_polar);
+
+  const OrderedTaskPoint &tp = task.GetTaskPoint(1);
+  ok1(tp.HasSampled());
+  ok1(!tp.HasEntered());
+
+  task.SetActiveTaskPoint(2);
+  const auto back = MakeTimedAircraft(0, 46.0, 2000, FloatDuration{7260});
+  task.Update(back, deep, glide_polar);
+
+  const double through_scored =
+    2 * wp1->location.Distance(tp.GetLocationScored());
+  ok1(through_scored > 2 * wp1->location.Distance(wp3->location) + 10000);
+  ok1(equals(task.GetStats().total.planned.GetDistance(), through_scored,
+             1000));
+}
+
+static void
 TestAll()
 {
   TestFlightToFinish(2000);
@@ -401,10 +1309,21 @@ TestAll()
 
 int main()
 {
-  plan_tests(728);
+  plan_tests(746 + 8 + 31 + 5 + 49 + 123 + 62 + 4 + 12 + 3 + 4 + 6);
 
   task_behaviour.SetDefaults();
 
+  TestTravelledDistance();
+  TestStartLegOrigin();
+  TestStartNavigationLocation();
+  /* 200 m south of a 1000 m start line */
+  TestWaitingInsideStart(std::make_unique<LineSectorZone>(wp1->location,
+                                                          1000),
+                         44.9982);
+  /* 400 m south, inside the 1000 m 90° FAI start sector */
+  TestWaitingInsideStart(SymmetricSectorZone::CreateFAISectorZone(
+                           wp1->location, false),
+                         44.9964);
   TestAll();
 
   glide_polar.SetMC(1);
@@ -415,6 +1334,15 @@ int main()
 
   glide_polar.SetMC(4);
   TestAll();
+
+  TestStartNearestPoint();
+  TestFinishNearestPoint();
+  TestStartNearestPointContinuity();
+  TestFinishAfterStartOnlyLeft();
+  TestTurnPointDepth();
+  TestStartCylinderExit();
+  TestAreaBeforeTurnPoint();
+  TestTurnPointSampledNotEntered();
 
   return exit_status();
 }

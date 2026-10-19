@@ -20,7 +20,16 @@
 #include "Dialogs/Settings/Panels/NetworkConfigPanel.hpp"
 #include "Dialogs/Settings/Panels/WeatherConfigPanel.hpp"
 #include "Dialogs/Settings/Panels/SafetyFactorsConfigPanel.hpp"
-#include "Dialogs/Settings/Panels/TrackingConfigPanel.hpp"
+#include "Tracking/Features.hpp"
+#ifdef HAVE_SKYLINES_TRACKING
+#include "Dialogs/Settings/Panels/SkyLinesConfigPanel.hpp"
+#endif
+#ifdef HAVE_LIVETRACK24
+#include "Dialogs/Settings/Panels/LiveTrack24ConfigPanel.hpp"
+#endif
+#ifdef HAVE_TRACKING
+#include "Dialogs/Settings/Panels/CloudConfigPanel.hpp"
+#endif
 #include "Dialogs/Settings/Panels/TerrainDisplayConfigPanel.hpp"
 #include "Dialogs/DataManagement/BackupRestorePanel.hpp"
 #include "Widget/Widget.hpp"
@@ -35,6 +44,7 @@
 #include "BackendComponents.hpp"
 #include "DataComponents.hpp"
 #include "Language/Language.hpp"
+#include "Monitor/TrafficMonitor.hpp"
 
 void
 ShowConfigPanel(const char *title,
@@ -84,7 +94,19 @@ static constexpr ConfigPanelLink config_panel_links[] = {
   {"config/network",    N_("Network"),    CreateNetworkConfigPanel},
   {"config/weather",    N_("Weather"),    CreateWeatherConfigPanel},
   {"config/safety",     N_("Safety Factors"), CreateSafetyFactorsConfigPanel},
-  {"config/tracking",   N_("Tracking"),   CreateTrackingConfigPanel},
+#ifdef HAVE_SKYLINES_TRACKING
+  {"config/tracking",   "SkyLines",     CreateSkyLinesConfigPanel},
+  {"config/skylines",   "SkyLines",     CreateSkyLinesConfigPanel},
+#endif
+#ifdef HAVE_LIVETRACK24
+  {"config/livetrack24", "LiveTrack24", CreateLiveTrack24ConfigPanel},
+#ifndef HAVE_SKYLINES_TRACKING
+  {"config/tracking",   "LiveTrack24",  CreateLiveTrack24ConfigPanel},
+#endif
+#endif
+#ifdef HAVE_TRACKING
+  {"config/cloud",      N_("XCSoar Cloud"), CreateCloudConfigPanel},
+#endif
   {"config/terrain",    N_("Terrain Display"), CreateTerrainDisplayConfigPanel},
 };
 
@@ -135,11 +157,8 @@ HandleInternalLink(const char *url)
   /* ---- Special-case config dialogs ---- */
 
   if (StringIsEqual(path, "config/devices")) {
-    if (backend_components != nullptr &&
-        backend_components->device_blackboard != nullptr) {
-      ShowDeviceList(*backend_components->device_blackboard,
-                     backend_components->devices.get());
-    }
+    if (backend_components != nullptr)
+      ShowDeviceList(backend_components->devices.get());
     return true;
   }
 
@@ -171,6 +190,11 @@ HandleInternalLink(const char *url)
 
   if (StringIsEqual(path, "dialog/credits")) {
     dlgCreditsShowModal(*CommonInterface::main_window);
+    return true;
+  }
+
+  if (StringIsEqual(path, "sound/test")) {
+    PlaySpokenAlertExample();
     return true;
   }
 

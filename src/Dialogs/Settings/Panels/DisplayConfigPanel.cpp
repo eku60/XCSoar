@@ -3,11 +3,22 @@
 
 #include "DisplayConfigPanel.hpp"
 #include "ui/canvas/Features.hpp" // for DRAW_MOUSE_CURSOR
+#include "ui/window/Features.hpp" // for HAVE_FULL_SCREEN_SETTING
 #include "Profile/Keys.hpp"
+#include "Profile/Profile.hpp"
+#include "Form/DataField/Boolean.hpp"
 #include "Form/DataField/Enum.hpp"
+#include "Form/DataField/Listener.hpp"
+#include "Form/DataField/String.hpp"
+#include "Form/Edit.hpp"
 #include "Hardware/DisplayBrightness.hpp"
 #include "Hardware/RotateDisplay.hpp"
 #include "Interface.hpp"
+#include "DisplaySettings.hpp"
+#include "Dialogs/WidgetDialog.hpp"
+#include "Dialogs/HelpDialog.hpp"
+#include "Dialogs/Settings/InfoBoxAreaStretchWidget.hpp"
+#include "Widget/StaticHelpTextWidget.hpp"
 #include "MainWindow.hpp"
 #include "LogFile.hpp"
 #include "Language/Language.hpp"
@@ -18,17 +29,13 @@
 #include "util/Macros.hpp"
 #include "util/StaticString.hxx"
 
-#ifdef ANDROID
-#include "Android/Main.hpp"
-#include "Android/NativeView.hpp"
-#endif
-
 #ifdef USE_POLL_EVENT
 #include "ui/event/Globals.hpp"
 #include "ui/event/Queue.hpp"
 #endif
 
 #include <memory>
+#include <string>
 
 #if defined(KOBO) || (defined(__linux__) && !defined(ANDROID))
 #define HAVE_DISPLAY_BRIGHTNESS_CONTROL
@@ -41,16 +48,139 @@ enum ControlIndex {
 #if defined(HAVE_DISPLAY_BRIGHTNESS_CONTROL)
   ScreenBrightness,
 #endif
-#ifdef ANDROID
+#ifdef HAVE_FULL_SCREEN_SETTING
   FullScreen,
+  InfoBoxAreaStretch,
 #endif
-  DarkMode,
-  UIScale,
+#ifdef HAVE_STATUS_BAR_SETTING
+  StatusBar,
+#endif
 #ifdef DRAW_MOUSE_CURSOR
   CursorSize,
   CursorInverted,
 #endif
 };
+
+#ifdef HAVE_FULL_SCREEN_SETTING
+/**
+ * The screen edges the InfoBox area can be stretched out to.
+ */
+static constexpr struct {
+  const char *label;
+  DisplaySettings::InfoBoxAreaStretchEdge bit;
+} infobox_area_stretch_edges[] = {
+  { NC_("Screen edge", "Top"),
+    DisplaySettings::INFOBOX_AREA_STRETCH_TOP },
+  { NC_("Screen edge", "Right"),
+    DisplaySettings::INFOBOX_AREA_STRETCH_RIGHT },
+  { NC_("Screen edge", "Bottom"),
+    DisplaySettings::INFOBOX_AREA_STRETCH_BOTTOM },
+  { NC_("Screen edge", "Left"),
+    DisplaySettings::INFOBOX_AREA_STRETCH_LEFT },
+};
+
+/**
+ * A one-line hint for the picker dialog; #TwoWidgets would cut a
+ * longer paragraph off in landscape.  The full explanation is the
+ * help text of the settings row.
+ */
+static constexpr const char *infobox_area_stretch_hint =
+  N_("Tap an edge to stretch the InfoBox area out to the screen border "
+     "there.");
+
+static constexpr const char *infobox_area_stretch_help =
+  N_("The InfoBox area is the part of the screen available to the "
+     "InfoBoxes, gauges, map overlays and the menu. Pick the edges on "
+     "which it is stretched out to the screen border. Unstretched "
+     "edges stay clear of the system bars and rounded corners. The "
+     "map always uses the whole screen, "
+     "and dialogs always stay inside the safe area. Only relevant "
+     "while full screen mode is enabled.");
+
+/**
+ * Describe the enabled edges for the settings list, e.g. "Top, Bottom".
+ */
+static std::string
+FormatInfoBoxAreaStretch(uint8_t edges) noexcept
+{
+  if (edges == DisplaySettings::INFOBOX_AREA_STRETCH_NONE)
+    return _("None");
+
+  std::string result;
+
+  for (const auto &i : infobox_area_stretch_edges) {
+    if ((edges & i.bit) == 0)
+      continue;
+
+    if (!result.empty())
+      result += ", ";
+    result += gettext_context("Screen edge", i.label);
+  }
+
+  return result;
+}
+
+static bool
+EditInfoBoxAreaStretch(const char *caption, DataField &df,
+                    [[maybe_unused]] const char *help_text)
+{
+  DisplaySettings &settings = CommonInterface::SetUISettings().display;
+
+  auto picker =
+    std::make_unique<InfoBoxAreaStretchWidget>(UIGlobals::GetDialogLook(),
+                                            settings.infobox_area_stretch);
+  auto &picker_ref = *picker;
+
+  TWidgetDialog<StaticHelpTextWidget>
+    dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
+           UIGlobals::GetDialogLook(), _("Stretch InfoBox area"));
+  dialog.SetWidget(std::move(picker), gettext(infobox_area_stretch_hint));
+  dialog.AddButton(_("OK"), mrOK);
+
+  /* the row's help text is not reachable from here: WndProperty only
+     falls back to OnHelp() when there is no edit callback */
+  dialog.AddButton(_("Help"), [caption](){
+    HelpDialog(caption, gettext(infobox_area_stretch_help));
+  });
+
+  dialog.AddButton(_("Cancel"), mrCancel);
+
+  if (dialog.ShowModal() != mrOK)
+    return false;
+
+  const uint8_t edges = picker_ref.GetEdges();
+  if (edges == settings.infobox_area_stretch)
+    return false;
+
+  settings.infobox_area_stretch = edges;
+  Profile::Set(ProfileKeys::InfoBoxAreaStretch, unsigned(edges));
+  Profile::Save();
+
+  /* in "Auto" mode the status bar follows the top edge, and the area
+     the InfoBoxes and gauges may use changed */
+  CommonInterface::main_window->ApplyFullScreenSettings();
+  CommonInterface::main_window->ReinitialiseLayout();
+
+  ((DataFieldString &)df).ModifyValue(FormatInfoBoxAreaStretch(edges).c_str());
+  return true;
+}
+
+#endif
+
+#ifdef HAVE_STATUS_BAR_SETTING
+static constexpr StaticEnumChoice status_bar_list[] = {
+  { DisplaySettings::StatusBar::AUTO, NC_("Setting", "Auto"),
+    N_("Show the status bar unless the InfoBox area is stretched to the "
+       "top screen edge, where it would cover the InfoBoxes.") },
+  { DisplaySettings::StatusBar::VISIBLE, N_("Visible"),
+    N_("Always show the status bar, even in full screen mode. The "
+       "InfoBoxes cannot be drawn behind it, so they keep clear of the "
+       "top screen edge.") },
+  { DisplaySettings::StatusBar::HIDDEN, N_("Hidden"),
+    N_("Never show the status bar.") },
+  nullptr
+};
+#endif
 
 static constexpr StaticEnumChoice display_type_list[] = {
   { DisplayType::LCD, NC_("Setting", "LCD"),
@@ -82,16 +212,6 @@ static constexpr StaticEnumChoice display_orientation_list[] = {
   nullptr
 };
 
-static constexpr StaticEnumChoice dark_mode_list[] = {
-  { UISettings::DarkMode::AUTO, N_("Auto"),
-    N_("Use the system-wide setting") },
-  { UISettings::DarkMode::OFF, N_("Off"),
-    N_("Black text on white background") },
-  { UISettings::DarkMode::ON, N_("On"),
-    N_("White text on black background") },
-  nullptr
-};
-
 static void
 FillDpiChoices(DataFieldEnum &df, unsigned value) noexcept
 {
@@ -108,7 +228,8 @@ FillDpiChoices(DataFieldEnum &df, unsigned value) noexcept
   df.SetValue(value);
 }
 
-class DisplayConfigPanel final : public RowFormWidget {
+class DisplayConfigPanel final
+  : public RowFormWidget, DataFieldListener {
   std::unique_ptr<DisplayBrightness> brightness;
 
 public:
@@ -118,7 +239,23 @@ public:
 
   void Prepare(ContainerWindow &parent, const PixelRect &rc) noexcept override;
   bool Save(bool &changed) noexcept override;
+
+private:
+  void OnModified(DataField &df) noexcept override;
 };
+
+void
+DisplayConfigPanel::OnModified(DataField &df) noexcept
+{
+#ifdef HAVE_FULL_SCREEN_SETTING
+  if (IsDataField(FullScreen, df)) {
+    const DataFieldBoolean &dfb = (const DataFieldBoolean &)df;
+    SetRowAvailable(InfoBoxAreaStretch, dfb.GetValue());
+  }
+#else
+  (void)df;
+#endif
+}
 
 void
 DisplayConfigPanel::Prepare(ContainerWindow &parent,
@@ -166,18 +303,32 @@ DisplayConfigPanel::Prepare(ContainerWindow &parent,
     AddDummy();
 #endif
 
-#ifdef ANDROID
-  AddBoolean(_("Full screen"), _("Run XCSoar in full screen mode"),
-             ui_settings.display.full_screen);
+#ifdef HAVE_FULL_SCREEN_SETTING
+  AddBoolean(_("Full screen"),
+             _("Let XCSoar use the whole screen, including the areas behind "
+               "the system bars and the display cutout. The map fills it "
+               "completely, while \"Stretch InfoBox area\" decides which "
+               "edges the InfoBoxes, gauges, map overlays and the menu "
+               "may reach."),
+             ui_settings.display.full_screen, this);
+
+  const auto edges = FormatInfoBoxAreaStretch(ui_settings.display
+                                          .infobox_area_stretch);
+  auto *edges_row = Add(_("Stretch InfoBox area"),
+                        gettext(infobox_area_stretch_help),
+                        new DataFieldString(edges.c_str()));
+  edges_row->SetEditCallback(EditInfoBoxAreaStretch);
+  SetExpertRow(InfoBoxAreaStretch);
+  SetRowAvailable(InfoBoxAreaStretch, ui_settings.display.full_screen);
 #endif
 
-  AddEnum(_("Dark mode"), nullptr, dark_mode_list,
-          (unsigned)ui_settings.dark_mode);
-
-  AddInteger(_("Text size"),
-             nullptr,
-             "%d %%", "%d", 75, 200, 5,
-             ui_settings.scale);
+#ifdef HAVE_STATUS_BAR_SETTING
+  AddEnum(_("System status bar"),
+          _("Whether the system status bar with the clock and the battery "
+            "level stays visible."),
+          status_bar_list,
+          unsigned(ui_settings.display.status_bar));
+#endif
 
 #ifdef DRAW_MOUSE_CURSOR
   AddInteger(_("Cursor zoom"), _("Cursor zoom factor"), "%d x", "%d x",
@@ -198,6 +349,9 @@ DisplayConfigPanel::Save(bool &_changed) noexcept
                     ui_settings.display.display_type)) {
     changed = true;
     SetDisplayType(ui_settings.display.display_type);
+    /* Reload 1-bit vs anti-aliased glyphs (Kobo mono path). */
+    CommonInterface::main_window->Initialise();
+    CommonInterface::main_window->ReinitialiseLook();
   }
 
   if (SaveValueEnum(CustomDPI, ProfileKeys::CustomDPI,
@@ -211,6 +365,11 @@ DisplayConfigPanel::Save(bool &_changed) noexcept
 
     if (!Display::Rotate(ui_settings.display.orientation))
       LogString("Display rotation failed");
+
+#ifdef SOFTWARE_ROTATE_DISPLAY
+    CommonInterface::main_window->SetDisplayOrientation(
+        ui_settings.display.orientation);
+#endif
 
 #ifdef USE_POLL_EVENT
     UI::event_queue->SetDisplayOrientation(ui_settings.display.orientation);
@@ -228,18 +387,26 @@ DisplayConfigPanel::Save(bool &_changed) noexcept
   }
 #endif
 
-#ifdef ANDROID
-  changed |= SaveValue(FullScreen, ProfileKeys::FullScreen,
-                       ui_settings.display.full_screen);
-  native_view->SetFullScreen(Java::GetEnv(), ui_settings.display.full_screen);
+#ifdef HAVE_FULL_SCREEN_SETTING
+  bool full_screen_changed =
+    SaveValue(FullScreen, ProfileKeys::FullScreen,
+              ui_settings.display.full_screen);
+  /* the per-edge settings are applied by their own dialog */
+  changed |= full_screen_changed;
+
+#ifdef HAVE_STATUS_BAR_SETTING
+  if (SaveValueEnum(StatusBar, ProfileKeys::StatusBar,
+                    ui_settings.display.status_bar)) {
+    changed = true;
+    full_screen_changed = true;
+  }
 #endif
 
-  changed |= SaveValueEnum(DarkMode, ProfileKeys::DarkMode,
-                           ui_settings.dark_mode);
-
-  if (SaveValueInteger(UIScale, ProfileKeys::UIScale,
-                       ui_settings.scale))
-    require_restart = changed = true;
+  /* this may change the usable screen area, so do it before the
+     remaining settings are applied */
+  if (full_screen_changed)
+    CommonInterface::main_window->ApplyFullScreenSettings();
+#endif
 
 #ifdef DRAW_MOUSE_CURSOR
   changed |= SaveValueInteger(CursorSize, ProfileKeys::CursorSize,

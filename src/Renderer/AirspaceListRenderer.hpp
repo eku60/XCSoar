@@ -18,7 +18,8 @@ namespace AirspaceListRenderer
    *
    * Comment is e.g. "Class C"
    */
-  void Draw(Canvas &canvas, const PixelRect rc, const AbstractAirspace &airspace,
+  void Draw(Canvas &canvas, const PixelRect rc,
+            const AbstractAirspace &airspace,
             const TwoTextRowsRenderer &row_renderer,
             const AirspaceLook &look,
             const AirspaceRendererSettings &renderer_settings);
@@ -31,7 +32,8 @@ namespace AirspaceListRenderer
    * @param vector The distance and direction that should be
    * added to the comment
    */
-  void Draw(Canvas &canvas, const PixelRect rc, const AbstractAirspace &airspace,
+  void Draw(Canvas &canvas, const PixelRect rc,
+            const AbstractAirspace &airspace,
             const GeoVector &vector,
             const TwoTextRowsRenderer &row_renderer,
             const AirspaceLook &look,

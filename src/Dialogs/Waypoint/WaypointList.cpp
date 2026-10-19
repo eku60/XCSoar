@@ -25,6 +25,7 @@
 #include "Form/DataField/Enum.hpp"
 #include "util/StringPointer.hxx"
 #include "util/AllocatedString.hxx"
+#include "util/ScopeExit.hxx"
 #include "UIGlobals.hpp"
 #include "Look/MapLook.hpp"
 #include "Look/DialogLook.hpp"
@@ -131,9 +132,17 @@ struct WaypointListDialogState
   TypeFilter type_index;
   int file_num = -1;  // For FILE type: -1=all files, 0+=specific file
 
+  /* Filter only the recently used waypoints. */
+  bool last_used_only = false;
+
   bool IsDefined() const {
     return !name.empty() || distance_index > 0 ||
-      direction_index > 0 || type_index != TypeFilter::ALL;
+      direction_index > 0 || type_index != TypeFilter::ALL ||
+      last_used_only;
+  }
+
+  bool IsLastUsed() const {
+    return last_used_only || type_index == TypeFilter::LAST_USED;
   }
 
   void ToFilter(WaypointFilter &filter, Angle heading) const {
@@ -382,11 +391,23 @@ FillList(WaypointList &list, const Waypoints &src,
 static void
 FillLastUsedList(WaypointList &list,
                  const WaypointIDList &last_used_ids,
-                 const Waypoints &waypoints)
+                 const Waypoints &waypoints,
+                 GeoPoint location, Angle heading,
+                 const WaypointListDialogState &state,
+                 OrderedTask *ordered_task, unsigned ordered_task_index)
 {
+  WaypointFilter filter;
+  state.ToFilter(filter, heading);
+  if (filter.type_index == TypeFilter::LAST_USED)
+    filter.type_index = TypeFilter::ALL;
+
+  const FAITrianglePointValidator triangle_validator(ordered_task,
+                                                     ordered_task_index);
+
   for (auto it = last_used_ids.rbegin(); it != last_used_ids.rend(); it++) {
     auto waypoint = waypoints.LookupId(*it);
-    if (waypoint == nullptr)
+    if (waypoint == nullptr ||
+        !filter.MatchesAll(*waypoint, location, triangle_validator))
       continue;
 
     list.emplace_back(std::move(waypoint));
@@ -409,9 +430,10 @@ WaypointListWidget::UpdateList()
 {
   items.clear();
 
-  if (dialog_state.type_index == TypeFilter::LAST_USED)
+  if (dialog_state.IsLastUsed())
     FillLastUsedList(items, LastUsedWaypoints::GetList(),
-                     way_points);
+                     way_points, location, last_heading, dialog_state,
+                     ordered_task, ordered_task_index);
   else if (prepopulate_with_task && ordered_task != nullptr &&
            !dialog_state.IsDefined())
     FillTaskWaypointsList(items, *ordered_task);
@@ -742,14 +764,22 @@ ShowWaypointListDialog(Waypoints &waypoints, const GeoPoint &_location,
 
   const Angle heading = CommonInterface::Basic().attitude.heading;
 
+  /* Keep the filter of the persistent waypoint list dialog. */
+  const auto saved_state = dialog_state;
+  AtScopeExit(&saved_state) { dialog_state = saved_state; };
+
   dialog_state = {};
 
   /* When the caller forces an initial Type filter (e.g. via
      ``event=GotoLookup recent``), also reset the other filter
      dimensions so the user sees a focused list of just that
      category instead of an arbitrary intersection with stale
-     distance/direction settings from an earlier invocation. */
-  if (initial_type) {
+     distance/direction settings from an earlier invocation.
+     Recently used waypoints restrict the whole dialog instead, so
+     the Type filter still applies to them. */
+  if (initial_type == TypeFilter::LAST_USED)
+    dialog_state.last_used_only = true;
+  else if (initial_type) {
     dialog_state.type_index = *initial_type;
     dialog_state.file_num = -1;
     dialog_state.distance_index = 0;
@@ -757,7 +787,10 @@ ShowWaypointListDialog(Waypoints &waypoints, const GeoPoint &_location,
   }
 
   WidgetDialog dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
-                      look, _("Select Waypoint"));
+                      look,
+                      initial_type == TypeFilter::LAST_USED
+                      ? _("Recently used waypoints")
+                      : _("Select Waypoint"));
 
   auto left_widget =
     std::make_unique<TwoWidgets>(std::make_unique<WaypointFilterWidget>(look, heading),

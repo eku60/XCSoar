@@ -54,6 +54,9 @@ sea level obtained from the terrain file at the current GPS location.}
 elevation (like a QFE reference).\footnotemark[1]}
 \ibi{Flight level}{Flight Level}{Pressure Altitude given as Flight Level. 
 If barometric altitude is not available, FL is calculated from GPS altitude, given that the correct QNH is set. In case the FL is calculated from the GPS altitude, the FL label is coloured red.\footnotemark[1]}
+\ibi{QNH}{QNH}{Current QNH pressure setting. The line below the pressure
+shows the barometric altitude when a pressure sensor is available. Tap the
+InfoBox to open the setup panel and adjust QNH.\footnotemark[1]}
 \ibi{Barogram}{Barogram}{Trace of altitude during flight.}
 
 \footnotetext[1]{In simulator mode an additional dialogue is available to change the value 
@@ -73,6 +76,17 @@ adjusts the track.}
 intelligent vario.}
 \ibi{G load}{G}{Magnitude of G loading reported by a supported external
 intelligent vario. This value is negative for pitch-down manoeuvres.}
+\ibi{Blood Oxygen}{SpO2}{Blood oxygen saturation in percent from a Bluetooth
+pulse oximeter on Android. At 90\% and above the value uses the normal text
+colour, from 85\% to 89\% it is amber, and below 85\% it is red. After 30
+seconds the comment line shows the age of the reading. The value is cleared
+after three minutes.}
+\ibi{Ballast}{Ballast}{Water ballast on board, in litres.  The comment
+shows the resulting wing loading (for example in kg/m$^2$) if the wing
+area of the polar is known.  That comment is red while the all-up
+weight is above the plane's MTOW.  While ballast is being dumped,
+the value is blue.  Tap the InfoBox to open the flight setup and change the
+ballast.}
 \ibi{Bearing Difference}{Brng. D}{Difference between the glider's track
 bearing, to the bearing of the next waypoint, or for AAT tasks, to the bearing
 to the target within the AAT sector. GPS navigation is based on the track
@@ -81,8 +95,9 @@ heading when there is wind present. Chevrons point to the direction the glider
 needs to alter course to correct the bearing difference, that is, so that the
 glider's course made good is pointing directly at the next waypoint.  This
 bearing takes into account the curvature of the Earth.}
-\ibi{Airspeed TAS}{V TAS}{True Airspeed reported by a supported external 
-intelligent vario.}
+\ibi{Airspeed TAS}{V TAS}{True Airspeed reported by a supported external
+intelligent vario.  The value is blue when it is estimated from ground
+speed and wind.}
 \ibi{Attitude indicator}{Horizon}{Attitude indicator (artificial horizon) display 
 calculated from flightpath, supplemented with acceleration and variometer data if 
 available.}
@@ -126,11 +141,15 @@ circling.}
 \section{Variometer}
 
 \ibi{Last Thermal Average}{TL Avg}{Total altitude gain/loss in the last thermal
-divided by the time spent circling.} 
+divided by the time spent circling. The seconds in smaller font reflect the
+time spent circling.}
 \ibi{Last thermal gain}{TL Gain}{Total altitude gain/loss in the last thermal.}
-\ibi{Last thermal time}{TL Time}{Time spent circling in the last thermal.}
+\ibi{Last thermal duration}{TL duration}{Time spent circling in the last thermal.
+The number in smaller font reflects the overall climb rate for the last
+thermal.}
 \ibi{Thermal climb, last 30 s}{TC 30s}{30 second rolling average climb rate based
-of the reported GPS altitude, or vario if available.}
+of the reported GPS altitude, or vario if available. The value is red when
+it is less than half the risk MacCready.}
 \ibi{Thermal average}{TC Avg}{Altitude gained/lost in the current thermal,
 divided by time spent thermalling.}
 \ibi{Thermal gain}{TC Gain}{Altitude gained/lost in the current thermal.}
@@ -182,16 +201,28 @@ temperature.}
 %%%%%%%%%%%
 \section{MacCready}
 
-\ibi{MacCready Setting}{MC $<$mode$>$}{Current MacCready setting, current 
-MacCready mode (manual or auto), and recommended speed-to-fly. 
+\ibi{MacCready Setting}{MC $<$mode$>$}{Current MacCready setting, current
+MacCready mode (manual or auto), and recommended speed-to-fly.
+At MacCready 0, with a task or Goto active, that speed is adjusted
+for wind toward the waypoint and need not match the polar's still-air
+best glide.  With MacCready above 0, wind is not used.
 (Touch-screen/PC only) Also used
 to adjust the MacCready setting if the InfoBox is active, by using the up/down
-cursor keys. Pressing the enter cursor key toggles `Auto MacCready' mode. 
+cursor keys. Pressing the enter cursor key toggles `Auto MacCready' mode.
+In task abort the title and the value are Safety MC, and the
+comment is the still-air glide ratio at that MacCready, written as a
+ratio such as 25:1, instead of speed-to-fly. Up and down adjust Safety
+MC for this flight and leave the saved setting unchanged. If Task MC is
+higher than that Safety MC, the lower value is sent
+to connected devices. A lower Task MC is left unchanged. Leaving abort
+sends Task MC back when it had been replaced.
 An InfoBox dialogue is available}
 \ibi{Speed MacCready}{V MC}{MacCready speed-to-fly for optimal flight to the
 next waypoint. In cruise flight mode, this speed-to-fly is calculated for
 maintaining altitude. In final glide mode, this speed-to-fly is calculated for
-descent.}
+descent. At MacCready 0, with a task or Goto active, this speed is
+adjusted for wind toward the waypoint and need not match the polar's
+still-air best glide. With MacCready above 0, wind is not used.}
 \ibi{Percentage climb}{\% Climb}{Percentage of time spent in climb mode. These
 statistics are reset upon starting the task.}
 \ibi{Speed dolphin}{V opt.}{Instantaneous MacCready speed-to-fly, making use
@@ -200,12 +231,16 @@ current bearing. In cruise flight mode, this speed-to-fly is calculated for
 maintaining altitude. In final glide mode, this speed-to-fly is calculated for
 descent. In climb mode, this switches to the speed for minimum sink at the
 current load factor (if an accelerometer is connected). When `Block' mode speed to
-fly is selected, this InfoBox displays the MacCready speed.}
+fly is selected, this InfoBox displays the MacCready speed. At MacCready 0,
+with a task or Goto active, this speed is adjusted for wind toward the
+waypoint and need not match the polar's still-air best glide. With
+MacCready above 0, wind is not used.}
 \ibi{Thermal next leg equivalent}{T Next Leg}{Climb on the next task
 leg that gives the same average cross-country speed as flying the
 current leg at the MacCready setting, using the polar and the headwind
 on each track.  The box is invalid when there is no next leg, wind, or
-polar.  See Section~\ref{sec:t-next-leg}.}
+polar.  The comment shows ``no wind'' when wind is not available.
+See Section~\ref{sec:t-next-leg}.}
 \ibi{Task cruise efficiency}{Cruise Eff}{Efficiency of cruise. 100 indicates perfect 
 MacCready performance. This value estimates your cruise efficiency according to the 
 current flight history with the set MC value.  Calculation begins after task is started.}
@@ -218,6 +253,14 @@ is the true bearing to the target within the AAT sector.}
 \ibi{Next radial}{Radial}{True bearing from the next waypoint to your position.}
 \ibi{Next distance}{WP Dist}{Distance to the currently selected waypoint.
 For AAT tasks, this is the distance to the target within the AAT sector.}
+\ibi{Speed VMG}{V VMG}{Velocity made good towards the next waypoint: the
+component of the ground speed along the bearing to it, that is the rate at which
+the distance is shrinking. It equals the ground speed when tracking straight at
+the waypoint, falls to zero at right angles to it and becomes negative when
+flying away. It shows what leaving the direct course for better lift costs in
+progress along the leg: a high ground speed well off track can result in less
+progress than a slower speed flown straight at the waypoint. For AAT tasks, the
+target within the AAT sector is used.}
 \ibi{Next altitude difference}{WP AltD}{Arrival altitude at the next waypoint
 relative to the safety arrival height. For AAT tasks, the target within the AAT 
 sector is used.}
@@ -349,7 +392,6 @@ reported team code.}
 \ibi{Battery voltage/percent}{Battery}{Percentage of device battery remaining
 (where applicable) and status/voltage of external power supply.}
 \ibi{CPU load}{CPU}{CPU load consumed by XCSoar averaged over 5 seconds.}
-\ibi{Free RAM}{Free RAM}{Free RAM as reported by the operating system.}
 
 %%%%%%%%%%%
 \section{Alternates}
@@ -358,11 +400,12 @@ Alternate 1 / Alternate 2 and their GR / AltD variants may either display the
 best automatic alternate (AUTO, default) or a manually selected alternate
 chosen from the alternates list during flight. Manual selections are
 runtime-only and remain active until changed again or switched back to AUTO.
-The value is shown in red when the glide computer marks the alternate as not
-achievable at the current MacCready setting.  Blue indicates final glide,
-as for Next waypoint.  In AUTO mode, the default colour means further climb
-is required.  In MANUAL mode, red is also used when the solution is
-achievable but still below final glide.
+Blue means the safety polar still arrives with no further climb. Orange
+means that glide misses, but a straight glide at best glide still arrives.
+A field without an elevation is not marked orange.
+Red means best glide misses too, or there is no solution. In AUTO mode the
+default colour means further climb is required. In MANUAL mode that case
+is red.
 
 \ibi{Alternate 1}{Altn 1}{Name and bearing to the best alternate
 landing location.}
@@ -389,6 +432,11 @@ the airspace is below you.}
 \ibi{Terrain collision}{Terr Coll}{Distance to the next terrain collision 
 along the current task leg. At this location, the altitude will be below the 
 configured terrain clearance altitude.}
+\ibi{Fixed text}{Text}{Title, value and comment entered by the pilot.
+Assign this InfoBox in the InfoBox set editor, then tap it on the map and
+choose Setup.  Leave a line empty to hide it.  The Shaded InfoBox border
+style draws a grey bar behind the title whenever the title is not empty, so
+a title consisting of a single space shows that bar without any text.}
 
 %%%%%%%%%%%
 \section{Radio}

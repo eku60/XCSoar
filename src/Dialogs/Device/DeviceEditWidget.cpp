@@ -23,6 +23,7 @@ enum ControlIndex {
   OwnCallsign,
   I2CBus, I2CAddr, PressureUsage, Driver, UseSecondDriver, SecondDriver,
   SyncFromDevice, SyncToDevice, SendPosition, PolarSyncMode,
+  InstrumentAlignment,
   K6Bt,
 };
 
@@ -119,6 +120,17 @@ FillPolarSync(DataFieldEnum &dfe,
                     static_cast<unsigned>(DeviceConfig::PolarSync::SEND));
 }
 
+static void
+FillInstrumentAlignment(DataFieldEnum &dfe) noexcept
+{
+  dfe.addEnumText(_("Don't use"),
+                  (unsigned)DeviceConfig::InstrumentAlignment::NONE);
+  dfe.addEnumText(_("Not aligned"),
+                  (unsigned)DeviceConfig::InstrumentAlignment::NOT_ALIGNED);
+  dfe.addEnumText(_("Fixed & aligned"),
+                  (unsigned)DeviceConfig::InstrumentAlignment::FIXED_AND_ALIGNED);
+}
+
 static bool
 EditPortCallback(const char *caption, DataField &df,
                  [[maybe_unused]] const char *help_text) noexcept
@@ -164,6 +176,7 @@ DeviceEditWidget::SetConfig(const DeviceConfig &_config) noexcept
   LoadValueEnum(PolarSyncMode, config.polar_sync);
   LoadValue(K6Bt, config.k6bt);
   LoadValueEnum(EngineTypes, config.engine_type);
+  LoadValueEnum(InstrumentAlignment, config.instrument_alignment);
 
   UpdateVisibilities();
 }
@@ -319,6 +332,9 @@ DeviceEditWidget::UpdateVisibilities() noexcept
   const bool can_send_polar = CanSendPolar(GetDataField(Driver));
   const bool polar_row_applicable = DeviceConfig::UsesDriver(type) &&
                                     (can_receive_polar || can_send_polar);
+  const bool is_internal = (type == DeviceConfig::PortType::INTERNAL);
+  SetRowAvailable(InstrumentAlignment, is_internal);
+  SetRowVisible(InstrumentAlignment, is_internal);
   /* Hide when the driver does not register polar receive/send capability. */
   SetRowAvailable(PolarSyncMode, polar_row_applicable);
   SetRowVisible(PolarSyncMode, polar_row_applicable);
@@ -465,6 +481,15 @@ DeviceEditWidget::Prepare(ContainerWindow &parent,
         "device."),
       polar_sync_df);
 
+  DataFieldEnum *instrument_alignment_df = new DataFieldEnum(this);
+  FillInstrumentAlignment(*instrument_alignment_df);
+  instrument_alignment_df->SetValue((unsigned)config.instrument_alignment);
+  Add(_("Built-in IMU"),
+      _("Whether the instrument housing the IMU is permanently fixed and its axes "
+        "are aligned to the aircraft axes. Set to 'Fixed & aligned' only "
+        "when the device is rigidly mounted. If in doubt, use 'Not aligned'."),
+      instrument_alignment_df);
+
   AddBoolean("K6Bt",
              _("Whether you use a K6Bt to connect the device."),
              config.k6bt, this);
@@ -488,7 +513,6 @@ FinishPortField(DeviceConfig &config, const DataFieldEnum &df) noexcept
     (DeviceConfig::PortType)(value >> 16);
   switch (new_type) {
   case DeviceConfig::PortType::DISABLED:
-  case DeviceConfig::PortType::AUTO:
   case DeviceConfig::PortType::INTERNAL:
   case DeviceConfig::PortType::DROIDSOAR_V2:
   case DeviceConfig::PortType::NUNCHUCK:
@@ -612,8 +636,15 @@ DeviceEditWidget::Save(bool &_changed) noexcept
     }
   }
 
-  if (CommonInterface::Basic().sensor_calibration_available)
+  if (config.port_type == DeviceConfig::PortType::INTERNAL)
+    changed |= SaveValueEnum(InstrumentAlignment, config.instrument_alignment);
+
+  const auto &basic = CommonInterface::Basic();
+  if (basic.sensor_calibration_available) {
+    config.sensor_offset = basic.sensor_calibration_offset;
+    config.sensor_factor = basic.sensor_calibration_factor;
     changed = true;
+  }
 
   _changed |= changed;
   return true;

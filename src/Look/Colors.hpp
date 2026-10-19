@@ -58,6 +58,12 @@ static constexpr Color COLOR_ADMONITION_TIP =
 static constexpr Color COLOR_LIGHT_GREEN = Color(0x00, 0xc0, 0x00);
 
 /**
+ * A dark amber readable on light backgrounds.
+ * Standard COLOR_YELLOW (255,255,0) is invisible on white.
+ */
+static constexpr Color COLOR_AMBER = Color(0xb3, 0x5a, 0x00);
+
+/**
  * Airspace warning list / map-item status badge colours.
  */
 static constexpr Color COLOR_AIRSPACE_WARNING_INSIDE =
@@ -68,6 +74,36 @@ static constexpr Color COLOR_AIRSPACE_WARNING_INSIDE_ACK =
   Color(254, 100, 100);
 static constexpr Color COLOR_AIRSPACE_WARNING_NEAR_ACK =
   Color(254, 254, 100);
+
+/**
+ * Badge fill for a clearance status.  Saturated so it sits with the
+ * red Inside and yellow Near badges.  The caption is black.  The
+ * row name stays dim; see COLOR_CLEARANCE.
+ */
+static constexpr Color COLOR_AIRSPACE_CLEARED = Color(0x00, 0xc8, 0x00);
+
+/**
+ * Dim green for a cleared airspace name, analogous to COLOR_GRAY
+ * for a day-acknowledged row.
+ */
+static constexpr Color COLOR_CLEARANCE = Color(0x00, 0x80, 0x00);
+
+/**
+ * Text colour for an airspace that has clearance.
+ *
+ * The name is dimmed so a cleared row reads as quieter than an
+ * active warning.  On a light list, keep white when the list has
+ * already chosen it for the cursor: this green disappears on that
+ * blue bar.
+ */
+[[nodiscard]]
+constexpr Color
+AirspaceClearanceTextColor(bool dark_mode, Color row_text) noexcept
+{
+  if (!dark_mode && row_text == COLOR_WHITE)
+    return row_text;
+  return COLOR_CLEARANCE;
+}
 
 /**
  * XCTherm overlay palette.

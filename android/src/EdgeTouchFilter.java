@@ -40,6 +40,11 @@ class EdgeTouchFilter implements View.OnApplyWindowInsetsListener {
   private int gestureInsetTop = 0;
   private int gestureInsetBottom = 0;
 
+  /** Height of the system swipe-down band, in pixels. */
+  int getGestureInsetTop() {
+    return gestureInsetTop;
+  }
+
   private int screenWidth = 0;
   private int screenHeight = 0;
 
@@ -67,6 +72,16 @@ class EdgeTouchFilter implements View.OnApplyWindowInsetsListener {
       gestureInsetRight = gi.right;
       gestureInsetTop = gi.top;
       gestureInsetBottom = gi.bottom;
+    } else {
+      /* API 28 and earlier have no system gesture insets.  Use the
+         status-bar height so arrange content still clears the
+         notification swipe-down band. */
+      final int statusBarHeightId =
+        v.getResources().getIdentifier("status_bar_height",
+                                       "dimen", "android");
+      if (statusBarHeightId != 0)
+        gestureInsetTop =
+          v.getResources().getDimensionPixelSize(statusBarHeightId);
     }
 
     /* On devices without gesture navigation the system reports

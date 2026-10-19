@@ -295,10 +295,10 @@ protected:
   virtual double ScanDistanceScored(const GeoPoint &ref) noexcept = 0;
 
   /**
-   * Calculate distance of achieved part of task.
-   * For previous taskpoints, the sum of distances of maximum distance
-   * points; for current, the distance from previous max distance point to
-   * the aircraft.
+   * Calculate achieved task distance:
+   *   total planned task distance minus task distance remaining.
+   * Ordered tasks also refresh travelled vectors from the start
+   * through the active point for the travelled glide solution.
    *
    * @param ref Location of aircraft
    *

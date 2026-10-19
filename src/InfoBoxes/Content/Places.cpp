@@ -28,6 +28,7 @@
 #include "Protection.hpp"
 #include "Profile/Current.hpp"
 #include "Profile/Profile.hpp"
+#include "ActionInterface.hpp"
 
 void
 UpdateInfoBoxHomeDistance(InfoBoxData &data) noexcept
@@ -146,9 +147,10 @@ InfoBoxContentHome::HandleClick() noexcept
     ScopeSuspendAllThreads suspend;
     settings_computer.poi.SetHome(*waypoint);
     WaypointGlue::SetHome(*data_components->waypoints,
-                          data_components->terrain.get(),
-                          settings_computer.poi, settings_computer.team_code,
-                          backend_components->device_blackboard.get(), false);
+                          settings_computer.poi,
+                          settings_computer.team_code,
+                          false);
+    ActionInterface::SetStartupLocation();
     WaypointGlue::SaveHome(Profile::map,
                            settings_computer.poi, settings_computer.team_code);
   }
@@ -163,6 +165,12 @@ ComputeActiveWaypointGlide(const MoreData &basic,
                            const DerivedInfo &calculated,
                            const Waypoint &waypoint) noexcept
 {
+  if (!waypoint.HasElevation()) {
+    GlideResult result;
+    result.Reset();
+    return result;
+  }
+
   const GlideState glide_state(
     basic.location.DistanceBearing(waypoint.location),
     waypoint.elevation + settings.task.safety_height_arrival,
@@ -186,7 +194,10 @@ SetInfoBoxWaypointGlideData(InfoBoxData &data, const MoreData &basic,
 
   const GlideResult result =
     ComputeActiveWaypointGlide(basic, settings, calculated, waypoint);
-  data.SetValueFromArrival(result.SelectAltitudeDifference(settings.task.glide));
+  if (result.IsDefined())
+    data.SetValueFromArrival(result.SelectAltitudeDifference(settings.task.glide));
+  else
+    data.SetInvalid();
   data.SetCommentFromDistance(basic.location.DistanceS(waypoint.location));
 }
 

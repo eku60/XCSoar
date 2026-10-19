@@ -8,6 +8,7 @@
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
 
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <string_view>
@@ -135,6 +136,17 @@ private:
 
   KalmanFilter1d kalman_filter;
 
+  /**
+   * Set after a ready port has been asked for the high interval.
+   * Cleared on link timeout.  A port that is not BLE, and a BLE
+   * stack that rejects the request, are not asked again until then.
+   * The 50 Hz stream would otherwise repeat a request that cannot
+   * succeed.
+   */
+  std::atomic<bool> high_priority_settled{false};
+
+  void RequestHighConnectionPriority() noexcept;
+
   bool ParseBAT(const char *content, NMEAInfo &info);
   bool ParsePRS(const char *content, NMEAInfo &info);
   bool ParseTMP(const char *content, NMEAInfo &info);
@@ -181,6 +193,7 @@ public:
 
   /* virtual methods from class Device */
   void LinkTimeout() override;
+  bool EnableNMEA(OperationEnvironment &env) override;
   bool ParseNMEA(const char *line, struct NMEAInfo &info) override;
   bool ReadFlightList(RecordedFlightList &flight_list,
                       OperationEnvironment &env) override;

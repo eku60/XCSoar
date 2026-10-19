@@ -6,8 +6,8 @@
 #include "LX1600.hpp"
 #include "LXNAVVario.hpp"
 #include "NMEA/Info.hpp"
-#include "RadioFrequency.hpp"
-#include "TransponderCode.hpp"
+#include "Radio/RadioFrequency.hpp"
+#include "Radio/TransponderCode.hpp"
 
 #include <fmt/format.h>
 #include <cstdlib>
@@ -293,15 +293,21 @@ LXDevice::PutEmptyMass(double empty_mass, OperationEnvironment &env)
   if (!IsLXNAVVario())
     return true;
 
-  if (!EnableNMEA(env))
-    return false;
-
-  /* Send full POLAR command with only empty_weight changed to
-     avoid zeroing other fields on the device. */
+  /* A full sentence needs the cached coefficients and name.  Remember
+     the mass and refuse success so DeviceDescriptor does not treat
+     it as sent.  The next POLAR reply publishes this mass, and
+     OnCalculatedUpdate writes it (#3353). */
+  bool need_polar = false;
   std::string cmd;
   {
     const std::lock_guard lock{mutex};
-    if (device_polar.valid) {
+    if (!device_polar.valid) {
+      pending_empty_mass = empty_mass;
+      need_polar = true;
+    } else {
+      /* Keep the pending mass until the sentence is written, so a
+         failed port open can be retried from OnCalculatedUpdate. */
+      pending_empty_mass = empty_mass;
       cmd = fmt::format(
         "PLXV0,POLAR,W,{:.6f},{:.6f},{:.6f},{:.2f},{:.1f},{:.0f},"
         "{:.1f},{:.1f},{},{:.0f}",
@@ -315,23 +321,102 @@ LXDevice::PutEmptyMass(double empty_mass, OperationEnvironment &env)
         device_polar.pilot_weight,
         device_polar.name,
         device_polar.stall);
-      device_polar.empty_weight = empty_mass;
-      last_sent_empty_mass = empty_mass;
     }
   }
 
-  if (!cmd.empty()) {
-    PortWriteNMEA(port, cmd.c_str(), env);
-    return true;
+  if (need_polar) {
+    if (EnableNMEA(env))
+      RequestLXNAVVarioSetting("POLAR", env);
+    return false;
   }
 
-  /* Same as PutCrewMass: never send empty-coefficient POLAR (#2397). */
+  if (!EnableNMEA(env))
+    return false;
+
+  /* Do not fall back to a partial POLAR write: empty a,b,c fields
+     zero the polar on LXNAV S-series varios (#2397). */
+  if (cmd.empty())
+    return false;
+
+  PortWriteNMEA(port, cmd.c_str(), env);
+  {
+    const std::lock_guard lock{mutex};
+    device_polar.empty_weight = empty_mass;
+    last_sent_empty_mass = empty_mass;
+    pending_empty_mass.reset();
+  }
+  return true;
+}
+
+bool
+LXDevice::PutMaxTakeoffMass(double max_takeoff_mass,
+                            OperationEnvironment &env)
+{
+  if (!IsLXNAVVario())
+    return true;
+
+  /* Zero is "not set" on the plane.  Writing it would store zero. */
+  if (max_takeoff_mass <= 0)
+    return true;
+
+  bool need_polar = false;
+  std::string cmd;
+  {
+    const std::lock_guard lock{mutex};
+    if (!device_polar.valid) {
+      pending_max_takeoff_mass = max_takeoff_mass;
+      need_polar = true;
+    } else {
+      pending_max_takeoff_mass = max_takeoff_mass;
+      cmd = fmt::format(
+        "PLXV0,POLAR,W,{:.6f},{:.6f},{:.6f},{:.2f},{:.1f},{:.0f},"
+        "{:.1f},{:.1f},{},{:.0f}",
+        device_polar.a * (LX_POLAR_V * LX_POLAR_V),
+        device_polar.b * LX_POLAR_V,
+        device_polar.c,
+        device_polar.polar_load,
+        device_polar.polar_weight,
+        max_takeoff_mass,
+        device_polar.empty_weight,
+        device_polar.pilot_weight,
+        device_polar.name,
+        device_polar.stall);
+    }
+  }
+
+  if (need_polar) {
+    if (EnableNMEA(env))
+      RequestLXNAVVarioSetting("POLAR", env);
+    return false;
+  }
+
+  if (!EnableNMEA(env))
+    return false;
+
+  if (cmd.empty())
+    return false;
+
+  PortWriteNMEA(port, cmd.c_str(), env);
+  {
+    const std::lock_guard lock{mutex};
+    device_polar.max_weight = max_takeoff_mass;
+    pending_max_takeoff_mass.reset();
+  }
   return true;
 }
 
 bool
 LXDevice::PutQNH(const AtmosphericPressure &pres, OperationEnvironment &env)
 {
+  {
+    /* the vario reported this QNH itself; sending it back could only
+       round it to what its $LXWP3 offset can carry (#3261) */
+    const std::lock_guard lock{mutex};
+    if (last_received_qnh &&
+        fabs(*last_received_qnh - pres.GetHectoPascal()) < 0.005)
+      return true;
+  }
+
   if (!EnableNMEA(env))
     return false;
 

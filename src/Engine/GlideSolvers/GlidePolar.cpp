@@ -23,7 +23,7 @@ GlidePolar::GlidePolar(double _mc, double _bugs,
    VbestLD(0),
    Vmax(75),
    Vmin(0),
-   reference_polar(0.00157, -0.0734, 1.48),
+   reference_polar(FALLBACK_POLAR),
    max_ballast(90),
    ballast_ratio(0.3),
    reference_mass(300),
@@ -141,6 +141,18 @@ GlidePolar::SetMC(const double _mc) noexcept
 }
 
 void
+GlidePolar::SetMCLimitedByCruise(const bool limited) noexcept
+{
+  if (limit_mc_to_cruise == limited)
+    return;
+
+  limit_mc_to_cruise = limited;
+
+  if (IsValid())
+    UpdateBestLD();
+}
+
+void
 GlidePolar::SetDensityRatio(const double dr) noexcept
 {
   const double safe_dr = (dr > 0.0 && std::isfinite(dr)) ? dr : 1.0;
@@ -230,7 +242,12 @@ GlidePolar::UpdateBestLD() noexcept
      with GlidePolarSpeedToFly and GetBestGlideRatioSpeed() */
   const double vbld = sqrt((polar.c * density_ratio + mc) *
                            density_ratio / polar.a);
-  VbestLD = std::clamp(vbld, Vmin, Vmax);
+  /* Speed-to-fly stops at maximum cruise. Reach on the safety polar
+     does not, so a Safety MC whose speed lies past that cap still
+     steepens the glide. */
+  VbestLD = std::max(vbld, Vmin);
+  if (limit_mc_to_cruise)
+    VbestLD = std::min(VbestLD, Vmax);
   SbestLD = SinkRate(VbestLD);
   bestLD = VbestLD / SbestLD;
 #endif
@@ -497,7 +514,7 @@ GlidePolar::GetNextLegEqThermal(double current_wind,
   /* calculate coefficients of the polar shifted to the right
      by an amount equal to head wind (ground speed polar) */
   const PolarCoefficients s_polar(polar.a,
-                                  polar.b - 2 * next_wind * polar.a,
+                                  polar.b + 2 * next_wind * polar.a,
                                   polar.c + next_wind *
                                   (next_wind * polar.a + polar.b));
 

@@ -6,6 +6,7 @@
 #include "TaskEditPanel.hpp"
 #include "TaskPropertiesPanel.hpp"
 #include "TaskMiscPanel.hpp"
+#include "WeGlidePanel.hpp"
 #include "TaskClosePanel.hpp"
 #include "../TaskDialogs.hpp"
 #include "UIGlobals.hpp"
@@ -33,14 +34,52 @@
 #include "BackendComponents.hpp"
 #include "DataComponents.hpp"
 
+/**
+ * The task manager currently on screen, or nullptr.  A received task
+ * is handed to this one instead of opening a second task manager on
+ * top of it; see TaskManagerReceiveTask().
+ */
+static TaskManagerDialog *visible_dialog;
+
 inline
 TaskManagerDialog::TaskManagerDialog(WndForm &_dialog,
                                      std::unique_ptr<OrderedTask> &&_task) noexcept
     :TabWidget(Orientation::AUTO),
      dialog(_dialog),
-     task(std::move(_task)) {}
+     task(std::move(_task))
+{
+  visible_dialog = this;
+}
 
-TaskManagerDialog::~TaskManagerDialog() noexcept = default;
+TaskManagerDialog::~TaskManagerDialog() noexcept
+{
+  visible_dialog = nullptr;
+}
+
+void
+TaskManagerDialog::ReceiveTask(std::unique_ptr<OrderedTask> _task) noexcept
+{
+  task = std::move(_task);
+  modified = true;
+
+  ResetTaskView();
+  UpdateCaption();
+  SwitchToEditTab();
+}
+
+bool
+HasVisibleTaskManager() noexcept
+{
+  return visible_dialog != nullptr;
+}
+
+void
+TaskManagerReceiveTask(std::unique_ptr<OrderedTask> task) noexcept
+{
+  assert(visible_dialog != nullptr);
+
+  visible_dialog->ReceiveTask(std::move(task));
+}
 
 bool
 TaskManagerDialog::KeyPress(unsigned key_code) noexcept
@@ -109,6 +148,11 @@ TaskManagerDialog::Initialise(ContainerWindow &parent,
          _("Turn Points"), TurnPointIcon);
   AddTab(std::make_unique<TaskMiscPanel>(*this, task, &modified),
          _("Manage"), BrowseIcon);
+#ifdef HAVE_HTTP
+  const auto *WeGlideIcon = enable_icons ? &icons.hBmpTabWeGlide : nullptr;
+  AddTab(std::make_unique<WeGlidePanel>(*this, task, &modified),
+         _("WeGlide"), WeGlideIcon);
+#endif
   AddTab(std::make_unique<VScrollWidget>(std::make_unique<TaskPropertiesPanel>(*this, task, &modified),
                                          GetLook()),
          _("Rules"), PropertiesIcon);

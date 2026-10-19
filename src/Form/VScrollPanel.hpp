@@ -14,10 +14,17 @@
 #include <deque>
 
 class Canvas;
+struct DialogLook;
 
 class VScrollPanelListener {
 public:
   virtual void OnVScrollPanelChange() noexcept = 0;
+
+  /**
+   * The hosted content's height changed (a row was shown or hidden).
+   * The default does nothing; #VScrollWidget remeasures.
+   */
+  virtual void OnVScrollPanelContentHeightChanged() noexcept {}
 
   /**
    * Called when a touch gesture (e.g. swipe) is detected on the
@@ -28,6 +35,15 @@ public:
    */
   virtual bool OnVScrollPanelGesture(const char *gesture) noexcept {
     (void)gesture;
+    return false;
+  }
+
+  /**
+   * Returns true if this panel should track and display horizontal swipe
+   * gestures.
+   */
+  [[gnu::pure]]
+  virtual bool IsVScrollPanelGestureEnabled() const noexcept {
     return false;
   }
 };
@@ -182,6 +198,13 @@ public:
   }
 
 private:
+  /**
+   * Begin watching the pointer for a swipe gesture.
+   *
+   * @param p the position of the press, relative to this window
+   */
+  void StartGestureTracking(PixelPoint p) noexcept;
+
   void SetupScrollBar() noexcept;
   void SetOriginClamped(int new_origin) noexcept;
   void OnKineticTimer() noexcept;
@@ -233,6 +256,7 @@ public:
 protected:
   /* virtual methods from class Window */
   void OnResize(PixelSize new_size) noexcept override;
+  void OnChildContentHeightChanged() noexcept override;
   void OnDestroy() noexcept override;
 
   bool OnKeyCheck(unsigned key_code) const noexcept override;

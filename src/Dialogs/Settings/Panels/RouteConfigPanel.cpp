@@ -43,15 +43,16 @@ private:
 void
 RouteConfigPanel::ShowRouteControls(bool show)
 {
-  SetRowVisible(RoutePlannerAllowClimb, show);
-  SetRowVisible(RoutePlannerUseCeiling, show);
+  SetRowAvailable(RoutePlannerAllowClimb, show);
+  SetRowAvailable(RoutePlannerUseCeiling, show);
 }
 
 void
 RouteConfigPanel::ShowReachControls(bool show)
 {
-  SetRowVisible(FinalGlideTerrain, show);
-  SetRowVisible(ReachPolarMode, show);
+  /* Reach polar still applies to abort, alternates and landable
+     arrival when map reach is Off. */
+  SetRowAvailable(FinalGlideTerrain, show);
 }
 
 void
@@ -109,11 +110,14 @@ RouteConfigPanel::Prepare(ContainerWindow &parent,
 
   static constexpr StaticEnumChoice turning_reach_list[] = {
     { RoutePlannerConfig::ReachMode::OFF, N_("Off"),
-      N_("Reach calculations disabled.") },
+      N_("Disables map reach (terrain line and shade). Abort, "
+         "alternates and landable arrival still use the Reach polar.") },
     { RoutePlannerConfig::ReachMode::STRAIGHT, N_("Straight"),
-      N_("The reach is from straight line paths from the glider.") },
+      N_("The reach is from straight line paths from the glider. "
+         "Landable colours and the Alternates list use this reach.") },
     { RoutePlannerConfig::ReachMode::TURNING, N_("Turning"),
-      N_("The reach is calculated allowing turns around terrain obstacles.") },
+      N_("The reach is calculated allowing turns around terrain obstacles. "
+         "Landable colours and the Alternates list use this reach.") },
     nullptr
   };
 
@@ -125,31 +129,40 @@ RouteConfigPanel::Prepare(ContainerWindow &parent,
           this);
 
   static constexpr StaticEnumChoice reach_polar_list[] = {
-    { RoutePlannerConfig::Polar::TASK, N_("Task"),
-      N_("Uses task glide polar.") },
+    { RoutePlannerConfig::Polar::TASK, N_("Task MC"),
+      N_("Uses task MacCready value.") },
     { RoutePlannerConfig::Polar::SAFETY, N_("Safety MC"),
       N_("Uses safety MacCready value.") },
     nullptr
   };
 
   AddEnum(_("Reach polar"),
-          _("This determines the glide performance used in reach, landable arrival, abort and alternate calculations."),
+          _("Which MacCready is used for terrain reach, landable "
+            "colours, abort and the Alternates list. This still applies "
+            "when Reach mode is Off. The working line always uses Task MC. "
+            "Alternate InfoBoxes and waypoint Alt. diff. Safety MC always "
+            "use Safety MC."),
           reach_polar_list, (unsigned)route_planner.reach_polar_mode);
   SetExpertRow(ReachPolarMode);
 
   static constexpr StaticEnumChoice final_glide_terrain_list[] = {
     { FeaturesSettings::FinalGlideTerrain::OFF, N_("Off"),
-      N_("Disables the reach display.") },
+      N_("No reach overlay on the map.") },
     { FeaturesSettings::FinalGlideTerrain::TERRAIN_LINE, N_("Terrain line"),
-      N_("Draws a dashed line at the terrain glide reach.") },
+      N_("How far you can glide to the ground. Uses the Reach polar.") },
     { FeaturesSettings::FinalGlideTerrain::TERRAIN_SHADE, N_("Terrain shade"),
-      N_("Shades terrain outside glide reach.") },
+      N_("Shades the map beyond glide to the ground. Uses the Reach polar.") },
     { FeaturesSettings::FinalGlideTerrain::WORKING, N_("Working line"),
-      N_("Draws a dashed line at the working glide reach.") },
-    { FeaturesSettings::FinalGlideTerrain::WORKING_TERRAIN_LINE, N_("Working line, terrain line"),
-      N_("Draws a dashed line at the working and terrain glide reaches.") },
-    { FeaturesSettings::FinalGlideTerrain::WORKING_TERRAIN_SHADE, N_("Working line, terrain shade"),
-      N_("Draws a dashed line at working, and shade terrain, glide reaches.") },
+      N_("How far you can glide and still arrive at typical thermal-base "
+         "height from this flight. Always uses Task MC.") },
+    { FeaturesSettings::FinalGlideTerrain::WORKING_TERRAIN_LINE,
+      N_("Working line, terrain line"),
+      N_("Working line to typical thermal-base height using Task MC, plus "
+         "terrain line to the ground using the Reach polar.") },
+    { FeaturesSettings::FinalGlideTerrain::WORKING_TERRAIN_SHADE,
+      N_("Working line, terrain shade"),
+      N_("Working line to typical thermal-base height using Task MC, plus "
+         "shade beyond the ground using the Reach polar.") },
     nullptr
   };
 

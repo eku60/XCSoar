@@ -29,6 +29,8 @@ LIBCOMPUTER_SOURCES = \
 	$(SRC)/Computer/ThermalBase.cpp \
 	$(SRC)/Computer/LiftDatabaseComputer.cpp \
 	$(SRC)/Computer/LogComputer.cpp \
+	$(SRC)/Computer/FlarmRangeComputer.cpp \
+	$(SRC)/FLARM/RangeEstimate.cpp \
 	$(SRC)/Computer/AverageVarioComputer.cpp \
 	$(SRC)/Computer/GlideRatioCalculator.cpp \
 	$(SRC)/Computer/GlideRatioComputer.cpp \
@@ -42,6 +44,7 @@ LIBCOMPUTER_SOURCES = \
 	$(SRC)/Computer/GlideComputerInterface.cpp \
 	$(SRC)/Computer/Events.cpp \
 	$(SRC)/Computer/BasicComputer.cpp \
+	$(SRC)/Computer/WaypointReach.cpp \
 	$(SRC)/Computer/STF.cpp \
 	$(SRC)/Computer/FilteredVarioComputer.cpp \
 	$(SRC)/Computer/GroundSpeedComputer.cpp \

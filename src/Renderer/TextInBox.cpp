@@ -3,6 +3,8 @@
 
 #include "TextInBox.hpp"
 #include "LabelBlock.hpp"
+#include "Asset.hpp"
+#include "BoxShadowRenderer.hpp"
 #include "ui/canvas/Canvas.hpp"
 #include "ui/canvas/Pen.hpp"
 #include "Math/Angle.hpp"
@@ -14,9 +16,17 @@
 #include <math.h>
 
 #ifdef ENABLE_OPENGL
+#include "Hardware/CPU.hpp"
 #include "ui/canvas/opengl/Scope.hpp"
 #include "ui/canvas/opengl/Triangulate.hpp"
 #endif
+
+/** Alias raster (e-paper panels). */
+static bool
+LabelUsesAliasRaster() noexcept
+{
+  return HasEPaper() || IsDithered();
+}
 
 static PixelPoint
 TextInBoxMoveInView(PixelRect &rc, const PixelRect &map_rc) noexcept
@@ -90,15 +100,83 @@ RenderShadowedText(Canvas &canvas, const char *text,
   if (text == nullptr || text[0] == '\0')
     return;
 
+  /* OUTLINED_INVERTED uses a black halo for LCD contrast; alias panels
+     turn that fringe into extra ink. */
+  if (LabelUsesAliasRaster())
+    inverted = false;
+
   canvas.SetBackgroundTransparent();
 
   canvas.SetTextColor(inverted ? COLOR_BLACK : COLOR_WHITE);
 
   /* at least 1px, or tiny fonts get no halo at all */
-  DrawTextHalo(canvas, text, p, std::max(1u, canvas.GetFontHeight() / 12u));
+  const unsigned halo = LabelUsesAliasRaster()
+    ? std::max(1u, canvas.GetFontHeight() / 16u)
+    : std::max(1u, canvas.GetFontHeight() / 12u);
+  DrawTextHalo(canvas, text, p, halo);
 
   canvas.SetTextColor(inverted ? COLOR_WHITE : COLOR_BLACK);
   canvas.DrawText(p, text);
+}
+
+/**
+ * The opacity of a #LabelShape::PILL.
+ */
+static constexpr uint8_t PILL_ALPHA = 0xf2;
+
+void
+DrawPill(Canvas &canvas, const PixelRect &rc, uint8_t opacity) noexcept
+{
+  /* a pill: the diameter of the corners is the box's height */
+  const PixelSize ellipse{unsigned(rc.GetHeight())};
+
+  canvas.SelectNullPen();
+
+#ifdef ENABLE_OPENGL
+  /* Android may choose an EGL config without a stencil buffer */
+  GLint stencil_bits = 0;
+  glGetIntegerv(GL_STENCIL_BITS, &stencil_bits);
+
+  if (!IsSlowCPU() && stencil_bits > 0) {
+    /* the pill is translucent, so keep its shadow out from under it:
+       mark the pill's area in the stencil buffer, and draw the shadow
+       only around it */
+    const GLEnable<GL_STENCIL_TEST> stencil_test;
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+    glStencilFunc(GL_ALWAYS, 1, 1);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+    canvas.SelectWhiteBrush();
+    canvas.DrawRoundRectangle(rc, ellipse);
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glStencilFunc(GL_NOTEQUAL, 1, 1);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+    BoxShadowStyle shadow = BoxShadowStyle::FLOATING;
+    for (auto &layer : shadow.layers)
+      layer.alpha = layer.alpha * opacity / 0xff;
+
+    DrawBoxShadow(rc, shadow, rc.GetHeight() / 2);
+  } else
+    /* no shadow on a slow CPU or without a stencil buffer: a black
+       outline sets the pill off the map */
+    canvas.Select(Pen(1, COLOR_BLACK.WithAlpha(opacity)));
+
+  const ScopeAlphaBlend alpha_blend;
+  canvas.Select(Brush(COLOR_WHITE.WithAlpha(PILL_ALPHA * opacity / 0xff)));
+#else
+  (void)opacity;
+
+  /* no shadow without OpenGL: a black outline sets the pill off the
+     map */
+  canvas.SelectBlackPen();
+  canvas.SelectWhiteBrush();
+#endif
+
+  canvas.DrawRoundRectangle(rc, ellipse);
 }
 
 // returns true if really wrote something
@@ -125,9 +203,15 @@ TextInBox(Canvas &canvas, const char *text, PixelPoint p,
     p.y -= tsize.height / 2;
 
   const unsigned padding = Layout::GetTextPadding();
+
+  /* the round ends of a pill need room of their own */
+  const unsigned side_padding = mode.shape == LabelShape::PILL
+    ? (tsize.height + 2 * padding) / 2
+    : padding;
+
   PixelRect rc;
-  rc.left = p.x - padding - 1;
-  rc.right = p.x + tsize.width + padding;
+  rc.left = p.x - side_padding - 1;
+  rc.right = p.x + tsize.width + side_padding;
   rc.top = p.y - (int)padding;
   rc.bottom = p.y + tsize.height + padding;
 
@@ -177,6 +261,12 @@ TextInBox(Canvas &canvas, const char *text, PixelPoint p,
                  std::max(2u, (unsigned)rc.GetHeight() / 2));
       canvas.DrawRoundRectangle(rc, PixelSize{ellipse});
     }
+
+    canvas.SetBackgroundTransparent();
+    canvas.SetTextColor(COLOR_BLACK);
+    canvas.DrawText(p, text);
+  } else if (mode.shape == LabelShape::PILL) {
+    DrawPill(canvas, rc);
 
     canvas.SetBackgroundTransparent();
     canvas.SetTextColor(COLOR_BLACK);

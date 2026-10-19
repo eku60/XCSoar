@@ -145,7 +145,8 @@ The \infobox{T Next Leg} InfoBox shows the climb on the next task leg
 that gives the same average cross-country speed as flying the current
 leg at the MacCready setting.  The calculation uses the glide polar and
 the headwind component on each remaining track.  The box is blank when
-there is no valid next leg, no wind, or no polar.
+there is no valid next leg, no wind, or no polar.  The comment shows
+``no wind'' when wind is not available.
 
 Compared with the MacCready setting:
 \begin{itemize}
@@ -239,7 +240,8 @@ The ballast setting is used to modify the polar to account for any
 water ballast carried during the flight. Ballast is shown in litres,
 and should be set to correspond to the correct water ballast added
 before flight.  The ballast setting modifies the polar to account for
-the indicated load of water ballast.
+the indicated load of water ballast.  The wing loading in this
+dialogue is red while the all-up weight is above the plane's MTOW.
 
 Use this dialogue both before and during the flight to record the mean
 sea level atmospheric pressure, also known as QNH pressure.  The
@@ -253,12 +255,63 @@ The maximum forecast ground temperature is used by the convection
 forecast algorithm (see Section~\ref{sec:convection-forecast}) in its
 determination of estimated convection height and cloud base.
 
+XCSoar can fill this field from the forecast published by the Deutscher
+Wetterdienst, so that it reflects the day rather than whatever it was
+last set to.  The lookup is off until it is switched on with
+\button{Config 1}\blink\button{System}\blink\button{Weather}%
+\blink\button{Flugwetter (pc\_met)}\blink\button{Max. temp. from
+forecast}, next to the pc\_met account details.  It contacts the
+Deutscher Wetterdienst on its own, so it is the pilot's to enable; it
+needs no account of its own.
+
+Once it is on, opening the dialogue starts the lookup in the
+background: the dialogue appears at once with the value it had, and
+the field changes only if an answer arrives.  The station nearest the
+aircraft is used, which requires a GPS fix, and the forecast is
+fetched once a day and then kept, so opening the dialogue again costs
+nothing.
+
+Where there is no network the attempt is abandoned after a few seconds
+and the field simply keeps its value; nothing is reported, because the
+lookup was not asked for.
+
+The element read is \textbf{TX}, which the Deutscher Wetterdienst
+defines as the highest air temperature over the twelve hours before
+the timestep.  The entry stamped 18:00~UTC therefore covers the
+daylight half of the day -- the half a convection estimate is about.
+It is deliberately not the highest of the hourly temperatures: a
+statistical forecast states each element in its own right, and
+sampling the hourly series reads a degree or more low, which is a few
+hundred feet of estimated cloud base.
+
+While a forecast is in effect the field states the value with the
+source beside it, \button{18.6 °C\ \ DWD MOSMIX}, and cannot
+be edited -- a number nobody typed should not look like one somebody
+did.  To enter a temperature by hand, switch the lookup off.
+
+\tip{} What the number buys is only visible once the glider has
+climbed.  The estimate compares the dry adiabat from this ground
+temperature against the outside air temperature the probe measures on
+the way up, so before the aircraft has sampled the layer there is
+nothing to compare and neither the ceiling nor the cloud base is
+reported.  The ceiling needs an outside temperature probe; the cloud
+base needs a humidity probe as well.  Both appear on the temperature
+trace page of the Analysis dialogue
+(Section~\ref{sec:convection-forecast}).
+
+\tip{} The station catalogue covers about 5600 stations worldwide,
+roughly half of them in Germany and three quarters in Europe.  Outside
+Europe the nearest station may be some distance away, and over
+mountainous terrain a station in a valley can read warmer than the
+airfield.
+
 \tip{} It is possible to configure XCSoar to display the basic
 settings dialogue when it starts up.
 
 On system startup, after the GPS has acquired lock, and if a
 barometric altitude source is connected (e.g.\ Vega, AltairPro,
-FLARM), the QNH is automatically adjusted.  This adjustment sets the
+FLARM, or the built-in barometer on Android and iOS), the QNH is
+automatically adjusted.  This adjustment sets the
 QNH such that the barometric altitude equals the terrain altitude.
 
 The QNH is only updated if the aircraft is on the ground for more than
@@ -287,12 +340,24 @@ gauge.
 
 XCSoar continuously calculates two types of speed to fly:
 \begin{description}
-\item[MacCready speed]  This is the best speed to fly during cruise
-  in still air, adjusted for wind if in final glide mode.
-\item[Dolphin speed]  This is the instantaneous, best speed to fly
-  in rising or descending air, adjusted for wind if in final glide
-  mode.
-\end{description}  
+\item[MacCready speed]  The best speed to fly in cruise for the
+  current MacCready setting, in still air.  When MacCready is 0 and a
+  task or Goto is active, the speed is adjusted for wind so the glide
+  over the ground toward the waypoint is as good as it can be.  Into
+  a headwind the command is faster than the polar's still-air best
+  glide, because less time is then spent in the headwind; with a
+  tailwind it is slower.  The final-glide symbol does not turn this
+  adjustment on.  With MacCready above 0, during cruise between
+  thermals, wind is not used: the polar is flown in the air mass.
+\item[Dolphin speed]  The instantaneous best speed to fly in rising
+  or descending air.  Wind is used on the same rule: only when
+  MacCready is 0 and a task or Goto is active.
+\end{description}
+
+The best L/D speed on the polar chart is the still-air figure for the
+current MacCready setting.  Speed-to-fly matches it when the wind is
+zero, or when there is no task or Goto.  At MacCready 0 with a
+headwind it is higher.  
 
 The user can specify a maximum maneuvering speed in the configuration
 settings, which limits the speed-to-fly in MacCready calculations to
@@ -412,10 +477,9 @@ landing point either from the waypoint file, or if no height is
 specified in the waypoint file, from the terrain file.
 
 \textbf{The estimated arrival altitude displayed next to landable
-  waypoints is by default calculated for best glide angle at zero
-  MacCready ring setting (MC$=0$), adjusted for wind.  However, a
-  safety MacCready setting may be configured to modify the MacCready
-  setting used in this calculation, as described below.}
+  waypoints uses the Reach polar (Safety MC by default).  Reach polar
+  can be set to Task MC instead.  Safety MC defaults to 3.2~m/s, about
+  25:1 on the default LS-8 polar.}
 
 Landable fields are only marked as reachable if the estimated arrival
 elevation above ground is above the arrival altitude safety height,
@@ -427,10 +491,11 @@ cross) is displayed on the screen, then the glider must climb in order
 to safely reach the destination.
 
 When calculating the arrival heights of landable fields (for map
-display purposes and in abort mode), a safety MacCready value can be
-specified in the configuration settings.  This safety value is set to
-zero by default.  Larger values make the arrival height calculation
-more conservative.
+display purposes and in abort mode), Reach polar selects Task MC or
+Safety MC.  Safety MC is 3.2~m/s by default (about 25:1 on the default
+LS-8 polar).  Larger values make the arrival height calculation more
+conservative.  The Safety MC speed is not limited by maximum cruise
+speed.  Speed-to-fly still stops at maximum cruise speed.
 
 
 \section{Final glide calculator}
@@ -757,10 +822,11 @@ The analysis dialogue can be used to check the glide polar.
 \menulabel{\bmenug{Info 1}\blink\bmenug{Analysis}}
 
 The polar page shows a graph of the glide polar at the current bugs
-and ballast setting.  It also shows the calculated best L/D and the
-speed at which it occurs, and the minimum sink and the speed at which
-it occurs.  The current aircraft all up weight is displayed in the
-title.
+and ballast setting.  It also shows the L/D and the speed at which it
+occurs for the current MacCready setting, that MacCready value, and
+the minimum sink and the speed at which it occurs.  The L/D and its
+speed change when MacCready changes.  The current aircraft all up
+weight is displayed in the title.
 
 \begin{center}
 \includegraphics[angle=0,width=0.8\linewidth,keepaspectratio='true']{figures/analysis-glidepolar.png}

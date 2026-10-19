@@ -9,16 +9,19 @@
 #include <cassert>
 
 class ButtonPanel {
+  /** Devices list and similar dialogs need more than eight actions. */
+  static constexpr unsigned MAX_BUTTONS = 12;
+
   ContainerWindow &parent;
   const ButtonLook &look;
   WindowStyle style;
 
-  StaticArray<Button *, 8u> buttons;
+  StaticArray<Button *, MAX_BUTTONS> buttons;
 
   /**
    * Map key codes to the button that "owns" it.  Used by KeyPress().
    */
-  unsigned keys[8u];
+  unsigned keys[MAX_BUTTONS];
 
   /**
    * The button currently selected with KEY_LEFT / KEY_RIGHT on
@@ -43,6 +46,18 @@ public:
 
     selected_index = _index;
     buttons[selected_index]->SetSelected(true);
+  }
+
+  /**
+   * Stop KEY_LEFT / KEY_RIGHT from selecting actions, so those keys
+   * can be used by the parent (for example to change settings pages).
+   */
+  void DisableCursorSelection() noexcept {
+    if (selected_index < 0)
+      return;
+
+    buttons[selected_index]->SetSelected(false);
+    selected_index = -1;
   }
 
   /**
@@ -106,8 +121,18 @@ public:
   PixelRect BottomLayout(PixelRect rc) noexcept;
   PixelRect BottomLayout() noexcept;
 
+  /**
+   * How many rows #BottomLayout uses at this width.
+   * Zero when there are no buttons.
+   */
+  [[gnu::pure]]
+  unsigned BottomRowCount(unsigned total_width) const noexcept;
+
   void ShowAll() noexcept;
   void HideAll() noexcept;
+
+  /** Paint and hit-test these buttons above a sibling that covers them. */
+  void Raise() noexcept;
 
   [[gnu::pure]]
   bool HasFocus() const noexcept;
@@ -120,6 +145,17 @@ public:
   bool KeyPress(unsigned key_code) noexcept;
 
 private:
+  struct BottomRow {
+    unsigned start, end;
+
+    constexpr unsigned size() const noexcept {
+      return end - start;
+    }
+  };
+
+  void CollectBottomRows(StaticArray<BottomRow, MAX_BUTTONS> &rows,
+                         unsigned total_width) const noexcept;
+
   [[gnu::pure]]
   unsigned Width(unsigned i) const noexcept;
 

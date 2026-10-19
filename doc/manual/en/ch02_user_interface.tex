@@ -57,11 +57,12 @@ section of terrain and airspaces in the direction of your heading.
 \item[Gauges]  Gauges provide instrumentation displays. All gauges are optional
 and some may only have meaningful information displayed when XCSoar is
 connected to a supported instrument.
-A gauge overlay is either permanently drawn or is invoked by several 
-conditions.  E.g.\ the thermal assistant is shown, when XCSoar enters circling
-mode. The FLARM radar is invoked, whenever a probable collision is detected.
-Permanently overlaid gauges are the final glide bar as well as the vario bar
-amongst others.
+The FLARM radar and the thermal assistant are gauges: each is drawn at a
+fixed screen position. The thermal assistant can be shown when XCSoar
+enters circling mode. The FLARM radar can be shown when traffic is
+detected. The final glide bar, the vario bar and the thermal band are
+map overlays, configured under Map Display / Overlays. The needle vario
+belongs to an InfoBox layout.
 \item[Button labels and menus] Hardware buttons on the device running XCSoar
 can be used to bring up and navigate smaller on-screen menus that are
 typically laid out such that menu items can be selected by pressing the
@@ -104,6 +105,13 @@ of buttons.
 
 For the PC version of XCSoar, clicking the mouse over an item is equivalent to
 touching it.
+
+On Linux, choosing Quit also offers controls for the system actions which are
+available without authentication, such as restarting or powering off the
+device.  These controls are also available on Kobo.  Cancel is the default
+choice.  After choosing an action, XCSoar saves its state and closes its devices
+before asking the operating system to perform the action.  Other platforms
+continue to show only the normal confirmation for quitting XCSoar.
 
 \section{The main button menu}
 The button menu is a set of buttons drawn on the screen and activated by touch
@@ -426,9 +434,8 @@ fields can also be used to change for example the MacCready setting.
 The specific number and layout of the InfoBox grid depends on the
 screen orientation and the device's display size.  
 
-For a 320x240 display
-Pocket PC in portrait mode, there are four InfoBoxes above and four
-InfoBoxes below the map display.  %TODO Update the example by considering something else than a Pocket PC
+For a 320x240 display in portrait mode, there are four InfoBoxes above
+and four InfoBoxes below the map display.
 \sketch{figures/infoboxes.png}
 
 A typical landscape layout has 9 InfoBoxes and the variometer gauge 
@@ -508,12 +515,18 @@ To go through the various screen pages, use gesture left/right (touch-screen), o
 
 \bmenut{Display}{1/2}\blink\bmenut{Info}{Circling}\blink\bmenut{Info}{Cruise}\blink\bmenut{Info}{FinalGlide}\blink\bmenut{Info}{...}
 
+After each page change, a page indicator with one dot per configured
+screen page appears for about two seconds at the bottom centre of the
+map.  The filled dot marks the current page and thus shows its position
+among all configured pages.  The indicator does not appear if only one
+page is configured.
+
 
 \subsection*{Modifying InfoBox content}
 
 (This section applies only when a touch-screen or mouse is present.)
 
-Some InfoBox values can be changed by the user by selecting (i.e.\ long-pressing) the
+Some InfoBox values can be changed by the user by tapping the
 InfoBox with the touch-screen or mouse.  This brings up a small tabular dialogue:
 
 \begin{description}
@@ -532,6 +545,46 @@ InfoBox with the touch-screen or mouse.  This brings up a small tabular dialogue
 Examples of InfoBoxes that can
 be adjusted include MacCready setting, wind speed, and altitude (QNH).
 
+
+\subsection*{Rearranging InfoBoxes}\label{sec:arrange_infoboxes}
+
+Press and hold an InfoBox past a tap; it fills from the bottom.
+Lift while it is full to enter the arrange mode with that InfoBox
+selected, or slide off to cancel.  The `\emph{Arrange InfoBoxes}'
+item of the Quick Menu opens the same mode without picking a box up.
+The screen uses the same backdrop as the InfoBox set dialog, with the
+map still showing through, and every InfoBox is replaced by a card
+showing only its number and its caption.
+On Android the backdrop still covers the screen.  The cards, the
+description and the buttons stay clear of the screen edge, the camera
+cutout and the system bars, and below the area that opens the
+notification shade, so a drag stays in XCSoar.  The InfoBox Sets
+editor uses the same layout.  The InfoBoxes on the map stay where
+they are.
+
+A tap on a card explains what that InfoBox shows.  Drag it onto
+another one to exchange the two; the InfoBox which makes way slides
+over into the slot the dragged one has left.  Hold still and the card fills from the bottom; lift to open the
+list of all available InfoBoxes, or slide off to cancel.  Once the
+card follows the finger, holding no longer opens the list.  A second
+finger on the screen aborts the drag.
+
+Without a touch-screen the cursor keys and a remote stick select an
+InfoBox.  Enter takes the selected InfoBox, the cursor keys then move
+it, and Enter puts it down again.  Taking an InfoBox and putting it
+down without having moved it opens the list of available InfoBoxes
+instead.  Tab leaves the cards and reaches the Help and Close
+buttons; so does a cursor step toward them (down on a portrait page,
+left on a landscape one).
+
+`\emph{Help}' explains how an InfoBox is moved and how it is replaced.
+`\emph{Close}' leaves the mode and keeps the new order, and so does the
+timeout after the same time as the menu; the Escape key leaves the mode
+and restores the order the page had before.
+
+The InfoBox sets are composed in the same view.  The dialog buttons
+copy a set, paste it into another one, and choose that set's geometry
+(see Section~\ref{conf:infobox_sets}).
 
 \subsection*{Changing InfoBox sets}
 
@@ -574,8 +627,16 @@ user, such as editing tasks and configuring settings.
 
 Some dialogues simply display information, and require no user input. Other
 dialogues contain data fields that can be modified or buttons that can be pressed.  
+Message dialogues adjust their text and controls when the application window
+or display orientation changes. Use the left/right arrow keys to move between
+buttons in the same row, and the up/down arrow keys to move to the closest
+button in the row above or below. On narrow screens where buttons form a
+single column, use up/down. At an edge, the selection stays on the current
+button. Enter activates the selected button; on a PC, Tab cycles through the
+buttons.
 
-A cursor appears over the active button or data field. Pressing the up/down
+In other dialogues, a cursor appears over the active button or data field.
+Pressing the up/down
 arrow keys, the cursor will cycle
 through the next or previous items. For list items and scrollable text, the
 up/down arrow key moves the cursor up or down the list or text, and the
@@ -594,7 +655,8 @@ Dialogues are typically started from the button menu.
 Many of the dialogue windows have multiple pages of information and are controlled
 in a consistent fashion. Press the \bmenuw{$<$} or \bmenuw{$>$} buttons to
 select the next or previous page of the dialogue and the \bmenuw{Close} button 
-to make the dialogue disappear.
+to make the dialogue disappear. The \bmenuw{$<$} button is unavailable
+on the first page.
 
 The escape key on a PC can also be used to close dialogues.
 
@@ -627,6 +689,15 @@ of each airspace class
 \item[Setup Plane]  Easy reconfiguration of the plane-dependent settings (e.g. 
   polar, competition ID, etc.) by choosing from a list of previously-created 
   plane profiles.
+\item[Data Management] Provides file downloads, import, backup and flight
+  export.  The Export Flights list scans IGC files in the background and adds
+  detected takeoff, landing and duration information as it becomes available.
+  A line under the list shows how many IGC files have a detected launch and
+  landing, and their total time as hours:minutes. It keeps updating while
+  files are still being scanned.
+  WeGlide Upload opens that
+  list with only IGC files. The Upload Flight button sends the
+  highlighted flight.
 \end{description}
 
 These dialogues are described in later chapters, with the exception of the
@@ -646,7 +717,10 @@ out-landing, pre-landing, radio procedures, and aircraft rigging and
 de-rigging instructions.  Since the check-lists may be long, the
 up/down keys may be used to scroll through the text. Clicking the
 \bmenuw{$<$} and \bmenuw{$>$} buttons selects the previous/next
-checklist.
+checklist.  Tapping the text of a checkbox line toggles it.  A link
+on that line, such as a VHF frequency, still opens the link.
+Checkbox ticks stay until you leave XCSoar or choose a
+different checklist file. Editing a page's text clears its saved ticks.
 
 
 \subsection*{Text entry} \label{sec:textentry}
@@ -711,6 +785,15 @@ To use this feature hold down the finger on the
 touch-screen (or mouse button at the PC), draw a certain figure and release 
 the touch-screen / mouse button. Depending on the figure that was drawn 
 a certain function is activated. \sketch{figures/gesture1.png}
+While you draw, XCSoar shows the path as a red line with a soft
+shadow.  The line is slightly transparent while the figure drawn so
+far is not a known gesture.  Once it is, a label at the top of the map names
+what the gesture does, for example ``Zoom in'' or ``Analysis''; it
+changes as you continue drawing, and what it names happens when you
+lift the finger.  With haptic feedback enabled, a light tick tells you
+that the figure has turned into another known gesture, for example
+from ``Analysis'' to ``Pan''; lifting the finger to run the gesture
+gives a stronger one.
 
 A specific gesture is defined by movements of the finger or the 
 cursor in the four directions Up, Down, Left and Right. This means if 
@@ -738,10 +821,20 @@ shown below. \gesturespec{dr}
 \item[\raisebox{-1em}
 {\includegraphics[angle=0,width=0.1\linewidth,keepaspectratio='true']{figures/gesture_urdl.pdf}}] URDL, denoting a P: \textbf{P}an-mode. Might also be invoked by 
 moving two fingers on the screen.  On touchscreens that report both
-finger positions (Android, iOS), pinching zooms the map about the point
-between the fingers, and twisting rotates it temporarily.  A two-finger
+finger positions (Android, iOS, Linux Wayland), pinching zooms the
+map about the point between the fingers, and twisting rotates it
+temporarily.  A two-finger
 drag or twist enters pan mode, and the temporary rotation is held until
 pan mode is left; a pinch that only zooms keeps following the aircraft.
+The north arrow (compass) in the top right corner of the map is a
+button: tapping it in pan mode resets a rotated map back to north-up,
+while outside pan mode it cycles through the available map
+orientations, briefly showing the newly selected mode.  The tap only
+changes the orientation setting of the currently active flight mode:
+while circling it cycles the circling orientation, otherwise the
+cruise orientation.  On a dedicated \emph{Map (north-up)} page the
+orientation is fixed; the compass is not shown there and tapping it is
+therefore unavailable.
 \end{itemize}
 \vspace{2em}
 

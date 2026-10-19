@@ -9,9 +9,9 @@
 #include "Port/State.hpp"
 #include "Port/Listener.hpp"
 #include "Device/Parser.hpp"
-#include "RadioFrequency.hpp"
-#include "TransponderCode.hpp"
-#include "TransponderMode.hpp"
+#include "Radio/RadioFrequency.hpp"
+#include "Radio/TransponderCode.hpp"
+#include "Radio/TransponderMode.hpp"
 #include "NMEA/ExternalSettings.hpp"
 #include "time/PeriodClock.hpp"
 #include "Job/Async.hpp"
@@ -419,6 +419,21 @@ public:
   void Close() noexcept;
 
   /**
+   * Close the port although this object is borrowed, because the
+   * borrower needs the hardware to be reachable by somebody else
+   * (e.g. the FLARM Hub REST API, which cannot obtain its own
+   * connection to the FLARM while we occupy the NMEA port).  The
+   * device stays borrowed and must still be returned.
+   */
+  void CloseBorrowed() noexcept;
+
+  /**
+   * Schedule reopening the port closed by CloseBorrowed().  The port
+   * is opened only after the device has been returned.
+   */
+  void ScheduleReopenBorrowed() noexcept;
+
+  /**
    * @param env a persistent object
    */
   void Reopen(OperationEnvironment &env);
@@ -562,6 +577,8 @@ public:
                   OperationEnvironment &env) noexcept;
   bool PutCrewMass(double crew_mass, OperationEnvironment &env) noexcept;
   bool PutEmptyMass(double empty_mass, OperationEnvironment &env) noexcept;
+  bool PutMaxTakeoffMass(double max_takeoff_mass,
+                         OperationEnvironment &env) noexcept;
   bool PutPolar(const GlidePolar &polar, OperationEnvironment &env) noexcept;
   bool PutTarget(const GeoPoint &location, const char *name,
                  std::optional<double> elevation,
@@ -628,6 +645,7 @@ private:
   /* virtual methods from class PortListener */
   void PortStateChanged() noexcept override;
   void PortError(const char *msg) noexcept override;
+  void PortLog(const char *msg) noexcept override;
 
   /* virtual methods from DataHandler  */
   bool DataReceived(std::span<const std::byte> s) noexcept override;
@@ -661,6 +679,7 @@ private:
                        AtmosphericPressure pressure) noexcept override;
   void OnVarioSensor(float vario) noexcept override;
   void OnHeartRateSensor(unsigned bpm) noexcept override;
+  void OnBloodOxygenSensor(unsigned spo2) noexcept override;
   void OnEngineSensors(bool has_cht,
                        Temperature cht,
                        bool has_egt,
@@ -677,6 +696,7 @@ private:
                            double gspeed, double vspeed,
                            unsigned bearing) noexcept override;
   void OnTemperature(Temperature temperature) noexcept override;
+  void OnHumidity(double humidity_percent) noexcept override;
   void OnBatteryPercent(double battery_percent) noexcept override;
   void OnSensorStateChanged() noexcept override;
 #endif // ANDROID

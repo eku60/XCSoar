@@ -7,7 +7,9 @@
 #include "Dialogs/Message.hpp"
 #include "Dialogs/ComboPicker.hpp"
 #include "Language/Language.hpp"
+#include "Device/Config.hpp"
 #include "Device/Descriptor.hpp"
+#include "Device/Driver/FLARM/Device.hpp"
 #include "Device/MultipleDevices.hpp"
 #include "Device/RecordedFlight.hpp"
 #include "Components.hpp"
@@ -28,7 +30,21 @@
 #include "Formatter/IGCFilenameFormatter.hpp"
 #include "time/BrokenDate.hpp"
 #include "Interface.hpp"
+#include "FLARM/Hardware.hpp"
+#include "LogFile.hpp"
 #include "net/client/WeGlide/UploadIGCFile.hpp"
+#include "util/Exception.hxx"
+
+#ifdef HAVE_HTTP
+#include "Dialogs/CoFunctionDialog.hpp"
+#include "Operation/PluggableOperationEnvironment.hpp"
+#include "Operation/ProgressListener.hpp"
+#include "co/InvokeTask.hxx"
+#include "net/client/FlarmHub/Client.hpp"
+#include "net/http/Init.hpp"
+#endif
+
+#include <optional>
 
 
 class DeclareJob {
@@ -125,6 +141,83 @@ ExternalLogger::Declare(const Declaration &decl, const Waypoint *home)
                 _("Declare task"), MB_OK | MB_ICONINFORMATION);
 }
 
+/**
+ * Host of the FLARM Hub for a device whose DEVTYPE is Flex or Fusion.
+ * A TCP client uses its configured address.  Any other port uses the
+ * device access point.  A Wi-Fi bridge is not treated as a Hub unless
+ * the device type says so.
+ *
+ * @return the host, or nullptr when HTTP is not available
+ */
+[[gnu::pure]]
+static const char *
+GetFlarmHubHost([[maybe_unused]] const DeviceConfig &config) noexcept
+{
+#ifdef HAVE_HTTP
+  if (config.port_type == DeviceConfig::PortType::TCP_CLIENT &&
+      !config.ip_address.empty())
+    return config.ip_address.c_str();
+
+  /* FTD-114: the Hub listens on the device access point. */
+  return "10.10.10.10";
+#else
+  return nullptr;
+#endif
+}
+
+/**
+ * Closes the port of a borrowed device and schedules reopening it
+ * when the caller leaves the current scope.
+ */
+class ScopeCloseBorrowedDevice {
+  DeviceDescriptor &device;
+
+public:
+  explicit ScopeCloseBorrowedDevice(DeviceDescriptor &_device) noexcept
+    :device(_device) {
+    device.CloseBorrowed();
+  }
+
+  ~ScopeCloseBorrowedDevice() noexcept {
+    device.ScheduleReopenBorrowed();
+  }
+
+  ScopeCloseBorrowedDevice(const ScopeCloseBorrowedDevice &) = delete;
+
+  ScopeCloseBorrowedDevice &
+  operator=(const ScopeCloseBorrowedDevice &) = delete;
+};
+
+class ReadFlarmDeviceTypeJob {
+  DeviceDescriptor &device;
+  char *buffer;
+  size_t length;
+
+public:
+  ReadFlarmDeviceTypeJob(DeviceDescriptor &_device,
+                         char *_buffer, size_t _length) noexcept
+    :device(_device), buffer(_buffer), length(_length) {}
+
+  bool Run(OperationEnvironment &env) {
+    buffer[0] = '\0';
+    auto *flarm = dynamic_cast<FlarmDevice *>(device.GetDevice());
+    if (flarm == nullptr)
+      return true;
+
+    return flarm->ReadDeviceType(buffer, length, env);
+  }
+};
+
+static TriStateJobResult
+DoReadFlarmDeviceType(DeviceDescriptor &device,
+                      char *buffer, size_t length)
+{
+  TriStateJob<ReadFlarmDeviceTypeJob> job(device, buffer, length);
+  JobDialog(UIGlobals::GetMainWindow(), UIGlobals::GetDialogLook(),
+            "", job, true);
+  return job.GetResult();
+}
+
 class ReadFlightListJob {
   DeviceDescriptor &device;
   RecordedFlightList &flight_list;
@@ -146,6 +239,45 @@ DoReadFlightList(DeviceDescriptor &device, RecordedFlightList &flight_list)
   JobDialog(UIGlobals::GetMainWindow(), UIGlobals::GetDialogLook(),
             "", job, true);
   return job.GetResult();
+}
+
+/**
+ * Read the list of flights, preferring the FLARM Hub REST API over
+ * the FLARM binary protocol.
+ *
+ * @param flarm_hub_host is cleared if this host has no Hub REST API
+ * @param binary_fallback when false, a failed Hub probe is an error
+ * instead of a binary download
+ */
+static TriStateJobResult
+ReadFlightList(DeviceDescriptor &device, RecordedFlightList &flight_list,
+               [[maybe_unused]] const char *&flarm_hub_host,
+               [[maybe_unused]] bool binary_fallback)
+{
+#ifdef HAVE_HTTP
+  if (flarm_hub_host != nullptr) {
+    PluggableOperationEnvironment env;
+    const auto available =
+      ShowCoFunctionDialog(UIGlobals::GetMainWindow(),
+                           UIGlobals::GetDialogLook(),
+                           _("Download flight"),
+                           FlarmHub::CoReadFlightList(*Net::curl,
+                                                      flarm_hub_host,
+                                                      flight_list, env),
+                           &env);
+    if (!available)
+      return TriStateJobResult::CANCELLED;
+
+    if (*available)
+      return TriStateJobResult::SUCCESS;
+
+    flarm_hub_host = nullptr;
+    if (!binary_fallback)
+      return TriStateJobResult::ERROR;
+  }
+#endif
+
+  return DoReadFlightList(device, flight_list);
 }
 
 class DownloadFlightJob {
@@ -171,6 +303,40 @@ DoDownloadFlight(DeviceDescriptor &device,
   JobDialog(UIGlobals::GetMainWindow(), UIGlobals::GetDialogLook(),
             "", job, true);
   return job.GetResult();
+}
+
+#ifdef HAVE_HTTP
+
+static Co::InvokeTask
+DownloadFlarmHubFlight(const char *host, unsigned index, Path path,
+                       ProgressListener &progress)
+{
+  co_await FlarmHub::CoDownloadFlight(*Net::curl, host, index, path,
+                                      progress);
+}
+
+#endif
+
+static TriStateJobResult
+DownloadFlight(DeviceDescriptor &device, const RecordedFlightInfo &flight,
+               Path path, [[maybe_unused]] const char *flarm_hub_host)
+{
+#ifdef HAVE_HTTP
+  if (flarm_hub_host != nullptr) {
+    PluggableOperationEnvironment env;
+    return ShowCoDialog(UIGlobals::GetMainWindow(),
+                        UIGlobals::GetDialogLook(),
+                        _("Download flight"),
+                        DownloadFlarmHubFlight(flarm_hub_host,
+                                               flight.internal.flarm_hub,
+                                               path, env),
+                        &env)
+      ? TriStateJobResult::SUCCESS
+      : TriStateJobResult::CANCELLED;
+  }
+#endif
+
+  return DoDownloadFlight(device, flight, path);
 }
 
 static void
@@ -215,6 +381,14 @@ GetFlightNumber(const RecordedFlightList &flight_list,
   return flight_number;
 }
 
+static void
+ShowFlarmWifiMessage() noexcept
+{
+  ShowMessageBox(_("Connect to the device Wi-Fi to download flights "
+                   "from this FLARM."),
+                 _("Download flight"), MB_OK | MB_ICONINFORMATION);
+}
+
 static const RecordedFlightInfo *
 ShowFlightList(const RecordedFlightList &flight_list)
 {
@@ -225,20 +399,23 @@ ShowFlightList(const RecordedFlightList &flight_list)
 
     StaticString<64> buffer;
     if (flight.date.IsPlausible())
-      buffer.UnsafeFormat("%04u/%02u/%02u %02u:%02u-%02u:%02u",
+      buffer.UnsafeFormat("%04u/%02u/%02u %02u:%02u",
                           flight.date.year, flight.date.month, flight.date.day,
-                          flight.start_time.hour, flight.start_time.minute,
-                          flight.end_time.hour, flight.end_time.minute);
+                          flight.start_time.hour, flight.start_time.minute);
     else
-      buffer.UnsafeFormat("----/--/-- %02u:%02u-%02u:%02u",
-                          flight.start_time.hour, flight.start_time.minute,
+      buffer.UnsafeFormat("----/--/-- %02u:%02u",
+                          flight.start_time.hour, flight.start_time.minute);
+
+    /* some loggers do not record when a flight ended */
+    if (flight.end_time.IsPlausible())
+      buffer.AppendFormat("-%02u:%02u",
                           flight.end_time.hour, flight.end_time.minute);
 
     combo.Append(i, buffer);
   }
 
   // Show list of the flights
-  int i = ComboPicker("Choose a flight",
+  int i = ComboPicker(_("Download flight"),
                       combo, nullptr, false);
 
   return i < 0 ? nullptr : &flight_list[i];
@@ -262,19 +439,67 @@ ExternalLogger::DownloadFlightFrom(DeviceDescriptor &device)
   };
 
   MessageOperationEnvironment env;
-  const ScopeEnableSecondDeviceNMEA enable_second_device_nmea{device, env};
+  std::optional<ScopeEnableSecondDeviceNMEA> enable_second_device_nmea;
+  enable_second_device_nmea.emplace(device, env);
+
+  /* A Wi-Fi bridge is also a TCP FLARM.  Ask for the product name
+     before choosing the Hub. */
+  char devtype[32];
+  devtype[0] = '\0';
+  try {
+    switch (DoReadFlarmDeviceType(device, devtype, sizeof(devtype))) {
+    case TriStateJobResult::CANCELLED:
+      return;
+
+    case TriStateJobResult::SUCCESS:
+    case TriStateJobResult::ERROR:
+      break;
+    }
+  } catch (OperationCancelled) {
+    return;
+  } catch (...) {
+    LogError(std::current_exception(), "FLARM DEVTYPE request failed");
+    devtype[0] = '\0';
+  }
+
+  const bool wifi = FLARM::DeviceTypeNeedsWifiDownload(devtype);
 
   // Download the list of flights that the logger contains
   RecordedFlightList flight_list;
 
+  /* the host serving the FLARM Hub REST API, or nullptr if the
+     flights are read with the FLARM binary protocol */
+  const char *flarm_hub_host = wifi ? GetFlarmHubHost(device.GetConfig())
+                                    : nullptr;
+  if (wifi && flarm_hub_host == nullptr) {
+    ShowFlarmWifiMessage();
+    return;
+  }
+
+  if (wifi)
+    LogFormat("FLARM: %s flight log is read from the Hub at %s",
+              devtype, flarm_hub_host);
+
+  /* The Hub answers HTTP 500 while XCSoar holds the data port.  The
+     type query above needs that port; the list and the IGC transfer
+     do not. */
+  std::optional<ScopeCloseBorrowedDevice> close_device;
+  if (flarm_hub_host != nullptr) {
+    enable_second_device_nmea.reset();
+    close_device.emplace(device);
+  }
+
   try {
-    switch (DoReadFlightList(device, flight_list)) {
+    switch (ReadFlightList(device, flight_list, flarm_hub_host, !wifi)) {
     case TriStateJobResult::SUCCESS:
       break;
 
     case TriStateJobResult::ERROR:
-      ShowMessageBox(_("Failed to download flight list."),
-                     _("Download flight"), MB_OK | MB_ICONERROR);
+      if (wifi)
+        ShowFlarmWifiMessage();
+      else
+        ShowMessageBox(_("Failed to download flight list."),
+                       _("Download flight"), MB_OK | MB_ICONERROR);
       return;
 
     case TriStateJobResult::CANCELLED:
@@ -310,7 +535,9 @@ ExternalLogger::DownloadFlightFrom(DeviceDescriptor &device)
                                                      "temp.igc"));
 
     try {
-      switch (DoDownloadFlight(device, *flight, transaction.GetTemporaryPath())) {
+      switch (DownloadFlight(device, *flight,
+                             transaction.GetTemporaryPath(),
+                             flarm_hub_host)) {
       case TriStateJobResult::SUCCESS:
         break;
 

@@ -7,6 +7,7 @@
 #include "ui/canvas/custom/UncompressedImage.hpp"
 #include "NativeView.hpp"
 #include "Hardware/DisplayDPI.hpp"
+#include "LogFile.hpp"
 
 Java::TrivialClass NativeView::cls;
 jfieldID NativeView::ptr_field;
@@ -26,8 +27,11 @@ jmethodID NativeView::getNetState_method;
 jmethodID NativeView::getWifiIpAddress_method;
 jmethodID NativeView::isAutoRotateEnabled_method;
 jmethodID NativeView::getPhysicalOrientation_method;
+jmethodID NativeView::getTopGestureClearance_method;
 jmethodID NativeView::startMyService_method;
 jmethodID NativeView::launchSAFTreePicker_method;
+jmethodID NativeView::reportSize_method;
+jmethodID NativeView::scanQRCode_method;
 
 Java::TrivialClass NativeView::clsBitmap;
 jmethodID NativeView::createBitmap_method;
@@ -84,12 +88,19 @@ NativeView::Initialise(JNIEnv *env)
   getPhysicalOrientation_method =
     env->GetMethodID(cls, "getPhysicalOrientation", "()I");
 
+  getTopGestureClearance_method =
+    env->GetMethodID(cls, "getTopGestureClearance", "()I");
+
   startMyService_method =
     env->GetMethodID(cls, "startMyService", "()V");
 
   launchSAFTreePicker_method =
     env->GetMethodID(cls, "launchSAFTreePicker",
                      "(Ljava/lang/String;)V");
+
+  reportSize_method = env->GetMethodID(cls, "reportSize", "(II)V");
+
+  scanQRCode_method = env->GetMethodID(cls, "scanQRCode", "()V");
 
   clsBitmap.Find(env, "android/graphics/Bitmap");
   createBitmap_method = env->GetStaticMethodID(
@@ -111,14 +122,29 @@ NativeView::Deinitialise(JNIEnv *env)
 
 NativeView::NativeView(JNIEnv *env, jobject _obj,
                        unsigned _width, unsigned _height,
-                       unsigned _xdpi, unsigned _ydpi,
+                       unsigned _display_width, unsigned _display_height,
+                       unsigned _xdpi, unsigned _ydpi, unsigned _density_dpi,
                        jstring _product) noexcept
   :obj(env, _obj),
    width(_width), height(_height)
 {
   Java::String::CopyTo(env, _product, product, sizeof(product));
 
-  Display::ProvideDPI(_xdpi, _ydpi);
+  /* xdpi/ydpi belong to the real display, not the surface.  A rotated
+     or multi-window surface can disagree with that pixel grid. */
+  const PixelSize display_size{_display_width, _display_height};
+  const auto dpi = Display::SanitizeDisplayDpi(display_size,
+                                               {_xdpi, _ydpi},
+                                               _density_dpi);
+  if (dpi.x != _xdpi || dpi.y != _ydpi)
+    LogFmt("Corrected display DPI {}x{} (density {}) -> {}x{}",
+           _xdpi, _ydpi, _density_dpi, dpi.x, dpi.y);
+
+  /* setTextSize() is already framebuffer pixels from this DPI.
+     Scaling the em or adding letter-spacing from the OEM axes
+     stretches the run and changes bold and regular by different
+     ratios. */
+  Display::ProvideDPI(dpi.x, dpi.y);
 }
 
 static void

@@ -50,13 +50,13 @@ https://xcsoar.readthedocs.io/en/latest/input_events.html
 #include "Dialogs/dlgQuickGuide.hpp"
 #include "Dialogs/dlgGestureHelp.hpp"
 #include "Message.hpp"
-#include "Repository/FileType.hpp"
 #include "Markers/Markers.hpp"
 #include "MainWindow.hpp"
 #include "PopupMessage.hpp"
 #include "Projection/MapWindowProjection.hpp"
 #include "Audio/Sound.hpp"
 #include "UIActions.hpp"
+#include "InfoBoxes/InfoBoxArrange.hpp"
 #include "Interface.hpp"
 #include "ActionInterface.hpp"
 #include "Language/Language.hpp"
@@ -73,10 +73,7 @@ https://xcsoar.readthedocs.io/en/latest/input_events.html
 #include "Formatter/TimeFormatter.hpp"
 #include "Operation/MessageOperationEnvironment.hpp"
 #include "Device/MultipleDevices.hpp"
-#include "Form/DataField/File.hpp"
-#include "Dialogs/FilePicker.hpp"
 #include "Dialogs/InternalLink.hpp"
-#include "net/client/WeGlide/UploadIGCFile.hpp"
 #include "Components.hpp"
 #include "BackendComponents.hpp"
 #include "DataComponents.hpp"
@@ -84,7 +81,7 @@ https://xcsoar.readthedocs.io/en/latest/input_events.html
 
 #include <cassert>
 #include <algorithm>
-#include <limits>
+#include <optional>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -92,6 +89,7 @@ https://xcsoar.readthedocs.io/en/latest/input_events.html
 
 #ifdef _WIN32
 #include <processthreadsapi.h> // for CreateProcess()
+#include <windef.h> // for HWND (needed by winbase.h)
 #include <winbase.h> // for INFINITE
 #endif
 
@@ -588,11 +586,7 @@ InputEvents::eventNull([[maybe_unused]] const char *misc)
 void
 InputEvents::eventBeep([[maybe_unused]] const char *misc)
 {
-#if defined(_WIN32) && !defined(ENABLE_SDL)
-  MessageBeep(MB_ICONEXCLAMATION);
-#else
   PlayResource("IDR_WAV_CLEAR");
-  #endif
 }
 
 // Setup
@@ -710,7 +704,7 @@ InputEvents::eventAddWaypoint(const char *misc)
     if (!location.IsValid())
       return;
 
-    double elevation = std::numeric_limits<double>::quiet_NaN();
+    std::optional<double> elevation;
     if (data_components->terrain != nullptr) {
       const auto h = data_components->terrain->GetTerrainHeight(location);
       if (!h.IsSpecial()) {
@@ -722,7 +716,10 @@ InputEvents::eventAddWaypoint(const char *misc)
     way_points.AddTempPoint(location, elevation, "(goto)");
   } else {
     Waypoint edit_waypoint = way_points.Create(basic.location);
-    edit_waypoint.elevation = calculated.terrain_altitude;
+    if (calculated.terrain_valid) {
+      edit_waypoint.elevation = calculated.terrain_altitude;
+      edit_waypoint.elevation_source = Waypoint::ElevationSource::FILE;
+    }
     if (dlgWaypointEditShowModal(edit_waypoint) == WaypointEditResult::CANCEL ||
         edit_waypoint.name.empty()) {
       trigger_redraw();
@@ -789,6 +786,12 @@ InputEvents::eventQuickMenu([[maybe_unused]] const char *misc)
 }
 
 void
+InputEvents::eventArrangeInfoBoxes([[maybe_unused]] const char *misc)
+{
+  InfoBoxArrange::Begin();
+}
+
+void
 InputEvents::eventFileManager([[maybe_unused]] const char *misc)
 {
   ShowFileManager();
@@ -813,21 +816,12 @@ InputEvents::eventExchangeFrequencies([[maybe_unused]] const char *misc)
 }
 
 void
-InputEvents::eventUploadIGCFile([[maybe_unused]] const char *misc) {
+InputEvents::eventUploadIGCFile([[maybe_unused]] const char *misc)
+{
   if (!CommonInterface::GetComputerSettings().weglide.IsConfigured()) {
     HandleInternalLink("xcsoar://config/weglide");
     return;
   }
 
-  FileDataField df;
-  df.ScanMultiplePatterns(GetFileTypePatterns(FileType::IGC));
-  df.SetFileType(FileType::IGC);
-  df.Sort(FileDataField::SortOrder::DESCENDING, false);
-  if (FilePicker("IGC-FilePicker", df)) {
-    auto path = df.GetValue();
-    if (!path.empty())
-      if (WeGlide::UploadIGCFile(path)) {
-        // success!
-      }
-  }
+  ShowExportFlightsDialog(ExportFlightsMode::WEGLIDE);
 }

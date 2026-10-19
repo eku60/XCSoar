@@ -5,9 +5,16 @@
 #include "InfoBoxes/Data.hpp"
 #include "Dialogs/Dialogs.h"
 #include "Interface.hpp"
+#include "UIState.hpp"
+#include "InfoBoxes/Panel/Panel.hpp"
+#include "InfoBoxes/Panel/CustomTextEdit.hpp"
+#include "Input/InputEvents.hpp"
+#include "Formatter/UserUnits.hpp"
+#include "Math/Util.hpp"
 #include "Renderer/HorizonRenderer.hpp"
 #include "Hardware/PowerGlobal.hpp"
 #include "system/SystemLoad.hpp"
+#include "Formatter/TimeFormatter.hpp"
 #include "Language/Language.hpp"
 #include "UIGlobals.hpp"
 #include "Look/Look.hpp"
@@ -27,6 +34,102 @@ UpdateInfoBoxHeartRate(InfoBoxData &data) noexcept
   }
 
   data.FmtValue("{}", basic.heart_rate);
+}
+
+/**
+ * Blood oxygen saturation below which the value is shown in yellow.
+ * Above it the value is drawn in the normal text colour.
+ *
+ * There is no official limit for aviation; this is the value recommended
+ * by the AOPA Air Safety Institute and in gliding literature, and it is
+ * also the alarm limit most commonly used on hospital monitors.
+ */
+static constexpr unsigned BLOOD_OXYGEN_CAUTION = 90;
+
+/**
+ * Blood oxygen saturation below which the value is shown in red.  This is
+ * the factory default alarm limit of pulse oximeters that are common in
+ * aviation, and the value at which gliding literature advises to use
+ * supplemental oxygen.
+ */
+static constexpr unsigned BLOOD_OXYGEN_WARNING = 85;
+
+/**
+ * How far the value has to rise above a threshold again before the colour
+ * improves.  Consumer pulse oximeters are only accurate to a few percent,
+ * so without this the colour would flicker while the value hovers around a
+ * threshold.  A deteriorating value changes the colour immediately.
+ */
+static constexpr unsigned BLOOD_OXYGEN_HYSTERESIS = 2;
+
+/**
+ * Show how old the value is once it exceeds this age.  A working pulse
+ * oximeter reports every few seconds; the pilot cannot tell a current
+ * reading from an old one, and the reading already lags the actual
+ * saturation by a minute or more, so an old value should not be presented
+ * as if it were current.
+ */
+static constexpr auto BLOOD_OXYGEN_SHOW_AGE = std::chrono::seconds(30);
+
+static constexpr unsigned BLOOD_OXYGEN_LEVEL_OK = 0;
+static constexpr unsigned BLOOD_OXYGEN_LEVEL_CAUTION = 1;
+static constexpr unsigned BLOOD_OXYGEN_LEVEL_WARNING = 2;
+
+[[gnu::const]]
+static unsigned
+BloodOxygenLevel(unsigned spo2, unsigned previous) noexcept
+{
+  if (spo2 < BLOOD_OXYGEN_WARNING +
+      (previous >= BLOOD_OXYGEN_LEVEL_WARNING ? BLOOD_OXYGEN_HYSTERESIS : 0))
+    return BLOOD_OXYGEN_LEVEL_WARNING;
+
+  if (spo2 < BLOOD_OXYGEN_CAUTION +
+      (previous >= BLOOD_OXYGEN_LEVEL_CAUTION ? BLOOD_OXYGEN_HYSTERESIS : 0))
+    return BLOOD_OXYGEN_LEVEL_CAUTION;
+
+  return BLOOD_OXYGEN_LEVEL_OK;
+}
+
+void
+UpdateInfoBoxBloodOxygen(InfoBoxData &data) noexcept
+{
+  const auto &basic = CommonInterface::Basic();
+
+  /* the level the hysteresis compares against; only ever touched from the
+     user interface thread */
+  static unsigned level = BLOOD_OXYGEN_LEVEL_OK;
+
+  if (!basic.blood_oxygen_available) {
+    /* a value that arrives after a gap is judged without hysteresis */
+    level = BLOOD_OXYGEN_LEVEL_OK;
+    data.SetInvalid();
+    return;
+  }
+
+  level = BloodOxygenLevel(basic.blood_oxygen, level);
+
+  data.SetValueFromPercent(basic.blood_oxygen);
+
+  static constexpr unsigned colors[] = {
+    0, // the normal text colour
+    4, // yellow
+    1, // red
+  };
+
+  data.SetValueColor(colors[level]);
+
+  /* this is the age of the reception, not of the measurement: the sensor
+     may have measured considerably earlier than it sent the value */
+  const Validity now{basic.clock};
+  if (now.IsValid()) {
+    const auto age = now.GetTimeDifference(basic.blood_oxygen_available);
+    if (age >= BLOOD_OXYGEN_SHOW_AGE) {
+      data.SetComment(FormatTimespanSmart(age).c_str());
+      return;
+    }
+  }
+
+  data.SetCommentInvalid();
 }
 
 void
@@ -129,7 +232,8 @@ UpdateInfoBoxCPULoad(InfoBoxData &data) noexcept
 void
 UpdateInfoBoxFreeRAM(InfoBoxData &data) noexcept
 {
-  // used to be implemented on WinCE
+  /* The numeric id stays so saved layouts do not shift. The value was
+     only available on Windows CE. */
   data.SetInvalid();
 }
 
@@ -205,4 +309,65 @@ InfoBoxContentNbrSat::HandleClick() noexcept
 {
   dlgStatusShowModal(1);
   return true;
+}
+
+void
+InfoBoxContentBallast::Update(InfoBoxData &data) noexcept
+{
+  const auto &polar_settings = CommonInterface::GetComputerSettings().polar;
+  const auto &polar = polar_settings.glide_polar_task;
+
+  /* whole litres, matching Flight Setup */
+  data.FmtValue("{}", iround(polar.GetBallastLitres()));
+  data.SetValueUnit(Unit::LITRE);
+
+  /* blue while ballast is being dumped */
+  data.SetValueColor(polar_settings.ballast_timer_active ? 2 : 0);
+
+  const auto &plane = CommonInterface::GetComputerSettings().plane;
+  /* UpdateContent() keeps the previous colour, so set it every time. */
+  const bool over_mtow =
+    plane.IsOverMaxTakeoffMass(polar.GetTotalMass());
+
+  const double wing_loading = polar.GetWingLoading();
+  if (wing_loading > 0) {
+    char buffer[32];
+    FormatUserWingLoading(wing_loading, buffer, sizeof(buffer), true);
+    data.SetComment(buffer);
+    /* 1 is red: the comment is the wing loading */
+    data.SetCommentColor(over_mtow ? 1 : 0);
+  } else {
+    data.SetCommentInvalid();
+    data.SetCommentColor(0);
+  }
+}
+
+bool
+InfoBoxContentBallast::HandleClick() noexcept
+{
+  InputEvents::eventSetup("Basic");
+  return true;
+}
+
+void
+InfoBoxContentCustomText::Update(InfoBoxData &data) noexcept
+{
+  const auto &settings = CommonInterface::GetUISettings().info_boxes;
+  const unsigned panel = CommonInterface::GetUIState().panel_index;
+  const InfoBoxCustomText &text = settings.panels[panel].text[GetSlot()];
+
+  data.SetTitle(text.title.c_str());
+  data.SetValue(text.value.c_str());
+  data.SetComment(text.comment.c_str());
+}
+
+static constexpr InfoBoxPanel custom_text_infobox_panels[] = {
+  { NC_("Menu", "Setup"), LoadCustomTextEditPanel },
+  { nullptr, nullptr }
+};
+
+const InfoBoxPanel *
+InfoBoxContentCustomText::GetDialogContent() noexcept
+{
+  return custom_text_infobox_panels;
 }

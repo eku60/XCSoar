@@ -6,6 +6,7 @@
 #include "Blackboard/DeviceBlackboard.hpp"
 #include "Look/Look.hpp"
 #include "Interface.hpp"
+#include "PageActions.hpp"
 #include "time/PeriodClock.hpp"
 #include "ui/event/Idle.hpp"
 #include "Topography/Thread.hpp"
@@ -95,9 +96,25 @@ GlueMapWindow::SetUIState(const UIState &new_value) noexcept
 #ifdef ENABLE_OPENGL
   ReadUIState(new_value);
 #else
-  const std::lock_guard lock{next_mutex};
-  next_ui_state = new_value;
+  {
+    const std::lock_guard lock{next_mutex};
+    next_ui_state = new_value;
+  }
 #endif
+
+  page_indicator_count = new_value.pages.special_page.IsDefined()
+    ? 0
+    : new_value.page_indicator_count;
+  page_indicator_index = new_value.pages.current_index;
+
+  if (new_value.page_indicator_time != page_indicator_time) {
+    page_indicator_time = new_value.page_indicator_time;
+    OnPageIndicatorTimer();
+
+    /* the page indicator is painted over the buffered map, which need
+       not be rendered again for it */
+    PaintWindow::Invalidate();
+  }
 }
 
 void
@@ -189,6 +206,12 @@ GlueMapWindow::FullRedraw() noexcept
 }
 
 void
+GlueMapWindow::OnProjectionModified() noexcept
+{
+  PageActions::OnMapProjectionModified();
+}
+
+void
 GlueMapWindow::PartialRedraw() noexcept
 {
 
@@ -198,6 +221,21 @@ GlueMapWindow::PartialRedraw() noexcept
   if (draw_thread != nullptr)
     draw_thread->TriggerRedraw();
 #endif
+}
+
+void
+GlueMapWindow::SetHudMargins(unsigned left, unsigned top,
+                             unsigned right, unsigned bottom) noexcept
+{
+  if (left == hud_margin_left && top == hud_margin_top &&
+      right == hud_margin_right && bottom == hud_margin_bottom)
+    return;
+
+  MapWindow::SetHudMargins(left, top, right, bottom);
+
+  /* UpdateProjection() centres on GetHudRect().  Invalidate() alone
+     leaves published_projection on the DrawThread at the old origin. */
+  QuickRedraw();
 }
 
 void

@@ -5,6 +5,7 @@
 #include "Waypoint/WaypointReaderBase.hpp"
 #include "Waypoint/WaypointReaderSeeYou.hpp"
 #include "Waypoint/CupWriter.hpp"
+#include "Waypoint/WaypointDetailsReader.hpp"
 #include "Waypoint/Factory.hpp"
 #include "Engine/Waypoint/Waypoints.hpp"
 #include "Terrain/RasterMap.hpp"
@@ -20,6 +21,7 @@
 #include "Operation/Operation.hpp"
 #include "io/CupxArchive.hpp"
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -62,8 +64,8 @@ GetWaypoint(const Waypoint org_wp, const Waypoints &way_points)
   }
   if(!ok1(wp->location.Distance(org_wp.location) <= 1000))
     printf("%f %f\n", (double)wp->location.latitude.Degrees(), (double)wp->location.longitude.Degrees());
-  ok1(org_wp.has_elevation);
-  ok1(wp->has_elevation);
+  ok1(org_wp.HasElevation());
+  ok1(wp->HasElevation());
   ok1(fabs(wp->elevation - org_wp.elevation) < 0.5);
 
   return wp;
@@ -363,8 +365,8 @@ TestCupRoundTrip(const wp_vector &org_wp)
     }
 
     ok1(wp->location.Distance(org.location) <= 1000);
-    ok1(wp->has_elevation == org.has_elevation);
-    ok1(!wp->has_elevation || fabs(wp->elevation - org.elevation) < 0.5);
+    ok1(wp->HasElevation() == org.HasElevation());
+    ok1(!wp->HasElevation() || fabs(wp->elevation - org.elevation) < 0.5);
     ok1(wp->type == org.type);
     ok1(wp->comment == org.comment);
     ok1(wp->details == org.details);
@@ -390,7 +392,7 @@ TestCupx()
   }
 
   ok1(wp->type == Waypoint::Type::AIRFIELD);
-  ok1(wp->has_elevation);
+  ok1(wp->HasElevation());
   ok1(fabs(wp->elevation - 500.0) < 0.5);
   ok1(wp->comment == "A test airfield");
 
@@ -431,6 +433,61 @@ TestCupxDataDescriptor()
   ok1(!img.empty());
 }
 
+static void
+ReadDetails(Waypoints &way_points, std::string_view details)
+{
+  MemoryReader mr(std::as_bytes(std::span{details}));
+  BufferedReader br(mr);
+  WaypointDetails::ReadFile(br, way_points);
+}
+
+/**
+ * A waypoint details file may name pictures for a waypoint loaded from
+ * a .cupx (#3250).  Its section replaces the archive's picture list,
+ * and a name the archive does not hold must come back empty from
+ * CupxArchive -- that is what sends the details dialog to the data
+ * directory instead.
+ */
+static void
+TestCupxDetailsFile()
+{
+  const Path cupx("test/data/test.cupx");
+
+  Waypoints way_points;
+  if (!TestWaypointFile(cupx, way_points, 2)) {
+    skip(5, 0, "opening CUPX file failed");
+    return;
+  }
+
+  ReadDetails(way_points,
+              "[Test Airfield]\n"
+              "image=AIP/chart.png\n"
+              "image=test_image.jpg\n");
+
+  const auto wp = way_points.LookupName("Test Airfield");
+  if (!ok1(wp != nullptr)) {
+    skip(4, 0, "waypoint not found");
+    return;
+  }
+
+  /* the details file's list, in file order, replaces the archive's */
+  const std::vector<std::string> expected{"AIP/chart.png", "test_image.jpg"};
+  ok1(std::equal(wp->files_embed.begin(), wp->files_embed.end(),
+                 expected.begin(), expected.end()));
+
+  /* not in the archive: the dialog must look in the data directory */
+  ok1(CupxArchive::ExtractImage(cupx, "AIP/chart.png").empty());
+
+  /* a name the archive does hold is still taken from the archive */
+  ok1(!CupxArchive::ExtractImage(cupx, "test_image.jpg").empty());
+
+  /* a section without any image= line empties the list as well */
+  ReadDetails(way_points,
+              "[Test Airfield]\n"
+              "Tower 123.500\n");
+  ok1(wp->files_embed.empty());
+}
+
 static wp_vector
 CreateOriginalWaypoints()
 {
@@ -444,7 +501,7 @@ CreateOriginalWaypoints()
 
   Waypoint wp(loc);
   wp.elevation = 488;
-  wp.has_elevation = true;
+  wp.elevation_source = Waypoint::ElevationSource::FILE;
   wp.name = "Bergneustadt";
   wp.comment = "Rabbit holes, 20\" ditch south end of rwy";
   wp.runway.SetDirection(Angle::Degrees(40));
@@ -463,7 +520,7 @@ CreateOriginalWaypoints()
 
   Waypoint wp2(loc);
   wp2.elevation = 6962;
-  wp2.has_elevation = true;
+  wp2.elevation_source = Waypoint::ElevationSource::FILE;
   wp2.name = "Aconcagua";
   wp2.comment = "Highest mountain in south-america";
 
@@ -480,7 +537,7 @@ CreateOriginalWaypoints()
 
   Waypoint wp3(loc);
   wp3.elevation = 227;
-  wp3.has_elevation = true;
+  wp3.elevation_source = Waypoint::ElevationSource::FILE;
   wp3.name = "Golden Gate Bridge";
   wp3.comment = "";
 
@@ -497,7 +554,7 @@ CreateOriginalWaypoints()
 
   Waypoint wp4(loc);
   wp4.elevation = 123;
-  wp4.has_elevation = true;
+  wp4.elevation_source = Waypoint::ElevationSource::FILE;
   wp4.name = "Red Square";
   wp4.runway.SetDirection(Angle::Degrees(90));
   wp4.runway.SetLength((unsigned)Units::ToSysUnit(0.01, Unit::STATUTE_MILES));
@@ -515,7 +572,7 @@ CreateOriginalWaypoints()
 
   Waypoint wp5(loc);
   wp5.elevation = 5;
-  wp5.has_elevation = true;
+  wp5.elevation_source = Waypoint::ElevationSource::FILE;
   wp5.name = "Sydney Opera";
   wp5.comment = "";
 
@@ -533,12 +590,13 @@ int main()
 {
   wp_vector org_wp = CreateOriginalWaypoints();
 
-  plan_tests(507 + 4 + 8);
+  plan_tests(507 + 4 + 8 + 8);
 
   TestWinPilot(org_wp);
   TestSeeYou(org_wp);
   TestCupx();
   TestCupxDataDescriptor();
+  TestCupxDetailsFile();
   TestZander(org_wp);
   TestFS(org_wp);
   TestFS_UTM(org_wp);

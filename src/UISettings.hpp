@@ -12,6 +12,7 @@
 #include "Dialogs/DialogSettings.hpp"
 #include "DisplaySettings.hpp"
 #include "Audio/Settings.hpp"
+#include "Screen/Layout.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -26,7 +27,15 @@ struct UISettings {
   /** timeout in quarter seconds of menu button */
   std::chrono::duration<unsigned> menu_timeout;
 
+  /** UI scale in percent; same bounds as the Text size setting. */
+  static constexpr unsigned SCALE_MIN = 75;
+  static constexpr unsigned SCALE_MAX = 200;
+  static constexpr unsigned SCALE_STEP = 5;
+
   unsigned scale;
+
+  /** Close-view shrink.  Kobo defaults to handheld. */
+  Layout::ViewingDistance viewing_distance;
 
   /** Override OS dpi settings */
   unsigned custom_dpi;
@@ -70,6 +79,7 @@ struct UISettings {
     OFF,
     ON,
     AUTO,
+    COUNT
   } dark_mode;
 
   FormatSettings format;

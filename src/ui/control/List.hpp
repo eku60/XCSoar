@@ -8,6 +8,8 @@
 #include "ui/event/PeriodicTimer.hpp"
 #include "UIUtil/KineticManager.hpp"
 
+#include <cstdlib>
+
 struct DialogLook;
 class ContainerWindow;
 
@@ -72,6 +74,15 @@ public:
   }
 
   virtual void OnActivateItem([[maybe_unused]] unsigned index) noexcept {}
+
+  /**
+   * Variant of #OnActivateItem invoked for pointer activation, which
+   * also carries the X coordinate of the click within the list row.
+   */
+  virtual void OnActivateItem(unsigned index,
+                              [[maybe_unused]] int x) noexcept {
+    OnActivateItem(index);
+  }
 };
 
 /**
@@ -141,6 +152,22 @@ class ListControl final : public PaintWindow {
    */
   int drag_y_window;
 
+  /**
+   * The item the current drag started on, to be selected when the
+   * gesture turns out to be a tap.  On a touch screen the cursor is
+   * moved only on release: moving it on press would drag the
+   * selection along with every swipe, and would run the (possibly
+   * expensive) ListCursorHandler::OnCursorMoved() right when the
+   * scroll gesture begins.  Negative when unused.
+   */
+  int pending_cursor = -1;
+
+  /**
+   * Has the current drag moved far enough to count as scrolling
+   * rather than as a tap?
+   */
+  bool drag_scrolled = false;
+
   ListItemRenderer *item_renderer = nullptr;
   ListCursorHandler *cursor_handler = nullptr;
 
@@ -188,11 +215,31 @@ public:
   }
 
   /**
+   * The list pans its contents and drags its scroll bar slider, so a
+   * surrounding #VScrollPanel must leave a drag that started here
+   * alone.  Only while there actually is something to scroll: an
+   * entirely visible list lets the panel have the gesture.
+   */
+  bool HandlesDragging() const noexcept override {
+    return scroll_bar.IsDefined();
+  }
+
+  /**
    * Returns the height of list items
    * @return height of list items in pixel
    */
   unsigned GetItemHeight() const noexcept {
     return item_height;
+  }
+
+  /**
+   * Returns the x coordinate (in window/client coordinates) of the
+   * right edge of the item rendering area, i.e. the left edge of the
+   * scroll bar when one is shown, or the full window width otherwise.
+   */
+  [[gnu::pure]]
+  unsigned GetItemAreaRight() const noexcept {
+    return scroll_bar.GetLeft(GetSize());
   }
 
   void SetItemHeight(unsigned _item_height) noexcept;
@@ -280,6 +327,7 @@ private:
   [[gnu::pure]]
   bool CanActivateItem() const noexcept;
   void ActivateItem() noexcept;
+  void ActivateItem(int x) noexcept;
 
   /** Checks whether a ScrollBar is needed and shows/hides it */
   void ShowOrHideScrollBar() noexcept;
@@ -315,6 +363,24 @@ private:
   }
 
   void drag_end() noexcept;
+
+  /**
+   * Has the pointer moved far enough from the start of the drag to
+   * make this a scroll gesture instead of a tap?
+   *
+   * @param y the y coordinate of the pointer, relative to this window
+   */
+  [[gnu::pure]]
+  bool IsScrollGesture(int y) const noexcept {
+    return abs(y - drag_y_window) > (int)item_height / 5;
+  }
+
+  /**
+   * Scroll to the position the ScrollBar slider is being dragged to.
+   *
+   * @param y the y coordinate of the pointer, relative to this window
+   */
+  void ScrollBarDragMove(int y) noexcept;
 
   void DrawItems(Canvas &canvas, unsigned start, unsigned end) const noexcept;
 

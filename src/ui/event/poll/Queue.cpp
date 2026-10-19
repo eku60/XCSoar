@@ -9,9 +9,26 @@
 #include "ui/display/Display.hpp"
 #endif
 
+#include <algorithm>
+#include <cassert>
+#include <cerrno>
 #include <signal.h>
+#include <sys/wait.h>
 
 namespace UI {
+
+/**
+ * The signals which make XCSoar shut down cleanly.
+ */
+static constexpr int QUIT_SIGNALS[] = { SIGINT, SIGTERM, SIGQUIT };
+
+void
+BlockSignals() noexcept
+{
+  SignalMonitorBlock(QUIT_SIGNALS);
+  static constexpr int child_signal[] = { SIGCHLD };
+  SignalMonitorBlock(child_signal);
+}
 
 EventQueue::EventQueue([[maybe_unused]] Display &_display)
 #if defined(USE_X11) || defined(USE_WAYLAND) || defined(MESA_KMS)
@@ -19,14 +36,36 @@ EventQueue::EventQueue([[maybe_unused]] Display &_display)
 #endif
 {
   SignalMonitorInit(event_loop);
-  SignalMonitorRegister(SIGINT, BIND_THIS_METHOD(OnQuitSignal));
-  SignalMonitorRegister(SIGTERM, BIND_THIS_METHOD(OnQuitSignal));
-  SignalMonitorRegister(SIGQUIT, BIND_THIS_METHOD(OnQuitSignal));
+  SignalMonitorRegister(SIGCHLD, BIND_THIS_METHOD(OnChildExit));
+
+  for (const int signo : QUIT_SIGNALS)
+    SignalMonitorRegister(signo, BIND_THIS_METHOD(OnQuitSignal));
 }
 
 EventQueue::~EventQueue() noexcept
 {
   SignalMonitorFinish();
+}
+
+void
+EventQueue::ReapChild(pid_t pid) noexcept
+{
+  assert(pid > 0);
+  children_to_reap.push_back(pid);
+  // The child may have exited before it was handed over.
+  OnChildExit();
+}
+
+void
+EventQueue::OnChildExit() noexcept
+{
+  std::erase_if(children_to_reap, [](pid_t pid) {
+    pid_t result;
+    do {
+      result = waitpid(pid, nullptr, WNOHANG);
+    } while (result < 0 && errno == EINTR);
+    return result == pid || (result < 0 && errno == ECHILD);
+  });
 }
 
 void

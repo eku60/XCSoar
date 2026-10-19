@@ -127,6 +127,37 @@ class LXDevice: public AbstractDevice
   std::optional<double> last_sent_mc;
 
   /**
+   * The QNH [hPa] the vario reported last, as XCSoar read it from
+   * $LXWP3 or $PLXV0,QNH.  PutQNH() does not send it back: for an S
+   * series vario the $LXWP3 offset is in whole feet, so the echo could
+   * only round the value the pilot set (#3261).
+   */
+  std::optional<double> last_received_qnh;
+
+  /**
+   * How this port's vario turns a QNH into the $LXWP3 altitude
+   * offset.  LinkTimeout() clears is_sVario, but $LXWP3 keeps
+   * arriving for up to a minute before the next $LXWP1, so this is
+   * not cleared with the detection flags (#3261).
+   */
+  enum class QnhModel {
+    UNKNOWN,
+    STANDARD,
+    LINEAR,
+  };
+
+  QnhModel qnh_model = QnhModel::UNKNOWN;
+
+  /** The current QNH was derived from $LXWP3, not from $PLXV0,QNH. */
+  bool qnh_from_lxwp3 = false;
+
+  /**
+   * qnh_model changed.  The next $LXWP3 replaces a QNH derived with
+   * the previous model, even when the two are within 0.5 hPa.
+   */
+  bool replace_lxwp3_qnh = false;
+
+  /**
    * Has ballast been requested from the device?
    */
   bool ballast_requested = false;
@@ -145,6 +176,19 @@ class LXDevice: public AbstractDevice
    * Last empty mass value sent to the device. Used to detect feedback loops.
    */
   std::optional<double> last_sent_empty_mass;
+
+  /**
+   * Empty mass waiting for a cached POLAR.  A full PLXV0,POLAR,W
+   * cannot be built before that, and the send must not be reported
+   * as done (#3353).
+   */
+  std::optional<double> pending_empty_mass;
+
+  /**
+   * Maximum takeoff weight waiting for a cached POLAR.  Zero is never
+   * stored here: that would clear the vario's maximum weight.
+   */
+  std::optional<double> pending_max_takeoff_mass;
 
   /**
    * Tracked polar values to detect when plane profile changes.
@@ -326,6 +370,8 @@ public:
     switch_host_baud_for_direct = true;
     polar_sync_notified = false;
     device_polar.valid = false;
+    pending_empty_mass.reset();
+    pending_max_takeoff_mass.reset();
     last_sent_target_name.clear();
     last_sent_target_location = GeoPoint::Invalid();
     last_task_type = TaskType::NONE;
@@ -474,6 +520,8 @@ public:
   bool PutMacCready(double mc, OperationEnvironment &env) override;
   bool PutCrewMass(double crew_mass, OperationEnvironment &env) override;
   bool PutEmptyMass(double empty_mass, OperationEnvironment &env) override;
+  bool PutMaxTakeoffMass(double max_takeoff_mass,
+                         OperationEnvironment &env) override;
   bool PutQNH(const AtmosphericPressure &pres,
               OperationEnvironment &env) override;
 
@@ -522,6 +570,14 @@ private:
    */
   void IdDeviceByNameLocked(const StaticString<16> &product_name,
                             const DeviceInfo &device_info) noexcept;
+
+  void RememberReceivedQNH(const ExternalSettings &settings) noexcept;
+
+  /**
+   * Remember the $LXWP3 offset model for this port.  Caller holds
+   * #mutex.  Does nothing when the model is unchanged.
+   */
+  void NoteQnhModelLocked(bool linear) noexcept;
 
   /**
    * Check if MC value from device is an echo of what we sent.

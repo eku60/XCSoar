@@ -17,8 +17,10 @@ XCSoar
    i18n
    lua
    mapfile
+   task_file
    checklist
    debugging
+   system_tools
    test_debug_utilities
    git_tips
 

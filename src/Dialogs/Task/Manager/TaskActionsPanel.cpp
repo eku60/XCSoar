@@ -6,8 +6,6 @@
 #include "TaskListPanel.hpp"
 #include "Internal.hpp"
 #include "../dlgTaskHelpers.hpp"
-#include "Dialogs/CoFunctionDialog.hpp"
-#include "Dialogs/Error.hpp"
 #include "Dialogs/Message.hpp"
 #include "Logger/ExternalLogger.hpp"
 #include "Simulator.hpp"
@@ -15,17 +13,13 @@
 #include "Interface.hpp"
 #include "Device/Declaration.hpp"
 #include "Task/ValidationErrorStrings.hpp"
+#include "Task/QRScanner.hpp"
+#ifdef HAVE_ZXING
+#include "Dialogs/Task/TaskQRCodeDialog.hpp"
+#endif
 #include "Engine/Task/Ordered/OrderedTask.hpp"
 #include "Engine/Task/Factory/AbstractTaskFactory.hpp"
 #include "Engine/Waypoint/Waypoints.hpp"
-#include "Operation/PluggableOperationEnvironment.hpp"
-#ifdef HAVE_HTTP
-#include "net/http/Init.hpp"
-#include "net/client/WeGlide/DownloadTask.hpp"
-#include "Dialogs/InternalLink.hpp"
-#include "Dialogs/Settings/Panels/WeGlideConfigPanel.hpp"
-#include "util/StaticString.hxx"
-#endif
 #include "Components.hpp"
 #include "DataComponents.hpp"
 
@@ -93,44 +87,26 @@ TaskActionsPanel::OnDeclareClicked()
   ExternalLogger::Declare(decl, data_components->waypoints->GetHome().get());
 }
 
-#ifdef HAVE_HTTP
+#ifdef HAVE_ZXING
 inline void
-TaskActionsPanel::OnDownloadClicked() noexcept
-try {
-  const auto &settings = CommonInterface::GetComputerSettings();
-
-  PluggableOperationEnvironment env;
-
-  auto task = ShowCoFunctionDialog(dialog.GetMainWindow(), GetLook(),
-                                   _("Download"),
-                                   WeGlide::DownloadDeclaredTask(*Net::curl,
-                                                                 settings.weglide,
-                                                                 settings.task,
-                                                                 data_components->waypoints.get(),
-                                                                 env),
-                                   &env);
-  if (!task)
-    return;
-
-  if (!*task) {
-    ShowMessageBox(_("No task"), _("Error"), MB_OK|MB_ICONEXCLAMATION);
-    return;
-  }
-
-  active_task = (*task)->Clone(settings.task);
-  *task_modified = true;
-  dialog.ResetTaskView();
-
-  dialog.SwitchToEditTab();
-} catch (const std::runtime_error &e) {
-  ShowError(std::current_exception(), _("Download"));
-}
-#else
-inline void
-TaskActionsPanel::OnDownloadClicked() noexcept
+TaskActionsPanel::OnShowQRCodeClicked() noexcept
 {
+  ShowTaskQRCode(*active_task);
 }
 #endif
+
+/**
+ * Open the camera, leaving this dialog open behind it.  The scan
+ * reports back asynchronously, so closing here would throw away the
+ * pilot's task if they then cancelled the scan.  A task that does
+ * arrive is handed to this still-open dialog by
+ * MainWindow::OnTaskReceived() via TaskManagerReceiveTask().
+ */
+inline void
+TaskActionsPanel::OnScanQRCodeClicked() noexcept
+{
+  ScanTaskQRCode();
+}
 
 void
 TaskActionsPanel::ReClick() noexcept
@@ -142,51 +118,17 @@ void
 TaskActionsPanel::Prepare([[maybe_unused]] ContainerWindow &_parent,
                           [[maybe_unused]] const PixelRect &rc) noexcept
 {
-#ifdef HAVE_HTTP
-  const auto &settings = CommonInterface::GetComputerSettings();
-#endif
-
   AddButton(_("New Task"), [this](){ OnNewTaskClicked(); });
   AddButton(_("Declare"), [this](){ OnDeclareClicked(); });
   AddButton(_("Browse"), [this](){ OnBrowseClicked(); });
   AddButton(_("Save"), [this](){ SaveTask(); });
 
-#ifdef HAVE_HTTP
-  AddSpacer();
-
-  AddReadOnly(_("WeGlide"),
-              nullptr,
-              settings.weglide.enabled
-              ? _("On") : _("Off"));
-
-  const bool weglide_enabled = settings.weglide.enabled;
-  const bool pilot_configured = weglide_enabled &&
-    settings.weglide.pilot_id != 0;
-
-  AddButton(_("Download Declaration"),
-            [this](){ OnDownloadClicked(); });
-  SetRowEnabled(DOWNLOAD_DECLARATION, pilot_configured);
-
-  AddButton(_("My Tasks"), [this](){
-    parent.SetCurrent(parent.PAGE_WEGLIDE_USER);
-  });
-  SetRowEnabled(MY_TASKS, pilot_configured);
-
-  AddButton(_("Declared Tasks"), [this](){
-    parent.SetCurrent(parent.PAGE_WEGLIDE_PUBLIC_DECLARED);
-  });
-  SetRowEnabled(DECLARED_TASKS, weglide_enabled);
-
-  AddButton(_("Competitions Today"), [this](){
-    parent.SetCurrent(parent.PAGE_WEGLIDE_DAILY_COMPETITIONS);
-  });
-  SetRowEnabled(COMPETITIONS_TODAY, weglide_enabled);
-
-  AddButton(_("Recent Scores"), [this](){
-    parent.SetCurrent(parent.PAGE_WEGLIDE_RECENT_SCORES);
-  });
-  SetRowEnabled(RECENT_SCORES, weglide_enabled);
+#ifdef HAVE_ZXING
+  AddButton(_("Show QR Code"), [this](){ OnShowQRCodeClicked(); });
 #endif
+
+  if (HaveQRScanner())
+    AddButton(_("Scan QR Code"), [this](){ OnScanQRCodeClicked(); });
 
   if (is_simulator())
     /* cannot communicate with real devices in simulator mode */

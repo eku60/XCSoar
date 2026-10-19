@@ -840,9 +840,10 @@ Bislang unterstützt werden: \al, Borgelt B50/B800, Cambridge CAI GPS-NAV, Cambr
 Weiterhin gibt es den Treiber GENERIC, welcher ein Universaltreiber ist, sowie die Auswahl NMEA, die für die Durchschleifung des Singnales gedacht ist, wenn zwei Geräte an einer GPS Quelle installiert sind(z.B.\ im Doppelsitzer.
 \item[\textit{Abgleich vom Gerät$^{\textcolor{blue}{\star}}$}]  {\bf Ein/Aus}: Mit dieser Option werden im externen Gerät vorgenomme Einstellungen, Berechnungen und Daten wie MacCready, Mücken, und Wind vom externen Gerät zur Verwendung in den internen Routinen empfangen.(Synchronisierung)\index{Synchronisierung externer Geräte mit \xc }
 \item[\textit{Abgleich zum Gerät$^{\textcolor{blue}{\star}}$}]  {\bf Ein/Aus}: Mit dieser Option werden in \xc eingestellte Daten wie MacCready, Mücken, und Wind zum externen Gerät verschickt. (Synchronisierung)
-\item[\textit{Prüfsumme ignorieren$^{\textcolor{blue}{\star}}$}] {\bf Ein / Aus}: Wenn das GPS-Gerät ungültige Prüfsummen der Übertragung meldet, werden mit
-dieser Einstellung  die Daten dennoch benutzt.
 \end{description}
+
+\xc verwendet einen NMEA-Satz nur, wenn die Prüfsumme stimmt.  Ein
+Gerät, das ungültige Prüfsummen sendet, kann so nicht verwendet werden.
 
 
 %%%%%%%%%%%%%%%%%%
@@ -961,13 +962,18 @@ Es ist jedoch möglich, die angegebenen Werte nach Belieben zu mischen und so z.
 Einstellen der Uhr mit Referenz zur UTC-Zeit.
 
 \begin{description}
-\item[\textit{Zeitzonenverschiebung}]  {\bf -13 ..+13h}: In diesem Feld wird die Zeitzonenverscheibung zur UTC zeit eingebeben. Die Differenz kann im 30Minuten-Intervall eingegeben werden.
+\item[\textit{Quelle der Lokalzeit}] {\bf Automatisch / Zeitzone / Manueller UTC-Offset}: Legt fest, woher \xc den Offset zwischen UTC und Lokalzeit bezieht.\\
+{\bf Automatisch}: Der Offset wird aus der im Betriebssystem eingestellten Zeitzone übernommen und laufend nachgeführt. Damit folgt er automatisch der Sommer-/Winterzeitumstellung und einem Wechsel in eine andere Zeitzone. Auf dem Kobo steht diese Einstellung nicht zur Verfügung, weil das Gerät gar keine Zeitzone kennt.\\
+{\bf Zeitzone}: Der Offset wird aus der unten gewählten Zeitzone berechnet. Eine Zeitzone enthält die Regeln für die Sommerzeit, \xc schaltet also selbst um. Die Einstellung muss nicht zweimal im Jahr angefasst werden.\\
+{\bf Manueller UTC-Offset}: Es wird der unten von Hand eingegebene Offset benutzt. Er muss zu jeder Zeitumstellung korrigiert werden. Diese Möglichkeit wird nur im Expertenmodus angeboten, ausser sie ist gerade eingestellt.
+\item[\textit{Zeitzone}] Die Zeitzone des Flugplatzes, auf dem geflogen wird, z.\,B. ''Europe/Berlin``. Das Feld ist nur bearbeitbar, wenn als Quelle der Lokalzeit ''Zeitzone`` gewählt ist.
+\item[\textit{Manueller UTC-Offset}]  {\bf -13 ..+14h}: In diesem Feld wird der Offset der Lokalzeit zur UTC-Zeit eingegeben. Das Feld ist nur bearbeitbar, wenn als Quelle der Lokalzeit ''Manueller UTC-Offset`` gewählt ist, und behält den eingegebenen Wert, solange eine andere Quelle gewählt ist. Die Differenz kann im 15-Minuten-Intervall eingegeben werden.
 Zur Kontrolle wird im Feld darunter die entsprechende Lokalzeit angegeben -- um Mißverständnisse zu verhindern.
 
 Achtung! 
 
 Große Falle, wenn ihr versucht, das Starzeitfenster (z.B. per ''sofort'') einzustellen, und Ihr habt \warning hier nicht richtig die Zeitverschiebung eingestellt !! (Siehe z.B. ~\ref{sec:start-gate})
-\item[\textit{Lokalzeit}]  Das ist die oben errechnete Lokalzeit -- nur zur Kontrolle.
+\item[\textit{Lokalzeit}]  Das ist die oben errechnete Lokalzeit -- nur zur Kontrolle. Dahinter steht in Klammern der gerade gültige UTC-Offset.
 \item[\textit{Benutze GPS-Zeit$^{\textcolor{blue}{\star}}$}] {\bf Ein /Aus}: Einstellung des Empfanges des Zeitsingales über das angeschlossene GPS\\
 {\bf Ein}: Wenn eingeschaltet wird die Uhr des Gerätes auf dem \xc läuft \textsl{bei jedem Fix} durch das empfangene Zeitsignal des GPS neu gesetzt.
 \achtung

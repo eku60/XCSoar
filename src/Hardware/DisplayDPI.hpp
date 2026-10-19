@@ -3,11 +3,11 @@
 
 #pragma once
 
+#include "ui/dim/Size.hpp"
+
 #if defined(USE_FB) || defined(ANDROID)
 #define HAVE_DPI_DETECTION
 #endif
-
-struct UnsignedPoint2D;
 
 namespace UI { class Display; }
 
@@ -18,6 +18,29 @@ namespace Display {
    * @param y Number of pixels per logical inch along the screen height
    */
   void SetForcedDPI(unsigned x_dpi, unsigned y_dpi);
+
+/**
+ * Pair each DPI axis with the matching pixel axis.
+ *
+ * Some Android panels report portrait pixels with landscape physical
+ * size (or the reverse), so fonts scale from the long-edge DPI.
+ * Unchanged when the pixel and inch orientations already agree, or
+ * when the buffer is square.
+ */
+[[gnu::const]]
+UnsignedPoint2D
+AlignDpiToPixelAxes(PixelSize size, UnsignedPoint2D dpi) noexcept;
+
+/**
+ * Align physical DPI to the pixel axes, then fall back to
+ * #density_dpi when either axis is more than 20% away from it.
+ * Android's density is what the OEM tuned; xdpi/ydpi are often
+ * garbage.  density_dpi 0 skips the fallback.
+ */
+[[gnu::const]]
+UnsignedPoint2D
+SanitizeDisplayDpi(PixelSize size, UnsignedPoint2D physical,
+                   unsigned density_dpi) noexcept;
 
 #ifdef HAVE_DPI_DETECTION
 /**
@@ -35,6 +58,14 @@ void
 ProvideSizeMM(unsigned width_pixels, unsigned height_pixels,
              unsigned width_mm, unsigned height_mm) noexcept;
 #endif
+
+/**
+ * Pixel size paired with GetSizeMM() for DPI.  Wayland uses the
+ * wl_output mode so compositor scale does not halve the density.
+ */
+[[gnu::const]]
+PixelSize
+GetSizeForDPI(const UI::Display &display) noexcept;
 
 /**
  * Returns the number of pixels per logical inch along the screen

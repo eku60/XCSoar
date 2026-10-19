@@ -45,14 +45,6 @@ struct DeviceConfig {
     IOIOVOLTAGE,
 
     /**
-     * Attempt to auto-discover the GPS source.
-     *
-     * On Windows CE, this opens the GPS Intermediate Driver Multiplexer.
-     * @see http://msdn.microsoft.com/en-us/library/bb202042.aspx
-     */
-    AUTO,
-
-    /**
      * The built-in GPS receiver.
      */
     INTERNAL,
@@ -182,6 +174,30 @@ struct DeviceConfig {
   double sensor_factor;
 
   /**
+   * For Acceleration & Rotation sensors of the built-in sensor set.
+   * It is important to know the orientation of the sensor axis.
+   *
+   * Is the instrument housing of these sensors permanently mounted in the
+   * aircraft, and do the sensors' three axes correspond to the aircraft's
+   * three axes (FIXED_AND_ALIGNED)? Or is the instrument mounted flexibly in the cockpit,
+   * for example using a gooseneck (NOT_ALIGNED)?
+   * If in doubt, this should be set to NOT_ALIGNED, as incorrect measurements
+   * can lead to misinterpretations.
+   */
+  enum class InstrumentAlignment : uint8_t {
+    NONE = 0,
+    /** The instrument is fixed and the axis are aligned to the aircraft */
+    FIXED_AND_ALIGNED,
+    /** Not aligned to the aircraft's axis, e.g. flexible mount */
+    NOT_ALIGNED,
+
+    /**
+     * A dummy entry that is used for validating profile values.
+     */
+    MAX
+  } instrument_alignment;
+
+  /**
    * User choices of engine types supported.
    * Depending on the engine used (2-stroke, 4-stroke etc.),
    * ignitions per second have to be scaled to revolutions per second.
@@ -304,7 +320,7 @@ struct DeviceConfig {
    * Does this port type use a baud rate?
    */
   static constexpr bool UsesSpeed(PortType port_type) noexcept {
-    return port_type == PortType::SERIAL || port_type == PortType::AUTO ||
+    return port_type == PortType::SERIAL ||
       port_type == PortType::ANDROID_USB_SERIAL ||
       port_type == PortType::IOIOUART;
   }
@@ -349,7 +365,6 @@ struct DeviceConfig {
     case PortType::IOIOVOLTAGE:
     case PortType::INTERNAL:
     case PortType::SERIAL:
-    case PortType::AUTO:
     case PortType::TCP_LISTENER:
     case PortType::TCP_CLIENT:
     case PortType::IOIOUART:
@@ -405,7 +420,6 @@ struct DeviceConfig {
     case PortType::BLE_SERIAL:
     case PortType::RFCOMM:
     case PortType::RFCOMM_SERVER:
-    case PortType::AUTO:
     case PortType::TCP_LISTENER:
     case PortType::TCP_CLIENT:
     case PortType::IOIOUART:

@@ -63,6 +63,21 @@ GetCylinderRadiusOrMinusOne(const ObservationZoneClient &p) noexcept
   return GetCylinderRadiusOrMinusOne(p.GetObservationZone());
 }
 
+/**
+ * Is this a reached turn point which counts at its own location,
+ * however deep the aircraft flew into its observation zone, like
+ * GetLocationScored()?  An AAT area counts the point reached instead,
+ * and the start keeps the point where it was left, which takes a
+ * start cylinder's radius off the task.
+ */
+[[gnu::pure]]
+static bool
+CountsAtLocation(const OrderedTaskPoint &tp) noexcept
+{
+  return tp.HasSampled() && tp.HasEntered() && !tp.IsBoundaryScored() &&
+    tp.GetType() != TaskPointType::START;
+}
+
 OrderedTask::OrderedTask(const TaskBehaviour &tb) noexcept
   :AbstractTask(TaskType::ORDERED, tb),
    factory_mode(tb.task_type_default),
@@ -267,11 +282,18 @@ OrderedTask::RunDijsktraMax(TaskDijkstraMax &dijkstra,
 
   const unsigned active_index = GetActiveIndex();
   for (unsigned i = 0; i != task_size; ++i) {
-    const SearchPointVector &boundary = (i == active_index || ignoreSampledPoints)
+    const OrderedTaskPoint &tp = *task_points[i];
+    const SearchPointVector &boundary = ignoreSampledPoints
+      ? tp.GetBoundaryPoints()
+      : i <= active_index && CountsAtLocation(tp)
+      /* search from the turn point itself, so the points chosen next
+         to it suit the location it counts at */
+      ? tp.GetNominalPoints()
+      : i == active_index
       /* since one can still travel further in the current sector, use
          the full boundary here */
-      ? task_points[i]->GetBoundaryPoints()
-      : task_points[i]->GetSearchPoints();
+      ? tp.GetBoundaryPoints()
+      : tp.GetSearchPoints();
 
     dijkstra.SetBoundary(i, boundary);
   }
@@ -420,9 +442,15 @@ OrderedTask::ScanDistanceRemaining(const GeoPoint &location) noexcept
 double
 OrderedTask::ScanDistanceTravelled(const GeoPoint &location) noexcept
 {
-  return task_points.empty()
-    ? 0
-    : task_points.front()->ScanDistanceTravelled(location);
+  /* The travelled glide solver only uses start through the active
+     point; future legs do not need a travelled vector. */
+  if (!task_points.empty()) {
+    const unsigned last = std::min(active_task_point, TaskSize() - 1);
+    for (unsigned i = 0; i <= last; ++i)
+      task_points[i]->UpdateVectorTravelled(location);
+  }
+
+  return stats.total.planned.GetDistance() - stats.total.remaining.GetDistance();
 }
 
 double
@@ -443,6 +471,34 @@ OrderedTask::GetLastIntermediateAchieved() const noexcept
     if (!task_points[i]->HasEntered())
       return i - 1;
   return TaskSize() - 2;
+}
+
+// NAVIGATION
+
+inline void
+OrderedTask::UpdateNearestPoint(const GeoPoint &location) noexcept
+{
+  if (!location.IsValid())
+    return;
+
+  if (active_task_point == 0) {
+    if (taskpoint_start != nullptr)
+      taskpoint_start->UpdateNearestPoint(location, task_projection);
+  } else if (taskpoint_finish != nullptr &&
+             active_task_point + 1 == task_points.size())
+    taskpoint_finish->UpdateNearestPoint(location, task_projection);
+}
+
+bool
+OrderedTask::Update(const AircraftState &state,
+                    const AircraftState &state_last,
+                    const GlidePolar &glide_polar) noexcept
+{
+  /* before AbstractTask::Update(), so the distances and the glide
+     solutions refer to the point of this update */
+  UpdateNearestPoint(state.location);
+
+  return AbstractTask::Update(state, state_last, glide_polar);
 }
 
 // TRANSITIONS

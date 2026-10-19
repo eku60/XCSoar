@@ -77,6 +77,11 @@ Interactive checkboxes that can be toggled by clicking or pressing Enter::
     - [ ] Unchecked item
     - [x] Checked item
 
+Ticks are remembered while XCSoar is running.  Closing and reopening
+the dialog keeps them.  They reset when you select a different
+checklist file in Site Files, or when you restart XCSoar.  Editing the
+page text in the file also drops that page's saved ticks.
+
 Links
 -----
 
@@ -114,6 +119,11 @@ Open XCSoar dialogs and settings directly from your checklist.
     [Analysis](xcsoar://dialog/analysis)
     [Status](xcsoar://dialog/status)
     [Checklist](xcsoar://dialog/checklist)
+
+**Sound test**: play the example of the spoken FLARM alerts, "Traffic
+urgent! Twelve o'clock. Above.", to check the voice and the volume::
+
+    - [ ] FLARM voice audible [Test](xcsoar://sound/test)
 
 Communication Links
 ~~~~~~~~~~~~~~~~~~~
@@ -247,7 +257,7 @@ Here is a complete example checklist file for glider operations::
     - [Location](geo:47.5,8.5)
 
     [References]
-    - [XCSoar Manual](https://xcsoar.org/discover/manual.html)
+    - [XCSoar Manual](https://xcsoar.org/docs/#manual)
     - [Weather](https://www.windy.com)
 
 Supported URI Schemes

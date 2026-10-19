@@ -4,10 +4,7 @@
 #pragma once
 
 #include "ContainerWindow.hpp"
-
-#ifndef USE_WINUSER
 #include "custom/DoubleClick.hpp"
-#endif
 
 #ifdef ENABLE_OPENGL
 #include "ui/opengl/Features.hpp"
@@ -28,6 +25,8 @@
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
 
+#include <algorithm>
+
 namespace UI { struct Event; }
 
 #elif defined(USE_POLL_EVENT)
@@ -41,9 +40,7 @@ struct SDL_Window;
 #include "DisplayOrientation.hpp"
 #endif
 
-#ifndef USE_WINUSER
 class TopCanvas;
-#endif
 
 #ifdef USE_X11
 #define Font X11Font
@@ -61,9 +58,14 @@ class TopCanvas;
 #ifdef USE_WAYLAND
 struct wl_egl_window;
 struct wl_surface;
+struct wl_callback;
+struct wl_output;
 struct xdg_surface;
 struct xdg_toplevel;
 struct zxdg_toplevel_decoration_v1;
+struct wp_viewport;
+struct wp_fractional_scale_v1;
+struct zwp_confined_pointer_v1;
 #endif
 
 #if defined(__APPLE__)
@@ -72,6 +74,8 @@ struct zxdg_toplevel_decoration_v1;
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
+
+#include <algorithm>
 #include <cmath>
 #endif
 
@@ -119,9 +123,6 @@ public:
   void Resizable() {
 #ifdef ENABLE_SDL
     resizable = true;
-#elif defined(USE_WINUSER)
-    style &= ~WS_BORDER;
-    style |= WS_THICKFRAME;
 #endif
   }
 
@@ -153,12 +154,26 @@ class TopWindow : public ContainerWindow {
   X11Window x_window;
 #elif defined(USE_WAYLAND)
   struct wl_surface *wl_surface = nullptr;
-  struct wl_egl_window *native_window;
+  struct wl_egl_window *native_window = nullptr;
   struct xdg_surface *xdg_surface = nullptr;
   struct xdg_toplevel *xdg_toplevel = nullptr;
   struct zxdg_toplevel_decoration_v1 *xdg_decoration = nullptr;
+  struct wp_viewport *viewport = nullptr;
+  struct wp_fractional_scale_v1 *fractional_scale = nullptr;
+  struct zwp_confined_pointer_v1 *confined_pointer = nullptr;
+
+  /**
+   * Outstanding wl_surface.frame.  While this is set, Refresh()
+   * must not call eglSwapBuffers: Mesa waits inside that call for
+   * a buffer release, and a surface that is not on screen never
+   * gets one, which stalls the UI thread.
+   */
+  struct wl_callback *frame_callback = nullptr;
+
   PixelSize initial_requested_size{0, 0};
+  PixelSize compositor_size{0, 0};
   std::chrono::steady_clock::time_point last_resize_flush_time;
+  unsigned scale_120 = 120;
 
 private:
   bool received_first_configure = false;
@@ -169,9 +184,60 @@ public:
   }
 
   void OnNativeConfigure(PixelSize new_native_size) noexcept;
+  void OnToplevelConfigureSize(int32_t width, int32_t height) noexcept;
+  void CommitNativeSurface() noexcept;
+  void OnFractionalPreferredScale(unsigned scale_120) noexcept;
+  void OnSurfaceOutput(struct wl_output *output, bool entered) noexcept;
+
+  [[nodiscard]]
+  bool IsFramePending() const noexcept {
+    return frame_callback != nullptr;
+  }
+
+  /** Register a frame callback.  The next surface commit sends it. */
+  void ArmFrameCallback() noexcept;
+
+  void OnFrameDone(struct wl_callback *callback) noexcept;
+  void ClearFrameCallback() noexcept;
 #elif defined(ENABLE_SDL)
   SDL_Window *window;
 #endif
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  /**
+   * Shall XCSoar use the whole screen, including the areas covered by
+   * the status bar, the display cutout ("notch") and the home
+   * indicator?  This is the iOS equivalent of Android's immersive
+   * mode.
+   *
+   * The initial value must match the default of
+   * DisplaySettings::full_screen, because the window is created before
+   * the profile is loaded.  On iOS, full-screen mode is opt-in.
+   *
+   * @see SetFullScreenMode()
+   */
+  bool full_screen_mode = false;
+
+  /**
+   * Shall the iOS status bar be hidden?  This is independent of
+   * #full_screen_mode: the window covers the whole screen either way,
+   * and the status bar merely overlays its top edge.
+   *
+   * The initial value must match what DisplaySettings::SetDefaults()
+   * resolves to, because the window is created before the profile has
+   * been loaded.
+   *
+   * @see SetStatusBarHidden()
+   */
+  bool status_bar_hidden = false;
+
+  /**
+   * Pass the current values of #full_screen_mode and
+   * #status_bar_hidden on to iOS.
+   */
+  void ApplyFullScreenMode() noexcept;
+#endif
+
 #ifdef DRAW_MOUSE_CURSOR
   uint8_t cursor_size = 1;
   bool invert_cursor_colors = false;
@@ -185,7 +251,6 @@ public:
   std::chrono::steady_clock::time_point hz_window_start{};
 #endif
 
-#ifndef USE_WINUSER
   TopCanvas *screen = nullptr;
 
   bool invalidated;
@@ -242,6 +307,42 @@ public:
   bool resized = false;
 
   PixelSize new_size;
+
+  struct SafeAreaInsets {
+    unsigned left = 0, top = 0, right = 0, bottom = 0;
+  };
+
+  /**
+   * System UI (status bar, navigation bar, display cutout), as
+   * reported by Java via NativeView.resizedNative().  Stretching
+   * an InfoBox edge ignores these.
+   *
+   * Protected by #paused_mutex.
+   *
+   * @see PublishSafeAreaInsets()
+   */
+  SafeAreaInsets pending_safe_area_insets;
+
+  /**
+   * Physical display shape (rounded corners, waterfall edges).
+   * These are never optional: drawing there only clips the pixels.
+   *
+   * Protected by #paused_mutex.
+   */
+  SafeAreaInsets pending_shape_insets;
+
+  /**
+   * The insets the main thread works with.  Only #PublishSafeAreaInsets()
+   * writes them, so readers need no lock.
+   *
+   * @see GetSafeAreaRect()
+   */
+  SafeAreaInsets safe_area_insets;
+
+  /**
+   * @see pending_shape_insets
+   */
+  SafeAreaInsets shape_insets;
 #endif
 
   DoubleClick double_click;
@@ -279,15 +380,6 @@ public:
   bool FlushTouchMouseUp() noexcept;
 #endif
 
-#else /* USE_WINUSER */
-
-  /**
-   * On WM_ACTIVATE, the focus is returned to this window.
-   */
-  HWND hSavedFocus;
-
-#endif /* USE_WINUSER */
-
 #ifdef HAVE_HIGHDPI_SUPPORT
   float point_to_real_x = 1, point_to_real_y = 1;
 #endif
@@ -314,9 +406,7 @@ public:
     :display(_display) {}
 #endif
 
-#ifndef USE_WINUSER
   ~TopWindow() noexcept override;
-#endif
 
   auto &GetDisplay() const noexcept {
     return display;
@@ -325,13 +415,8 @@ public:
   /**
    * Throws on error.
    */
-#ifdef USE_WINUSER
-  void Create(const char *cls, const char *text, PixelSize size,
-              TopWindowStyle style=TopWindowStyle());
-#else
   void Create(const char *text, PixelSize size,
               TopWindowStyle style=TopWindowStyle());
-#endif
 
 #if defined(USE_X11) || defined(USE_WAYLAND) || defined(ENABLE_SDL)
 private:
@@ -340,6 +425,16 @@ private:
    */
   void CreateNative(const char *text, PixelSize size,
                     TopWindowStyle style);
+
+#ifdef USE_WAYLAND
+  void DestroyNative() noexcept;
+  void ApplySurfaceScale(PixelSize logical_size) noexcept;
+  void RefreshSurfaceScale() noexcept;
+  [[gnu::pure]]
+  PixelSize CompositorLogicalSize() const noexcept;
+  [[gnu::pure]]
+  unsigned EffectiveScale120() const noexcept;
+#endif
 
 public:
 #endif
@@ -353,8 +448,8 @@ public:
   void CheckResize() noexcept {}
 #endif
 
-#if !defined(USE_WINUSER) && !defined(ENABLE_SDL)
-#if defined(ANDROID) || defined(USE_FB) || defined(USE_EGL) || defined(USE_GLX) || defined(USE_VFB)
+#ifndef ENABLE_SDL
+#if defined(ANDROID) || defined(USE_FB) || defined(USE_EGL) || defined(USE_VFB)
   void SetCaption(const char *) noexcept {}
 #else
   void SetCaption(const char *caption) noexcept;
@@ -367,58 +462,75 @@ public:
    */
   void CancelMode() noexcept;
 
-#if defined(USE_WINUSER)
-  [[gnu::pure]]
-  const PixelRect GetClientRect() const noexcept {
-    if (::IsIconic(hWnd)) {
-      /* for a minimized window, GetClientRect() returns the
-         dimensions of the icon, which is not what we want */
-      WINDOWPLACEMENT placement;
-      if (::GetWindowPlacement(hWnd, &placement) &&
-          (placement.showCmd == SW_MINIMIZE ||
-           placement.showCmd == SW_SHOWMINIMIZED)) {
-        const auto &r = placement.rcNormalPosition;
-        return PixelRect(0, 0, r.right - r.left, r.bottom - r.top);
-      }
-    }
-
-    return ContainerWindow::GetClientRect();
-  }
-
-  [[gnu::pure]]
-  const PixelSize GetSize() const noexcept {
-    /* this is implemented again because Window::get_size() would call
-       Window::GetClientRect() (method is not virtual) */
-    PixelRect rc = GetClientRect();
-    return {rc.right, rc.bottom};
-  }
-
-#endif
-    
 #if defined(__APPLE__) && TARGET_OS_IPHONE
-  [[gnu::pure]]
-  const PixelSize GetSize() const noexcept {
-    PixelRect rc = GetClientRect();
-    return {rc.right-rc.left, rc.bottom-rc.top};
+  /**
+   * Enable or disable full-screen mode: hide the status bar, defer the
+   * system edge gestures, and let XCSoar draw into the whole screen,
+   * including the areas behind the display cutout ("notch") and the
+   * home indicator.  This is the iOS equivalent of Android's immersive
+   * mode.
+   *
+   * Unlike on Android, the window keeps its size; only the area
+   * returned by GetClientRect() changes, and no resize event is
+   * generated.
+   *
+   * @see DisplaySettings::full_screen
+   */
+  void SetFullScreenMode(bool _full_screen) noexcept;
+
+  /**
+   * Show or hide the iOS status bar.  This is independent of full
+   * screen mode.
+   */
+  void SetStatusBarHidden(bool _hidden) noexcept;
+
+  bool GetStatusBarHidden() const noexcept {
+    return status_bar_hidden;
   }
 
-  [[gnu::pure]]
-  const PixelRect GetClientRect() const noexcept override {
-    assert(IsDefined());
+  bool GetFullScreenMode() const noexcept {
+    return full_screen_mode;
+  }
 
+  /**
+   * The whole screen, including the areas covered by the status bar,
+   * the display cutout ("notch") and the home indicator.
+   */
+  [[gnu::pure]]
+  const PixelRect GetScreenRect() const noexcept {
     /* Start from this window's real size (which was derived from the
        OpenGL drawable) instead of computing the screen size from
        UIScreen again: two independent conversions from points to
        pixels can be rounded differently, and a client rect which is
        one pixel smaller than the framebuffer makes full-screen dialogs
        look non-maximised. */
-    PixelRect rc = ContainerWindow::GetClientRect();
+    return ContainerWindow::GetClientRect();
+  }
+
+  /**
+   * Like GetSafeAreaRect(), but for a window size that has not been
+   * applied yet, e.g. from inside OnResize().  @p size is the size of
+   * the whole window, not of its client area.
+   */
+  [[gnu::pure]]
+  const PixelRect GetSafeAreaRect(PixelSize size) const noexcept {
+    const PixelRect safe = GetSafeAreaRect();
+    const PixelRect rc{size};
+
+    return PixelRect(std::max(rc.left, safe.left),
+                     std::max(rc.top, safe.top),
+                     std::min(rc.right, safe.right),
+                     std::min(rc.bottom, safe.bottom));
+  }
+
+  [[gnu::pure]]
+  const PixelRect GetSafeAreaRect() const noexcept {
+    PixelRect rc = GetScreenRect();
 
     UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
-    if (window == nullptr) {
-      // Fallback to full screen if window is not available
+    if (window == nullptr)
+      /* the window is not available yet */
       return rc;
-    }
 
     /* Get the scale factor of the screen this window is on.  We need
        nativeScale instead of scale to correctly account for
@@ -438,9 +550,86 @@ public:
 
     return rc;
   }
+
+  /**
+   * iOS has no public rounded-corner inset; the UIKit safe area is
+   * used for dialogs, and InfoBox stretch uses the client area.
+   */
+  [[gnu::pure]]
+  PixelRect GetShapeSafeRect() const noexcept {
+    return GetClientRect();
+  }
+
+  [[gnu::pure]]
+  const PixelRect GetClientRect() const noexcept override {
+    assert(IsDefined());
+
+    /* full-screen mode draws edge-to-edge, i.e. also behind the
+       status bar, the display cutout and the home indicator */
+    return full_screen_mode ? GetScreenRect() : GetSafeAreaRect();
+  }
 #endif
 
-#ifndef USE_WINUSER
+#if !(defined(__APPLE__) && TARGET_OS_IPHONE)
+  /**
+   * The part of the window that is not covered by system UI such as
+   * the status bar, the navigation bar, the display cutout ("notch")
+   * or the home indicator, and not clipped by rounded corners.
+   * Equals GetClientRect() on platforms and devices without such
+   * areas.
+   */
+  [[gnu::pure]]
+  PixelRect GetSafeAreaRect() const noexcept {
+    PixelRect rc = GetClientRect();
+
+#ifdef ANDROID
+    rc.left += int(std::max(safe_area_insets.left, shape_insets.left));
+    rc.top += int(std::max(safe_area_insets.top, shape_insets.top));
+    rc.right -= int(std::max(safe_area_insets.right, shape_insets.right));
+    rc.bottom -= int(std::max(safe_area_insets.bottom, shape_insets.bottom));
+#endif
+
+    return rc;
+  }
+
+  /**
+   * The part of the window that is not clipped by the physical
+   * display shape (rounded corners, waterfall edges).  Equals
+   * GetClientRect() when the display is rectangular.
+   */
+  [[gnu::pure]]
+  PixelRect GetShapeSafeRect() const noexcept {
+    PixelRect rc = GetClientRect();
+
+#ifdef ANDROID
+    rc.left += int(shape_insets.left);
+    rc.top += int(shape_insets.top);
+    rc.right -= int(shape_insets.right);
+    rc.bottom -= int(shape_insets.bottom);
+#endif
+
+    return rc;
+  }
+
+  /**
+   * Like GetSafeAreaRect(), but for a window size that has not been
+   * applied yet, e.g. from inside OnResize().
+   */
+  [[gnu::pure]]
+  PixelRect GetSafeAreaRect(PixelSize size) const noexcept {
+    PixelRect rc{size};
+
+#ifdef ANDROID
+    rc.left += int(std::max(safe_area_insets.left, shape_insets.left));
+    rc.top += int(std::max(safe_area_insets.top, shape_insets.top));
+    rc.right -= int(std::max(safe_area_insets.right, shape_insets.right));
+    rc.bottom -= int(std::max(safe_area_insets.bottom, shape_insets.bottom));
+#endif
+
+    return rc;
+  }
+#endif
+
   void Invalidate() noexcept override;
 
 protected:
@@ -452,20 +641,26 @@ protected:
 #endif
 
 public:
-#endif /* !USE_WINUSER */
 
-  /**
-   * Synchronously refresh the screen by handling all pending repaint
+  /** \brief Synchronously refresh the screen by handling all pending repaint
    * requests.
+   *
+   * This call re-draws the screen conditionally:
+   * 
+   * - When the application is not suspended
+   * - When the application has a valid screen canvas
+   * - When \ref invalidated is true 
+   *
+   * DRM/KMS: When the previous frame has not been brought forward to the screen,
+   * this call to \p Refresh() will return immediately without action.
+   *
+   * \see TopCanvas::CheckAndFinishPendingFlip() for DRM/KMS
+   * \see TopWindow::Expose()
    */
   void Refresh() noexcept;
 
   void Close() noexcept {
-#ifndef USE_WINUSER
     OnClose();
-#else
-    ::SendMessage(hWnd, WM_CLOSE, 0, 0);
-#endif
   }
 
 #if defined(ANDROID) || defined(USE_POLL_EVENT)
@@ -496,6 +691,26 @@ public:
    * event to the event queue.  This method is thread-safe.
    */
   void AnnounceResize(PixelSize _new_size) noexcept;
+
+  /**
+   * The area covered by system UI has changed.  Called from the
+   * Android UI thread right before the RESIZE event is submitted;
+   * #PublishSafeAreaInsets() then hands the values to the main
+   * thread.  This method is thread-safe.
+   */
+  void AnnounceSafeAreaInsets(unsigned left, unsigned top,
+                              unsigned right, unsigned bottom,
+                              unsigned shape_left, unsigned shape_top,
+                              unsigned shape_right,
+                              unsigned shape_bottom) noexcept;
+
+  /**
+   * Copy the insets announced by the Android UI thread to the main
+   * thread.  Called while handling the RESIZE event, and also just
+   * before the Fly/Simulator dialog so that dialog can use them
+   * before the first RESIZE is processed.
+   */
+  void PublishSafeAreaInsets() noexcept;
 
   bool ResumeSurface() noexcept;
 
@@ -557,14 +772,7 @@ protected:
   void OnDestroy() noexcept override;
 #endif
 
-#ifdef USE_WINUSER
-  LRESULT OnMessage(HWND _hWnd, UINT message,
-                    WPARAM wParam, LPARAM lParam) noexcept override;
-#endif
-
-#ifndef USE_WINUSER
   void OnResize(PixelSize new_size) noexcept override;
-#endif
 
 #ifdef ANDROID
   virtual void OnLook() noexcept {}
@@ -573,8 +781,6 @@ protected:
    * @see Event::SURFACE
    */
   void OnSurface() noexcept;
-
-  virtual void OnTaskReceived() noexcept {}
 
   /**
    * @see Event::PAUSE

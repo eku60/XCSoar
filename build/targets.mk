@@ -7,21 +7,17 @@ TARGETS = PC WIN64 \
 	ANDROID ANDROID7 ANDROID86 \
 	ANDROIDAARCH64 ANDROIDX64 \
 	ANDROIDFAT \
-	OSX64 MACOS IOS32 IOS64 IOS64SIM
+	MACOS IOS64 IOS64SIM
 
 ifeq ($(TARGET),)
   ifeq ($(HOST_IS_UNIX),y)
     ifeq ($(HOST_IS_DARWIN),y)
-      ifeq ($(HOST_IS_AARCH64),y)
-        TARGET = MACOS
-      else
-        TARGET = OSX64
-      endif
+      TARGET = MACOS
     else
       TARGET = UNIX
     endif
   else
-    TARGET = PC
+    TARGET = WIN64OPENGL
   endif
 else
   ifeq ($(filter $(TARGET),$(TARGETS)),)
@@ -66,8 +62,7 @@ TARGET_ARCH :=
 # virtual targets ("flavors")
 
 ifeq ($(TARGET),WIN64)
-  X64 := y
-  override TARGET = PC
+  $(error TARGET=WIN64 (GDI) has been removed; use TARGET=WIN64OPENGL)
 endif
 
 ifeq ($(TARGET),WIN64OPENGL)
@@ -123,10 +118,6 @@ ifeq ($(TARGET),ANDROIDFAT)
   FAT_BINARY := y
   override TARGET = ANDROID
   override TARGET_FLAVOR = ANDROID
-endif
-
-ifeq ($(ANDROID_BUNDLE_BUILD),y)
-  override TARGET_FLAVOR = ANDROID_BUNDLE
 endif
 
 # real targets
@@ -254,17 +245,6 @@ ifeq ($(TARGET),NEON)
   NEON := y
 endif
 
-ifeq ($(TARGET),OSX64)
-  override TARGET = UNIX
-  TARGET_IS_DARWIN = y
-  TARGET_IS_OSX = y
-  OSX_MIN_SUPPORTED_VERSION = 12.0
-  HOST_TRIPLET = x86_64-apple-darwin
-  LLVM_TARGET = $(HOST_TRIPLET)
-  CLANG = y
-  TARGET_ARCH += -mmacosx-version-min=$(OSX_MIN_SUPPORTED_VERSION)
-endif
-
 ifeq ($(TARGET),MACOS)
   override TARGET = UNIX
   TARGET_IS_DARWIN = y
@@ -280,25 +260,11 @@ ifeq ($(TARGET),MACOS)
   TARGET_IS_ARM = y
 endif
 
-ifeq ($(TARGET),IOS32)
-  override TARGET = UNIX
-  TARGET_IS_DARWIN = y
-  TARGET_IS_IOS = y
-  IOS_MIN_SUPPORTED_VERSION = 10.0
-  HOST_TRIPLET = armv7-apple-darwin
-  LLVM_TARGET = $(HOST_TRIPLET)
-  ifeq ($(HOST_IS_DARWIN),y)
-    DARWIN_SDK ?= /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk
-  endif
-  CLANG = y
-  TARGET_ARCH += -miphoneos-version-min=$(IOS_MIN_SUPPORTED_VERSION)
-endif
-
 ifeq ($(TARGET),IOS64)
   override TARGET = UNIX
   TARGET_IS_DARWIN = y
   TARGET_IS_IOS = y
-  IOS_MIN_SUPPORTED_VERSION = 11.0
+  IOS_MIN_SUPPORTED_VERSION = 15.0
   HOST_TRIPLET = aarch64-apple-darwin
   LLVM_TARGET = $(HOST_TRIPLET)
   ifeq ($(HOST_IS_DARWIN),y)
@@ -313,7 +279,7 @@ ifeq ($(TARGET),IOS64SIM)
   override TARGET = UNIX
   TARGET_IS_DARWIN = y
   TARGET_IS_IOS = y
-  IOS_MIN_SUPPORTED_VERSION = 11.0
+  IOS_MIN_SUPPORTED_VERSION = 15.0
   HOST_TRIPLET = aarch64-apple-darwin
   LLVM_TARGET = $(HOST_TRIPLET)
   ifeq ($(HOST_IS_DARWIN),y)
@@ -347,6 +313,12 @@ ifeq ($(TARGET),UNIX)
 
   ifeq ($(ARMV7),y)
     TARGET_ARCH += -march=armv7-a
+
+    # Use Thumb-2 instructions: smaller code, and NEON works in Thumb
+    # mode as well.  Debian's arm-linux-gnueabihf GCC defaults to Thumb,
+    # but other toolchains and Clang may not, so do not leave it to the
+    # compiler.
+    TARGET_ARCH += -mthumb
   endif
 
   ifeq ($(TARGET_IS_ARMHF),y)
@@ -378,7 +350,7 @@ ifeq ($(TARGET),ANDROID)
     ANDROID_NDK ?= $(HOME)/opt/android-ndk-r26d
   endif
 
-  ANDROID_SDK_PLATFORM = android-35
+  ANDROID_SDK_PLATFORM = android-36
   ANDROID_NDK_API = 21
 
   # The naming of CPU ABIs, architectures, and various NDK directory names is an unholy mess.
@@ -514,11 +486,6 @@ endif
 ifeq ($(TARGET_IS_KOBO),y)
   TARGET_CPPFLAGS += -DKOBO
 
-  # Use Thumb instructions (which is the default in Debian's arm-linux-gnueabihf
-  # toolchain, but this might be different when using another toolchain, or
-  # Clang instead of GCC).
-  TARGET_ARCH += -mthumb
-
   # At least in Debian's arm-linux-gnueabihf GCC, PIE is enabled by default.
   # PIE brings no benefit for us, and we can get smaller binaries when disabling
   # it.
@@ -570,7 +537,7 @@ ifeq ($(TARGET),PC)
   TARGET_LDFLAGS += -Wl,--minor-subsystem-version=0
 
   # default to "console"; overridden to "windows" by
-  # GDI_LDLIBS (screen.mk) or SDL_LDLIBS (sdl.mk) for GUI programs
+  # SDL_LDLIBS (sdl.mk) for GUI programs
   TARGET_LDFLAGS += -Wl,-subsystem,console
 
   ifeq ($(X64),y)

@@ -15,14 +15,8 @@ class TaskActionsPanel : public RowFormWidget {
     DECLARE,
     BROWSE,
     SAVE,
-#ifdef HAVE_HTTP
-    WEGLIDE_SPACER,
-    WEGLIDE_STATUS,
-    DOWNLOAD_DECLARATION,
-    MY_TASKS,
-    DECLARED_TASKS,
-    COMPETITIONS_TODAY,
-    RECENT_SCORES,
+#ifdef HAVE_ZXING
+    SHOW_QR_CODE,
 #endif
   };
 
@@ -43,7 +37,10 @@ private:
   void OnBrowseClicked();
   void OnNewTaskClicked();
   void OnDeclareClicked();
-  void OnDownloadClicked() noexcept;
+#ifdef HAVE_ZXING
+  void OnShowQRCodeClicked() noexcept;
+#endif
+  void OnScanQRCodeClicked() noexcept;
 
   /* virtual methods from class Widget */
   void Prepare(ContainerWindow &parent, const PixelRect &rc) noexcept override;

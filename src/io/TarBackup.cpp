@@ -15,6 +15,7 @@
 #include "Operation/Operation.hpp"
 #include "Language/Language.hpp"
 #include "system/FileUtil.hpp"
+#include "system/Error.hxx"
 #include "system/Path.hpp"
 #include "util/UTF8.hpp"
 
@@ -22,6 +23,10 @@
 #include <exception>
 #include <string>
 #include <vector>
+
+#ifdef HAVE_POSIX
+#include <sys/stat.h>
+#endif
 
 namespace {
 
@@ -40,17 +45,49 @@ struct ArchiveItem {
   AllocatedPath source_path;
   std::string archive_name;
   uint64_t size;
+  unsigned mode;
 };
+
+static unsigned
+GetBackupMode(Path path) noexcept
+{
+#ifdef HAVE_POSIX
+  struct stat st;
+  if (stat(path.c_str(), &st) == 0)
+    return st.st_mode & 0777;
+#else
+  (void)path;
+#endif
+
+  return 0644;
+}
+
+#ifdef HAVE_POSIX
+
+[[nodiscard]]
+static bool
+IsUserToolPath(std::string_view name) noexcept
+{
+  return name.starts_with("tools/") && name.size() > 6;
+}
+
+static unsigned
+SanitizeUserToolMode(unsigned mode) noexcept
+{
+  return mode & 0755;
+}
+
+#endif
 
 [[nodiscard]] std::string
 MakeArchiveName(Path full, Path root)
 {
-  Path rel = full.RelativeTo(root);
-  if (rel != nullptr) {
-    std::string name = rel.c_str();
-    std::replace(name.begin(), name.end(), '\\', '/');
+  if (full == nullptr)
+    return {};
+
+  auto name = MakeArchiveNameIfUnderRoot(full, root);
+  if (!name.empty())
     return name;
-  }
 
   /* fallback: return bare filename */
   Path base = full.GetBase();
@@ -58,12 +95,12 @@ MakeArchiveName(Path full, Path root)
 }
 
 class CollectVisitor final : public File::Visitor {
-  ArchiveExcludePathFn exclude;
+  const ArchiveExcludePathFn &exclude;
   Path root;
   std::vector<ArchiveItem> &items;
 
 public:
-  CollectVisitor(ArchiveExcludePathFn exclude_, Path root_,
+  CollectVisitor(const ArchiveExcludePathFn &exclude_, Path root_,
                  std::vector<ArchiveItem> &items_) noexcept
     : exclude(exclude_), root(root_), items(items_) {}
 
@@ -75,13 +112,13 @@ public:
       return;
 
     items.push_back(ArchiveItem{AllocatedPath(full), name,
-                                File::GetSize(full)});
+                                File::GetSize(full), GetBackupMode(full)});
   }
 };
 
 [[nodiscard]]
 bool
-CollectSourceFiles(Path source_root, ArchiveExcludePathFn exclude,
+CollectSourceFiles(Path source_root, const ArchiveExcludePathFn &exclude,
                    std::vector<ArchiveItem> &items,
                    std::string &error_message) noexcept
 try {
@@ -96,9 +133,11 @@ try {
   return false;
 }
 
+/* not noexcept: the exclude std::function may throw, and the caller's
+   catch block shall see that, not std::terminate() */
 [[nodiscard]]
 bool
-AcceptEntry(ArchiveExcludePathFn exclude, std::string_view name) noexcept
+AcceptEntry(const ArchiveExcludePathFn &exclude, std::string_view name)
 {
   return !name.empty() && (exclude == nullptr || !exclude(name));
 }
@@ -222,7 +261,7 @@ private:
 
 bool
 CreateBackup(Path source_root, OutputStream &output,
-             ArchiveExcludePathFn exclude,
+             const ArchiveExcludePathFn &exclude,
              OperationEnvironment &env,
              unsigned &created_files,
              std::string &error_message) noexcept
@@ -278,7 +317,7 @@ try {
 
     try {
       FileReader in(item.source_path);
-      writer.Add(item.archive_name, in, in.GetSize(),
+      writer.Add(item.archive_name, in, in.GetSize(), item.mode,
                  [&env, &progress, &sync_progress, file_output](uint64_t delta) {
                    if (env.IsCancelled())
                      throw OperationCancelled{};
@@ -326,7 +365,7 @@ try {
 
 bool
 RestoreBackup(Reader &input, Path destination_root,
-              ArchiveExcludePathFn exclude,
+              const ArchiveExcludePathFn &exclude,
               OperationEnvironment &env,
               unsigned &restored_files,
               unsigned &failed_files,
@@ -360,8 +399,9 @@ try {
     TarReader reader(input);
     std::string name;
     uint64_t size;
+    unsigned mode;
 
-    while (reader.Next(name, size)) {
+    while (reader.Next(name, size, mode)) {
       if (env.IsCancelled())
         throw OperationCancelled{};
 
@@ -400,6 +440,11 @@ try {
           progress.Advance(delta);
         });
         out.Commit();
+#ifdef HAVE_POSIX
+        if (IsUserToolPath(name) &&
+            chmod(dest.c_str(), SanitizeUserToolMode(mode)) < 0)
+          throw MakeErrno("Failed to restore tool permissions");
+#endif
         progress.Advance(PadTarBlockSize(size));
 
         extracted_names.emplace_back(name);
@@ -429,6 +474,25 @@ try {
     AllocatedPath source = AllocatedPath::Build(temp_root, name.c_str());
     AllocatedPath dest = ResolveRestoreDestination(source, destination_root,
                                                    name, extracted_names);
+#ifdef HAVE_POSIX
+    if (IsUserToolPath(name)) {
+      const auto tools_directory =
+        AllocatedPath::Build(destination_root, "tools");
+      struct stat st;
+      mode_t mode = 0755;
+      if (lstat(tools_directory.c_str(), &st) == 0) {
+        if (!S_ISDIR(st.st_mode))
+          throw std::runtime_error{
+            "Refusing to restore through non-directory tools path"};
+        mode = (st.st_mode & 0755) | 0700;
+      }
+      if (!Directory::Exists(tools_directory))
+        Directory::Create(tools_directory);
+      // Remove unsafe permissions without making private directories public.
+      if (chmod(tools_directory.c_str(), mode) < 0)
+        throw MakeErrno("Failed to restore tool directory permissions");
+    }
+#endif
     Directory::CreateRecursive(dest.GetParent());
 
     try {

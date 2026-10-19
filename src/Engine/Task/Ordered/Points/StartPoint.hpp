@@ -28,6 +28,13 @@ class StartPoint final : public OrderedTaskPoint {
    */
   StartConstraints constraints;
 
+  /**
+   * Boundary node from find_best_start().  While this start is the
+   * active point, the leg, the bearing and the glide use it.
+   * Invalid before the aircraft is flying, and after Reset().
+   */
+  GeoPoint start_location;
+
 public:
   /**
    * Constructor.  Sets task area to non-scorable; distances
@@ -54,12 +61,16 @@ public:
   }
 
   /**
-   * Search for the min point on the boundary from
-   * the aircraft state to the next point.  Should only
-   * be performed when the aircraft state is inside the sector
+   * Search the boundary for the node which minimises the distance
+   * from the aircraft via that node to the next task point.
+   *
+   * Called on every cycle while the start is active, wherever the
+   * aircraft is.  Not called before takeoff: CheckTransitions()
+   * returns early while the aircraft is not flying.
    *
    * @param state Current aircraft state
    * @param next Next task point following the start
+   * @param projection Projection used by the task
    */
   void find_best_start(const AircraftState &state,
                        const OrderedTaskPoint &next,
@@ -67,8 +78,10 @@ public:
 
   /* virtual methods from class TaskPoint */
   double GetElevation() const noexcept override;
+  const GeoPoint &GetLocationRemaining() const noexcept override;
 
   /* virtual methods from class ScoredTaskPoint */
+  void Reset() noexcept override;
   bool CheckExitTransition(const AircraftState &ref_now,
                            const AircraftState &ref_last) const noexcept override;
 

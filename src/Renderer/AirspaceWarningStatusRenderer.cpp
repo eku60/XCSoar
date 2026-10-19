@@ -2,28 +2,53 @@
 // Copyright The XCSoar Project
 
 #include "AirspaceWarningStatusRenderer.hpp"
+#include "Engine/Airspace/AirspaceWarning.hpp"
 #include "Look/Colors.hpp"
 #include "Language/Language.hpp"
 #include "Screen/Layout.hpp"
 #include "ui/canvas/Canvas.hpp"
+#include "ui/canvas/Font.hpp"
 
 #include <algorithm>
 
-[[gnu::pure]]
-static int
-CaptionWidth(Canvas &canvas) noexcept
+AirspaceWarningStatusBadge
+AirspaceWarningStatusFrom(const AirspaceWarning &warning) noexcept
 {
-  return std::max(canvas.CalcTextWidth(C_("Status", "Inside")),
-                  canvas.CalcTextWidth(_("Near")));
+  AirspaceWarningStatusBadge status;
+  status.active = warning.IsActive();
+
+  if (warning.IsCleared())
+    status.kind = AirspaceWarningStatusBadge::Kind::Cleared;
+  else if (warning.IsCoveredByClearance()) {
+    if (warning.IsInside())
+      status.kind = AirspaceWarningStatusBadge::Kind::CoveredInside;
+    else if (warning.IsWarning())
+      status.kind = AirspaceWarningStatusBadge::Kind::CoveredNear;
+    else
+      status.kind = AirspaceWarningStatusBadge::Kind::Covered;
+  } else if (warning.IsWarning()) {
+    status.kind = warning.IsInside()
+      ? AirspaceWarningStatusBadge::Kind::Inside
+      : AirspaceWarningStatusBadge::Kind::Near;
+  }
+
+  return status;
 }
 
 int
-AirspaceWarningStatusWidth(Canvas &canvas, const Font &font) noexcept
+AirspaceWarningStatusWidth(const Font &font) noexcept
 {
-  canvas.Select(font);
+  const unsigned widest = std::max({
+    font.TextSize(C_("Status", "Inside")).width,
+    font.TextSize(_("Near")).width,
+    font.TextSize(_("(Inside)")).width,
+    font.TextSize(_("(Near)")).width,
+    font.TextSize(_("Cleared")).width,
+    font.TextSize(_("Covered")).width,
+  });
 
   /* caption + padding on both sides + gap to the row edge */
-  return CaptionWidth(canvas) + 3 * (int)Layout::GetTextPadding();
+  return int(widest) + 3 * int(Layout::GetTextPadding());
 }
 
 void
@@ -47,6 +72,26 @@ DrawAirspaceWarningStatus(Canvas &canvas, const Font &font,
       ? COLOR_AIRSPACE_WARNING_NEAR
       : COLOR_AIRSPACE_WARNING_NEAR_ACK;
     state_text = _("Near");
+    break;
+
+  case AirspaceWarningStatusBadge::Kind::Cleared:
+    state_color = COLOR_AIRSPACE_CLEARED;
+    state_text = _("Cleared");
+    break;
+
+  case AirspaceWarningStatusBadge::Kind::CoveredInside:
+    state_color = COLOR_AIRSPACE_CLEARED;
+    state_text = _("(Inside)");
+    break;
+
+  case AirspaceWarningStatusBadge::Kind::CoveredNear:
+    state_color = COLOR_AIRSPACE_CLEARED;
+    state_text = _("(Near)");
+    break;
+
+  case AirspaceWarningStatusBadge::Kind::Covered:
+    state_color = COLOR_AIRSPACE_CLEARED;
+    state_text = _("Covered");
     break;
 
   case AirspaceWarningStatusBadge::Kind::None:

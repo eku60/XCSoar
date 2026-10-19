@@ -5,7 +5,6 @@
 #include "Map.hpp"
 #include "util/Macros.hpp"
 #include "util/StringFormat.hpp"
-#include "Interface.hpp"
 #include "Device/Config.hpp"
 
 #ifdef ANDROID
@@ -28,7 +27,6 @@ static const char *const port_type_strings[] = {
   "nunchuck",
   "i2c_baro",
   "ioio_voltage",
-  "auto",
   "internal",
   "tcp_client",
   "tcp_listener",
@@ -242,6 +240,12 @@ Profile::GetDeviceConfig(const ProfileMap &map, unsigned n,
       name == nullptr || !map.GetEnum(name, config.polar_sync) ||
       unsigned(config.polar_sync) >= unsigned(DeviceConfig::PolarSync::COUNT))
     config.polar_sync = DeviceConfig::PolarSync::OFF;
+
+  if (const char *name = make_port_name("InstrumentAlignment");
+      name == nullptr || !map.GetEnum(name, config.instrument_alignment) ||
+      unsigned(config.instrument_alignment) >=
+      unsigned(DeviceConfig::InstrumentAlignment::MAX))
+    config.instrument_alignment = DeviceConfig::InstrumentAlignment::NONE;
 }
 
 static const char *
@@ -331,16 +335,10 @@ Profile::SetDeviceConfig(ProfileMap &map,
     map.SetEnum(name, config.press_use);
 
   auto offset = DeviceConfig::UsesCalibration(config.port_type) ? config.sensor_offset : 0;
-  // Has new calibration data been delivered ?
-  if (CommonInterface::Basic().sensor_calibration_available)
-    offset = CommonInterface::Basic().sensor_calibration_offset;
   if (const char *name = make_port_name("SensorOffset"); name != nullptr)
     map.Set(name, offset);
 
   auto factor = DeviceConfig::UsesCalibration(config.port_type) ? config.sensor_factor : 0;
-  // Has new calibration data been delivered ?
-  if (CommonInterface::Basic().sensor_calibration_available)
-    factor = CommonInterface::Basic().sensor_calibration_factor;
   if (const char *name = make_port_name("SensorFactor"); name != nullptr)
     map.Set(name, factor);
 
@@ -355,4 +353,7 @@ Profile::SetDeviceConfig(ProfileMap &map,
 
   if (const char *name = make_port_name("PolarSync"); name != nullptr)
     map.SetEnum(name, config.polar_sync);
+
+  if (const char *name = make_port_name("InstrumentAlignment"); name != nullptr)
+    map.SetEnum(name, config.instrument_alignment);
 }

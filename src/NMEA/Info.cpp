@@ -112,6 +112,7 @@ NMEAInfo::Reset() noexcept
   airspeed_real = false;
 
   gps_altitude_available.Clear();
+  gps_ellipsoid_altitude_available.Clear();
 
   static_pressure_available.Clear();
   dyn_pressure_available.Clear();
@@ -144,6 +145,7 @@ NMEAInfo::Reset() noexcept
   humidity_available.Clear();
 
   heart_rate_available.Clear();
+  blood_oxygen_available.Clear();
 
   engine_noise_level_available.Clear();
 
@@ -211,6 +213,7 @@ NMEAInfo::Expire() noexcept
     airspeed_real = false;
 
   gps_altitude_available.Expire(clock, std::chrono::seconds(30));
+  gps_ellipsoid_altitude_available.Expire(clock, std::chrono::seconds(30));
   static_pressure_available.Expire(clock, std::chrono::seconds(30));
   dyn_pressure_available.Expire(clock, std::chrono::seconds(30));
   pitot_pressure_available.Expire(clock, std::chrono::seconds(30));
@@ -224,6 +227,11 @@ NMEAInfo::Expire() noexcept
   settings.Expire(clock);
   external_wind_available.Expire(clock, std::chrono::minutes(10));
   heart_rate_available.Expire(clock, std::chrono::seconds(10));
+
+  /* a finger pulse oximeter already lags the actual saturation by two
+     minutes or more, and a glider reaches a very different altitude
+     within a few minutes, so an old value misleads rather than informs */
+  blood_oxygen_available.Expire(clock, std::chrono::minutes(3));
   temperature_available.Expire(clock, std::chrono::seconds(30));
   humidity_available.Expire(clock, std::chrono::seconds(30));
   engine_noise_level_available.Expire(clock, std::chrono::seconds(30));
@@ -283,13 +291,29 @@ NMEAInfo::Complement(const NMEAInfo &add) noexcept
   if (gps_altitude_available.Complement(add.gps_altitude_available))
     gps_altitude = add.gps_altitude;
 
-  if (static_pressure_available.Complement(add.static_pressure_available))
+  if (gps_ellipsoid_altitude_available.Complement(
+        add.gps_ellipsoid_altitude_available))
+    gps_ellipsoid_altitude = add.gps_ellipsoid_altitude;
+
+  /* Static pressure and pressure altitude are the same ambient
+     pressure.  Filling the missing form from a later device makes
+     ComputePressure() prefer that device (#3268). */
+  const bool have_ambient_pressure =
+    static_pressure_available || pressure_altitude_available;
+  const bool add_static_rejected =
+    have_ambient_pressure && add.static_pressure_available;
+
+  if (!add_static_rejected &&
+      static_pressure_available.Complement(add.static_pressure_available))
     static_pressure = add.static_pressure;
 
   if (dyn_pressure_available.Complement(add.dyn_pressure_available))
     dyn_pressure = add.dyn_pressure;
 
-  if (pitot_pressure_available.Complement(add.pitot_pressure_available))
+  /* Pitot pressure belongs with the static pressure of the same
+     device.  Leave it behind when that static pressure was rejected. */
+  if (!add_static_rejected &&
+      pitot_pressure_available.Complement(add.pitot_pressure_available))
     pitot_pressure = add.pitot_pressure;
 
   if (sensor_calibration_available.Complement(add.sensor_calibration_available)) {
@@ -300,19 +324,30 @@ NMEAInfo::Complement(const NMEAInfo &add) noexcept
   if (baro_altitude_available.Complement(add.baro_altitude_available))
     baro_altitude = add.baro_altitude;
 
-  if (pressure_altitude_available.Complement(add.pressure_altitude_available))
+  if (!have_ambient_pressure &&
+      pressure_altitude_available.Complement(add.pressure_altitude_available))
     pressure_altitude = add.pressure_altitude;
 
   if (igc_pressure_altitude_available.Complement(add.igc_pressure_altitude_available))
     igc_pressure_altitude = add.igc_pressure_altitude;
 
-  if (noncomp_vario_available.Complement(add.noncomp_vario_available))
+  /* Uncompensated, total-energy and netto vario are one climb-rate
+     source.  A later device's uncompensated value becomes gps_vario
+     and is subtracted from the earlier total-energy vario when the
+     pitch angle is estimated. */
+  const bool have_vario = noncomp_vario_available ||
+    total_energy_vario_available || netto_vario_available;
+
+  if (!have_vario &&
+      noncomp_vario_available.Complement(add.noncomp_vario_available))
     noncomp_vario = add.noncomp_vario;
 
-  if (total_energy_vario_available.Complement(add.total_energy_vario_available))
+  if (!have_vario &&
+      total_energy_vario_available.Complement(add.total_energy_vario_available))
     total_energy_vario = add.total_energy_vario;
 
-  if (netto_vario_available.Complement(add.netto_vario_available))
+  if (!have_vario &&
+      netto_vario_available.Complement(add.netto_vario_available))
     netto_vario = add.netto_vario;
 
   settings.Complement(add.settings);
@@ -331,6 +366,9 @@ NMEAInfo::Complement(const NMEAInfo &add) noexcept
 
   if (heart_rate_available.Complement(add.heart_rate_available))
     heart_rate = add.heart_rate;
+
+  if (blood_oxygen_available.Complement(add.blood_oxygen_available))
+    blood_oxygen = add.blood_oxygen;
 
   if (engine_noise_level_available.Complement(add.engine_noise_level_available))
     engine_noise_level = add.engine_noise_level;

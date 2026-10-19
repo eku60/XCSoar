@@ -15,6 +15,7 @@
 #include "system/FileUtil.hpp"
 #include "test_debug.hpp"
 
+#include <cstdlib>
 #include <fstream>
 
 using namespace std::chrono;
@@ -25,6 +26,11 @@ aat_min_time(int test_num) noexcept
   OrderedTaskSettings beh;
   beh.SetDefaults();
   switch (test_num) {
+  case 0:
+    // Shortest path of the mixed task already exceeds the 3 hour
+    // default, so the areas cannot be pulled in enough to finish
+    // then. Use a minimum they can stretch to.
+    return duration<unsigned>{unsigned(3600 * 4)};
   case 2:
     return duration<unsigned>{unsigned(3600 * 3.8)};
   default:
@@ -282,6 +288,15 @@ test_flight(TestFlightComponents components, int test_num, int n_wind,
 
   return run_flight(components, task_manager, autopilot_parms, n_wind,
                     speed_factor);
+}
+
+TestFlightResult
+test_flight_same_points(int test_num, int n_wind, double speed_factor)
+{
+  // Sector points come from rand(). Repeat the seed so each scenario
+  // aims at the same points.
+  srand(1);
+  return test_flight(test_num, n_wind, speed_factor);
 }
 
 bool

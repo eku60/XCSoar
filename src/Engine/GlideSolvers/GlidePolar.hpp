@@ -60,6 +60,14 @@ class GlidePolar
 
   /** Maximum cruise speed (m/s) */
   double Vmax;
+
+  /**
+   * When true, the MacCready speed stops at #Vmax. The safety polar
+   * clears this so reach can fly faster than maximum cruise.
+   * Speed-to-fly leaves it set.
+   */
+  bool limit_mc_to_cruise = true;
+
   /** Sink rate at maximum cruise speed (m/s, positive down) */
   double Smax;
 
@@ -329,6 +337,14 @@ public:
   void SetMC(const double _mc) noexcept;
 
   /**
+   * Stop the MacCready speed at maximum cruise speed when @p limited
+   * is true. Reach on the safety polar passes false so a higher
+   * Safety MC keeps selecting a steeper point. Speed-to-fly stays
+   * limited.
+   */
+  void SetMCLimitedByCruise(bool limited) noexcept;
+
+  /**
    * Accessor for MC setting
    *
    * @return The current MacCready ring setting (m/s)
@@ -580,6 +596,23 @@ public:
       max_ballast = ballast_ratio * reference_mass;
     if (update)
       Update();
+  }
+
+  /**
+   * The polar the constructor starts with.  It stands in while no
+   * valid polar has been set up, e.g. when the plane profile is
+   * missing or broken, so it is not the pilot's glider.
+   */
+  static constexpr PolarCoefficients FALLBACK_POLAR{0.00157, -0.0734, 1.48};
+
+  /**
+   * Is this still the constructor's #FALLBACK_POLAR rather than a polar
+   * that was set up for a glider?
+   */
+  constexpr bool IsFallback() const noexcept {
+    return reference_polar.a == FALLBACK_POLAR.a &&
+      reference_polar.b == FALLBACK_POLAR.b &&
+      reference_polar.c == FALLBACK_POLAR.c;
   }
 
   /** Returns the ideal polar coefficients */

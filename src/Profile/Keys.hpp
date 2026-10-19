@@ -8,15 +8,18 @@
 namespace ProfileKeys {
 
 constexpr std::string_view FullScreen = "FullScreen";
+constexpr std::string_view InfoBoxAreaStretch = "InfoBoxAreaStretch";
+constexpr std::string_view StatusBar = "StatusBar";
 constexpr std::string_view UIScale = "UIScale";
+constexpr std::string_view ViewingDistance = "ViewingDistance";
 constexpr std::string_view CustomDPI = "CustomDPI";
 constexpr std::string_view DarkMode = "DarkMode";
 constexpr std::string_view DisplayType = "DisplayType";
+constexpr std::string_view DownloadAreaFilter = "DownloadAreaFilter";
 constexpr std::string_view Password = "Password";
 constexpr std::string_view AirspaceWarning = "AirspaceWarn";
 constexpr std::string_view AirspaceWarningDialog = "AirspaceWarnDialog";
 constexpr std::string_view AirspaceBlackOutline = "AirspaceBlackOutline";
-constexpr std::string_view AirspaceTransparency = "AirspaceTransparency";
 constexpr std::string_view AirspaceFillMode = "AirspaceFillMode";
 constexpr std::string_view AirspaceLabelSelection = "AirspaceLabelSelection";
 constexpr std::string_view AirspaceShowNOTAMLabels =
@@ -144,6 +147,8 @@ constexpr std::string_view AppAveThermalNeedle = "AppAveThermalNeedle";
 constexpr std::string_view AutoAdvance = "AutoAdvance";
 constexpr std::string_view UTCOffset = "UTCOffset";
 constexpr std::string_view UTCOffsetSigned = "UTCOffsetSigned";
+constexpr std::string_view LocalTimeSource = "LocalTimeSource";
+constexpr std::string_view TimeZone = "TimeZone";
 constexpr std::string_view BlockSTF = "BlockSpeedToFly";
 constexpr std::string_view AutoZoom = "AutoZoom";
 constexpr std::string_view MenuTimeout = "MenuTimeout";
@@ -154,6 +159,7 @@ constexpr std::string_view EnableFLARMMap = "EnableFLARMDisplay";
 constexpr std::string_view FadeTraffic = "FadeTraffic";
 constexpr std::string_view EnableFLARMGauge = "EnableFLARMGauge";
 constexpr std::string_view AutoCloseFlarmDialog = "AutoCloseFlarmDialog";
+constexpr std::string_view FlarmSpokenAlerts = "FlarmSpokenAlerts";
 constexpr std::string_view EnableTAGauge = "EnableTAGauge";
 constexpr std::string_view TAPosition = "TAPosition";
 constexpr std::string_view EnableThermalProfile = "EnableThermalProfile";
@@ -175,6 +181,7 @@ constexpr std::string_view TurnpointRadius = "TurnpointRadius";
 constexpr std::string_view FinishType = "FinishType";
 constexpr std::string_view FinishRadius = "FinishRadius";
 constexpr std::string_view TaskType = "TaskType";
+constexpr std::string_view NavigateNearest = "NavigateNearest";
 constexpr std::string_view AATMinTime = "AATMinTime";
 constexpr std::string_view AATTimeMargin = "AATTimeMargin";
 constexpr std::string_view PEVStartWaitTime = "PEVStartWaitTime";
@@ -185,11 +192,13 @@ constexpr std::string_view EnableNavBaroAltitude = "EnableNavBaroAltitude";
 constexpr std::string_view LoggerTimeStepCruise = "LoggerTimeStepCruise";
 constexpr std::string_view LoggerTimeStepCircling = "LoggerTimeStepCircling";
 
+constexpr std::string_view TaskMacCready = "TaskMacCready";
 constexpr std::string_view SafetyMacCready = "SafetyMacCready";
 constexpr std::string_view AbortTaskMode = "AbortTaskMode";
 constexpr std::string_view AutoMcMode = "AutoMcMode";
 constexpr std::string_view AutoMc = "AutoMc";
 constexpr std::string_view EnableExternalTriggerCruise = "EnableExternalTriggerCruise";
+constexpr std::string_view SpeedCommandSwitch = "SpeedCommandSwitch";
 constexpr std::string_view CruiseToCirclingModeSwitchThreshold = "CruiseToCirclingModeSwitchThreshold";
 constexpr std::string_view CirclingToCruiseModeSwitchThreshold = "CirclingToCruiseModeSwitchThreshold";
 constexpr std::string_view OLCRules = "OLCRules"; // legacy name, key contains contest rules
@@ -355,8 +364,22 @@ constexpr std::string_view GDL90UseSystemUtcDate = "GDL90UseSystemUtcDate";
 
 constexpr std::string_view HideQuickGuideDialogOnStartup =
   "HideQuickGuideDialogOnStartup";
+constexpr std::string_view HideRadarStaleWarning =
+  "HideRadarStaleWarning";
 constexpr std::string_view DisclaimerAcknowledgedVersion =
   "DisclaimerAcknowledgedVersion";
 constexpr std::string_view LastSeenNewsVersion =
   "LastSeenNewsVersion";
+
+/* whether the flight setup may fill Max. temp. from the forecast */
+constexpr std::string_view MosmixForecastTemperature =
+  "MosmixForecastTemperature";
+
+/* the day, as 20260920, on which the forecast maximum temperature was
+   last fetched and on which the pilot last set it by hand */
+constexpr std::string_view MosmixLastFetch = "MosmixLastFetch";
+constexpr std::string_view MosmixManualEntry = "MosmixManualEntry";
+
+/* what that fetch said, in Kelvin; zero when it said nothing */
+constexpr std::string_view MosmixForecast = "MosmixForecast";
 }

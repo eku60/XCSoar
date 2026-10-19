@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "WaypointReachability.hpp"
+#include "Engine/Route/WaypointReachability.hpp"
 
 class Canvas;
 class TwoTextRowsRenderer;
@@ -32,5 +32,6 @@ namespace WaypointListRenderer
             double distance, double arrival_altitude,
             const TwoTextRowsRenderer &row_renderer,
             const WaypointLook &look,
-            const WaypointRendererSettings &settings);
+            const WaypointRendererSettings &settings,
+            WaypointReachability reachable=WaypointReachability::INVALID);
 }

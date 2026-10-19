@@ -7,7 +7,6 @@
 #include "Globals.hpp"
 #include "Texture.hpp"
 #include "Scope.hpp"
-#include "VertexArray.hpp"
 #include "Buffer.hpp"
 #include "VertexPointer.hpp"
 #include "ExactPixelPoint.hpp"
@@ -255,6 +254,34 @@ Canvas::DrawTriangleFan(const BulkPixelPoint *points, unsigned num_points) noexc
 }
 
 void
+Canvas::DrawFilledTriangleFan(const FloatPoint2D *points,
+                              unsigned num_points) noexcept
+{
+  if (points == nullptr || brush.IsHollow() || num_points < 3)
+    return;
+
+  OpenGL::solid_shader->Use();
+
+  ScopeVertexPointer vp(points);
+  brush.Bind();
+  glDrawArrays(GL_TRIANGLE_FAN, 0, num_points);
+}
+
+void
+Canvas::DrawFilledTriangles(const FloatPoint2D *points,
+                            unsigned num_points) noexcept
+{
+  if (points == nullptr || brush.IsHollow() || num_points < 3)
+    return;
+
+  OpenGL::solid_shader->Use();
+
+  ScopeVertexPointer vp(points);
+  brush.Bind();
+  glDrawArrays(GL_TRIANGLES, 0, num_points);
+}
+
+void
 Canvas::DrawHLine(int x1, int x2, int y, Color color) noexcept
 {
   color.Bind();
@@ -472,111 +499,13 @@ Canvas::DrawArc(PixelPoint center, unsigned radius,
   ::Arc(*this, center, radius, start, end);
 }
 
-[[gnu::const]]
-static unsigned
-AngleToDonutVertex(Angle angle) noexcept
-{
-  return GLDonutVertices::ImportAngle(NATIVE_TO_INT(angle.Native())
-                                      + ISINETABLE.size() * 3u / 4u,
-                                      ISINETABLE.size());
-}
-
-[[gnu::const]]
-static std::pair<unsigned,unsigned>
-AngleToDonutVertices(Angle start, Angle end) noexcept
-{
-  static constexpr Angle epsilon = Angle::FullCircle()
-    / int(GLDonutVertices::CIRCLE_SIZE * 4u);
-
-  const Angle delta = end - start;
-
-  if (fabs(delta.AsDelta().Native()) <= epsilon.Native())
-    /* full circle */
-    return std::make_pair(0u, unsigned(GLDonutVertices::MAX_ANGLE));
-
-  const unsigned istart = AngleToDonutVertex(start);
-  unsigned iend = AngleToDonutVertex(end);
-
-  if (istart == iend && delta > epsilon) {
-    if (end - start >= Angle::HalfCircle())
-      /* nearly full circle, round down the end */
-      iend = GLDonutVertices::PreviousAngle(iend);
-    else
-      /* slightly larger than epsilon: draw at least two indices */
-      iend = GLDonutVertices::NextAngle(iend);
-  }
-
-  return std::make_pair(istart, iend);
-}
 
 void
 Canvas::DrawAnnulus(PixelPoint center,
                     unsigned small_radius, unsigned big_radius,
                     Angle start, Angle end) noexcept
 {
-  if (1 == 1) {
-    /* TODO: switched to the unoptimised generic implementation due to
-       TRAC #2221, caused by rounding error of start/end radial;
-       should reimplement GLDonutVertices to use the exact start/end
-       radial */
-    ::Annulus(*this, center, big_radius, start, end, small_radius);
-    return;
-  }
-
-  ScopeVertexPointer vp;
-  GLDonutVertices vertices(center.x, center.y, small_radius, big_radius);
-
-  const std::pair<unsigned,unsigned> i = AngleToDonutVertices(start, end);
-  const unsigned istart = i.first;
-  const unsigned iend = i.second;
-
-  if (!brush.IsHollow()) {
-    brush.Bind();
-    vertices.Bind(vp);
-
-    if (istart > iend) {
-      glDrawArrays(GL_TRIANGLE_STRIP, istart,
-                   GLDonutVertices::MAX_ANGLE - istart + 2);
-      glDrawArrays(GL_TRIANGLE_STRIP, 0, iend + 2);
-    } else {
-      glDrawArrays(GL_TRIANGLE_STRIP, istart, iend - istart + 2);
-    }
-  }
-
-  if (IsPenOverBrush()) {
-    pen.Bind();
-
-    if (istart != iend && iend != GLDonutVertices::MAX_ANGLE) {
-      if (brush.IsHollow())
-        vertices.Bind(vp);
-
-      glDrawArrays(GL_LINE_STRIP, istart, 2);
-      glDrawArrays(GL_LINE_STRIP, iend, 2);
-    }
-
-    const unsigned pstart = istart / 2;
-    const unsigned pend = iend / 2;
-
-    vertices.BindInnerCircle(vp);
-    if (pstart < pend) {
-      glDrawArrays(GL_LINE_STRIP, pstart, pend - pstart + 1);
-    } else {
-      glDrawArrays(GL_LINE_STRIP, pstart,
-                   GLDonutVertices::CIRCLE_SIZE - pstart + 1);
-      glDrawArrays(GL_LINE_STRIP, 0, pend + 1);
-    }
-
-    vertices.BindOuterCircle(vp);
-    if (pstart < pend) {
-      glDrawArrays(GL_LINE_STRIP, pstart, pend - pstart + 1);
-    } else {
-      glDrawArrays(GL_LINE_STRIP, pstart,
-                   GLDonutVertices::CIRCLE_SIZE - pstart + 1);
-      glDrawArrays(GL_LINE_STRIP, 0, pend + 1);
-    }
-
-    pen.Unbind();
-  }
+  ::Annulus(*this, center, big_radius, start, end, small_radius);
 }
 
 void
@@ -618,8 +547,8 @@ Canvas::CalcTextSize(std::string_view text) const noexcept
 static void
 PrepareColoredAlphaTexture(Color color) noexcept
 {
-  OpenGL::alpha_shader->Use();
-  color.Bind();
+  OpenGL::alpha_fix_color_shader->Use();
+  color.Uniform(OpenGL::alpha_fix_color_color);
 }
 
 void
@@ -796,9 +725,8 @@ Canvas::StretchMono(PixelPoint dest_position, PixelSize dest_size,
 {
   /* note that this implementation ignores the background color; it is
      not mandatory, and we can assume that the background is already
-     set; it is only being passed to this function because the GDI
-     implementation will be faster when erasing the background
-     again */
+     set; it is only being passed to this function because some
+     backends are faster when erasing the background again */
 
   PrepareColoredAlphaTexture(fg_color);
 

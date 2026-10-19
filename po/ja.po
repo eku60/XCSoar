@@ -68,7 +68,7 @@ msgid ""
 "FAI rules, allows only FAI start, finish and turn point types, for badges "
 "and records. Enables FAI finish height for final glide calculation."
 msgstr ""
-"FAI ルールは　FAIスタート　フィニッシュ　旋回点ルールのみ適用される\r\n"
+"FAI ルールは　FAIスタート　フィニッシュ　旋回点ルールのみ適用される\n"
 "バッジフライト　記録飛行の場合には　フィニッシュ高度規定が適用される"
 
 #, no-c-format
@@ -107,9 +107,9 @@ msgid ""
 "mile cylinder. Pilot can add additional points as needed. Minimum task time "
 "applies."
 msgstr ""
-"変更エリアタスク　\r\n"
-"スタート、フィニッシュ、最低１箇所の円筒（１マイル）を含む\r\n"
-" パイロットは追加のポイントを設定することができる。\r\n"
+"変更エリアタスク　\n"
+"スタート、フィニッシュ、最低１箇所の円筒（１マイル）を含む\n"
+" パイロットは追加のポイントを設定することができる。\n"
 " 最小タスク時間が適用される"
 
 #, no-c-format
@@ -136,7 +136,7 @@ msgstr ""
 #, no-c-format
 msgid "A straight line start gate. Cross start gate from inside area to start."
 msgstr ""
-"直線スタートゲート\r\n"
+"直線スタートゲート\n"
 "コース内側から外側に向かってスタートラインを横切った場合"
 
 #, no-c-format
@@ -166,7 +166,7 @@ msgid ""
 "(British rules) Any point within 1/2 km of center or 20 km of a 90-degree "
 "sector. Scored from center."
 msgstr ""
-"（英国ルール）\r\n"
+"（英国ルール）\n"
 "ポイントから１/２ｋｍの円筒または　半径２０ｋｍの９０度セクター境を　内側から"
 "外に向かって通過した場合"
 
@@ -175,7 +175,7 @@ msgid ""
 "(British rules) Any point within 1/2 km of center or 10 km of a 180-degree "
 "sector. Scored from center."
 msgstr ""
-"（英国ルール）\r\n"
+"（英国ルール）\n"
 "ポイントから１/２ｋｍの円筒または　半径１０ｋｍの１８０度セクター境を　内側か"
 "ら外に向かって通過した場合"
 
@@ -186,7 +186,7 @@ msgstr "シリンダー（円筒）　内側から外に向かって境界線を
 #, no-c-format
 msgid "A 1 mile cylinder. Scored by farthest point reached in area."
 msgstr ""
-"１マイルの　円筒\r\n"
+"１マイルの　円筒\n"
 "エリア内の最も遠い点で採点される"
 
 #, no-c-format
@@ -867,8 +867,8 @@ msgstr "気団の上昇速度"
 #, no-c-format
 msgid "Average dry thermal updraft strength near mid-BL height. Subtract glider descent rate to get average vario reading for cloudless thermals. Updraft strengths will be stronger than this forecast if convective clouds are present, since cloud condensation adds buoyancy aloft (i.e. this neglects \"cloudsuck\"). W* depends upon both the surface heating and the BL depth."
 msgstr ""
-"サーマルの予想平均上昇率　\r\n"
-"ブルーサーマル状態の場合乾燥断熱上昇率に近い\r\n"
+"サーマルの予想平均上昇率　\n"
+"ブルーサーマル状態の場合乾燥断熱上昇率に近い\n"
 "雲がある場合は地表の暖まり方と雲の高さにより変化する"
 
 #, no-c-format
@@ -878,7 +878,7 @@ msgstr "ブロック　風向風速"
 #, no-c-format
 msgid "The speed and direction of the vector-averaged wind in the BL. This prediction can be misleading if there is a large change in wind direction through the BL."
 msgstr ""
-"飛行ブロック間の航跡の平均飛行方向　\r\n"
+"飛行ブロック間の航跡の平均飛行方向　\n"
 "風向が急に大きく変わった場合にはその影響の誤差を含む"
 
 #, no-c-format
@@ -888,10 +888,10 @@ msgstr "雲の高さ"
 #, no-c-format
 msgid "Height of the top of the mixing layer, which for thermal convection is the average top of a dry thermal. Over flat terrain, maximum thermalling heights will be lower due to the glider descent rate and other factors. In the presence of clouds (which release additional buoyancy aloft, creating \"cloudsuck\") the updraft top will be above this forecast, but the maximum thermalling height will then be limited by the cloud base. Further, when the mixing results from shear turbulence rather than thermal mixing this parameter is not useful for glider flying."
 msgstr ""
-"対流上限高度\r\n"
-"平地ではサーマル上限\r\n"
-"雲量　％　雲による吸い上げの場合　予想上昇限度より上昇限界が高くなる可能性が有る\r\n"
-"雲がある場合には　雲低の高さにより制限される\r\n"
+"対流上限高度\n"
+"平地ではサーマル上限\n"
+"雲量　％　雲による吸い上げの場合　予想上昇限度より上昇限界が高くなる可能性が有る\n"
+"雲がある場合には　雲低の高さにより制限される\n"
 "シェアーによる乱流がある場合にはグライダーの飛行に適さない "
 
 #, no-c-format
@@ -905,8 +905,8 @@ msgstr "雲量"
 #, no-c-format
 msgid "This parameter provides an additional means of evaluating the formation of clouds within the BL and might be used either in conjunction with or instead of the other cloud prediction parameters. It assumes a very simple relationship between cloud cover percentage and the maximum relative humidity within the BL. The cloud base height is not predicted, but is expected to be below the BL Top height."
 msgstr ""
-"雲量\r\n"
-"雲の量が地表面を覆っている比率％\r\n"
+"雲量\n"
+"雲の量が地表面を覆っている比率％\n"
 "雲が発生している場合その高度では湿度が高く　雲低より上昇することは予想されない"
 
 #, no-c-format
@@ -916,8 +916,8 @@ msgstr "地表気温"
 #, no-c-format
 msgid "The temperature at a height of 2m above ground level. This can be compared to observed surface temperatures as an indication of model simulation accuracy; e.g. if observed surface temperatures are significantly below those forecast, then soaring conditions will be poorer than forecast."
 msgstr ""
-"地表2m地点の　気温\r\n"
-"地表温度の観測はこの位置の温度を測定し予想に使用する\r\n"
+"地表2m地点の　気温\n"
+"地表温度の観測はこの位置の温度を測定し予想に使用する\n"
 "温度が低い場合ソアリングコンディションは悪くなる"
 
 #, no-c-format
@@ -931,9 +931,9 @@ msgstr "気団最高最低"
 #, no-c-format
 msgid "Maximum grid-area-averaged extensive upward or downward motion within the BL as created by horizontal wind convergence. Positive convergence is associated with local small-scale convergence lines. Negative convergence (divergence) produces subsiding vertical motion, creating low-level inversions which limit thermalling heights."
 msgstr ""
-"区間ブロック内で予想される平均的な上昇下降風の強さ\r\n"
-"風の影響によるコンバージェンスの発生は\r\n"
-"帯状の上昇帯や下降帯を生成する\r\n"
+"区間ブロック内で予想される平均的な上昇下降風の強さ\n"
+"風の影響によるコンバージェンスの発生は\n"
+"帯状の上昇帯や下降帯を生成する\n"
 "さらにはサーマルの発生を抑制する"
 
 #, no-c-format
@@ -1104,9 +1104,6 @@ msgstr "宣言を送ります"
 msgid "Reading flight list"
 msgstr "フライト　読み込み中"
 
-msgid "Downloading flight log"
-msgstr "フライトログをダウンロード中"
-
 #, no-c-format
 msgid "Disabled"
 msgstr "無効"
@@ -1121,10 +1118,6 @@ msgstr "TEポート"
 msgid "Bluetooth server"
 msgstr "ブルーツース　サーバー"
 
-msgid "GPS Intermediate Driver"
-msgstr "GPS　ドライバー"
-
-#, no-c-format
 msgid "Built-in GPS & sensors"
 msgstr "内蔵GPSセンサー"
 
@@ -1161,10 +1154,6 @@ msgstr "天気"
 #, no-c-format
 msgid "Safety Factors"
 msgstr "安全係数"
-
-#, no-c-format
-msgid "Tracking"
-msgstr "航跡"
 
 #, no-c-format
 msgid "Terrain Display"
@@ -1267,7 +1256,7 @@ msgstr "ボーレート"
 
 msgid "The baud rate used for bulk transfers, such as task declaration or flight download."
 msgstr ""
-"データー転送に使用する　ポートの　通信速度\r\n"
+"データー転送に使用する　ポートの　通信速度\n"
 "タスク宣言データーの転送に使用する"
 
 msgid "IP address"
@@ -1284,7 +1273,7 @@ msgstr "I²Cアドレス"
 
 msgid "The I²C address that matches your configuration. This field is not used when your selection in the \"I²C bus\" field is not an I²C bus number. Assume this field is not in use if that doesn't make sense to you."
 msgstr ""
-"i2cアドレスの設定、ここではI２Cバスの選択が、i2cに割り当てられたバス番号でない場合使用できません\r\n"
+"i2cアドレスの設定、ここではI２Cバスの選択が、i2cに割り当てられたバス番号でない場合使用できません\n"
 "信号が読めない場合使用しない設定にする"
 
 msgid "Pressure use"
@@ -1595,13 +1584,13 @@ msgstr "TEバリオ"
 
 msgid "This produces a fake TE vario gross vertical velocity. It can be used when in circling mode to demonstrate the lift tones. When not in circling mode, set this to a realistic negative value so speed command tones are produced."
 msgstr ""
-"にせのTEバリオグロス値を作成することができる\r\n"
-"旋回モードの上昇音をデモする場合\r\n"
+"にせのTEバリオグロス値を作成することができる\n"
+"旋回モードの上昇音をデモする場合\n"
 "旋回モード以外の場合は音設定をマイナス値にセットすると音を発生することができる"
 
 msgid "This produces a fake airspeed. It can be used when not in circling mode to demonstrate the speed command tones."
 msgstr ""
-"にせの速度信号発生\r\n"
+"にせの速度信号発生\n"
 "旋回中モード以外で速度音を発生する"
 
 #, no-c-format
@@ -1795,7 +1784,7 @@ msgid ""
 "If enabled a row at the top will be added showing you the distance and "
 "bearing to the location and the elevation."
 msgstr ""
-"設定すると\r\n"
+"設定すると\n"
 "現在位置表示を呼び出した場合　その位置までの距離と方角および標高を表示する"
 
 msgid "Show Arrival Altitude"
@@ -1805,8 +1794,8 @@ msgid ""
 "If enabled a row at the top will be added showing you the arrival altitude "
 "at the location."
 msgstr ""
-"設定した場合\r\n"
-"\r\n"
+"設定した場合\n"
+"\n"
 "その場所の上部に到着高度"
 
 msgid "Select Color"
@@ -1821,9 +1810,6 @@ msgstr "警告"
 #, no-c-format
 msgid "Airspace"
 msgstr "空域"
-
-msgid "Select Pattern"
-msgstr "パターンの選択"
 
 msgid "Squawk code"
 msgstr "コードを設定する"
@@ -1880,9 +1866,6 @@ msgstr "境界の色を変更"
 msgid "Change Fill Color"
 msgstr "塗りつぶしの色を変更"
 
-msgid "Change Fill Brush"
-msgstr "ブラシの種類を変更"
-
 msgid "Border Width"
 msgstr "枠の幅"
 
@@ -1890,7 +1873,7 @@ msgid ""
 "The width of the border drawn around each airspace. Set this value to zero "
 "to hide the border."
 msgstr ""
-"空域境界線の太さ\r\n"
+"空域境界線の太さ\n"
 "境界を見えなくしたい場合にはゼロに設定する"
 
 #, no-c-format
@@ -1983,12 +1966,9 @@ msgstr "バラスト"
 
 msgid "Ballast of the glider. Press \"Dump/Stop\" to toggle count-down of the ballast volume according to the dump rate specified in the configuration settings."
 msgstr ""
-"グライダーのバラスト\r\n"
-"搭載バラスト投棄量のカウントダウンはこのボタンを押す\r\n"
+"グライダーのバラスト\n"
+"搭載バラスト投棄量のカウントダウンはこのボタンを押す\n"
 "時間当たりの投棄量は予めCONFIGで設定しておく"
-
-msgid "The current wing loading, calculated from the glider's empty weight, crew weight, and ballast."
-msgstr "グライダーの空重量、乗員重量、バラストから計算される現在の翼荷重。"
 
 msgid "Bugs"
 msgstr "バグ"
@@ -2003,16 +1983,11 @@ msgstr "QNH"
 
 msgid "Area pressure for barometric altimeter calibration. This is set automatically if Vega is connected."
 msgstr ""
-"高度の気圧補正\r\n"
+"高度の気圧補正\n"
 "Vegaが接続されている場合　自動的にセットされる"
 
 msgid "Max. temp."
 msgstr "最高気温"
-
-msgid "Set to forecast ground temperature. Used by convection estimator (temperature trace page of Analysis dialog)."
-msgstr ""
-"地上予想気温のセット\r\n"
-"対流予報より（温度記録のページ）"
 
 #, no-c-format
 msgid "Orientation"
@@ -2042,11 +2017,6 @@ msgstr "ルート"
 msgid "Scoring"
 msgstr "採点"
 
-#, no-c-format
-msgid "FLARM, Other"
-msgstr "FLARM　その他"
-
-#, no-c-format
 msgid "Audio Vario"
 msgstr "オーディオバリオ"
 
@@ -2063,10 +2033,6 @@ msgid "Language, Input"
 msgstr "入力言語"
 
 #, no-c-format
-msgid "Screen Layout"
-msgstr "画面表示"
-
-#, no-c-format
 msgid "Audio"
 msgstr "オーディオ"
 
@@ -2079,10 +2045,6 @@ msgid "Gauges"
 msgstr "ゲージ"
 
 #, no-c-format
-msgid "Task Defaults"
-msgstr "標準タスク"
-
-#, no-c-format
 msgid "Look"
 msgstr "表示"
 
@@ -2092,14 +2054,8 @@ msgstr "上級"
 msgid "Configuration"
 msgstr "設定"
 
-msgid "The name of this InfoBox panel configuration."
-msgstr "この InfoBox パネル構成の名前。"
-
 msgid "InfoBox"
 msgstr "情報ボックス"
-
-msgid "Content"
-msgstr "目次"
 
 msgid "Copy Set"
 msgstr "セットをコピー"
@@ -2113,6 +2069,12 @@ msgstr "このセット内のすべてのInfoBoxを上書きしますか？"
 msgid "InfoBox paste set"
 msgstr "インフォボックス　ペースト"
 
+msgid "Copy remembers all InfoBoxes of this set, Paste replaces the InfoBoxes of another set with them."
+msgstr "コピーはこのセットの情報表示をすべて覚え、貼り付けは別のセットの情報表示をそれで置き換えます。"
+
+msgid "Inherit from global settings"
+msgstr "全体の設定から継承"
+
 msgid "Invalid"
 msgstr "無効"
 
@@ -2123,6 +2085,7 @@ msgstr "コンペ　ID"
 msgid "Map"
 msgstr "地図"
 
+#, no-c-format
 msgid "Traffic"
 msgstr "トラフィック"
 
@@ -2407,8 +2370,8 @@ msgid ""
 "Name of file to replay. May be an IGC file (.igc) or a raw NMEA log file "
 "(.nmea). Leave blank to run the demo."
 msgstr ""
-"再生するファイル名\r\n"
-"IGCファイル(.igc)　NMEAファイル(.nmea)が可能\r\n"
+"再生するファイル名\n"
+"IGCファイル(.igc)　NMEAファイル(.nmea)が可能\n"
 "空白にした場合デモモードが始まります"
 
 msgid "Rate"
@@ -2466,9 +2429,6 @@ msgstr "最高獲得高度"
 
 msgid "Near"
 msgstr "近く"
-
-msgid "Share"
-msgstr "共有"
 
 #, no-c-format
 msgid "Disconnected"
@@ -2534,8 +2494,8 @@ msgid ""
 "estimated task time due to changes in conditions. This value will not affect "
 "the main computer's setting if the dialog is exited with the Cancel button."
 msgstr ""
-"計算機を使用してマクレディー値を計算し設定値を変更する\r\n"
-"コンディションが変った場合　タスク予想時間の再計算に使用する\r\n"
+"計算機を使用してマクレディー値を計算し設定値を変更する\n"
+"コンディションが変った場合　タスク予想時間の再計算に使用する\n"
 "計算機の使用中の数値はCansel ボタンを押した場合現在のタスク設定に反映されない"
 
 msgid "AAT range"
@@ -2549,9 +2509,9 @@ msgid ""
 "the maximum AAT distance."
 msgstr ""
 "AAT タスクの場合現在のターゲットで可能な　最大および最低飛行可能距離タスクを"
-"表示する\r\n"
-"－１００％は最低距離\r\n"
-"０％は通常の距離\r\n"
+"表示する\n"
+"－１００％は最低距離\n"
+"０％は通常の距離\n"
 "＋１００％は最大距離を意味する"
 
 msgid "Speed remaining"
@@ -2575,8 +2535,8 @@ msgid ""
 "started."
 msgstr ""
 "巡航効率　１００は完全に無駄が無い場合　100以上の場合マクレディー設定値よりも"
-"効率良く飛行した場合\r\n"
-"100以下の場合はマクレディー設定値からそれている量に応じて\r\n"
+"効率良く飛行した場合\n"
+"100以下の場合はマクレディー設定値からそれている量に応じて\n"
 "効率はタスク　スタート後計算を始める"
 
 msgid "Valid start"
@@ -2640,10 +2600,10 @@ msgstr "進路および距離"
 msgid "Alt. diff. MC 0"
 msgstr "高度差マクレディー０"
 
-msgid "Alt. diff. MC safety"
+msgid "Alt. diff. Safety MC"
 msgstr "高度差　マクレディー　安全"
 
-msgid "Alt. diff. MC current"
+msgid "Alt. diff. Task MC"
 msgstr "高度差　マクレディー現在値"
 
 #, no-c-format
@@ -2791,6 +2751,20 @@ msgstr "PG着陸ゾーン"
 msgid "Comment"
 msgstr "コメント"
 
+#, no-c-format
+msgid "Fixed text"
+msgstr "固定テキスト"
+
+#, no-c-format
+msgid "Title, value and comment entered by the pilot. Tap to edit."
+msgstr "操縦者が入力した題名、値、コメント。タップして編集します。"
+
+msgid "Title"
+msgstr "題名"
+
+msgid "Value"
+msgstr "値"
+
 msgid ""
 "Sorry, the waypoint editor is not yet available for the UTM coordinate "
 "format."
@@ -2839,7 +2813,7 @@ msgid ""
 "This selects the best performing option for your hardware. In fact it "
 "favours 'fill padding' except for PPC 2000 system."
 msgstr ""
-"一番見やすい設定を選択する。PPC２０００システム以外の場合\r\n"
+"一番見やすい設定を選択する。PPC２０００システム以外の場合\n"
 "全面塗りつぶしが良い"
 
 #, no-c-format
@@ -2889,8 +2863,8 @@ msgid ""
 "button also allows filtering of display and warnings independently for each "
 "airspace class."
 msgstr ""
-"空域\r\n"
-"警報表示および表示する空域の絞込み選択\r\n"
+"空域\n"
+"警報表示および表示する空域の絞込み選択\n"
 "空域の種類ごとに表示非表示の設定可能"
 
 msgid "Label visibility"
@@ -2906,7 +2880,7 @@ msgid ""
 "For clip airspace mode, this is the altitude below which airspace is "
 "displayed."
 msgstr ""
-"空域表示高度を設定した場合\r\n"
+"空域表示高度を設定した場合\n"
 "設定した高度以下の空域のみを表示する"
 
 msgid "Margin"
@@ -2916,7 +2890,7 @@ msgid ""
 "For auto and all below airspace mode, this is the altitude above/below which "
 "airspace is included."
 msgstr ""
-"自動および全ての空域表示高度\r\n"
+"自動および全ての空域表示高度\n"
 "この高度以下あるいは上の空域を含む表示"
 
 msgid "Enable/disable all airspace warnings."
@@ -2935,7 +2909,7 @@ msgid ""
 "This is the time before an airspace incursion is estimated at which the "
 "system will warn the pilot."
 msgstr ""
-"警報時間\r\n"
+"警報時間\n"
 "パイロットに警報を発する継続時間"
 
 msgid "Repetitive sound"
@@ -2953,7 +2927,7 @@ msgid ""
 "This is the time period in which an acknowledged airspace warning will not "
 "be repeated."
 msgstr ""
-"通報時間\r\n"
+"通報時間\n"
 "パイロットに通知を発する継続時間　繰り返しは無し"
 
 msgid "Use black outline"
@@ -2968,12 +2942,6 @@ msgstr "空域塗りつぶしモード"
 
 msgid "Specifies the mode for filling the airspace area."
 msgstr "塗りつぶしタイプを選択してください"
-
-msgid "Airspace transparency"
-msgstr "空域透明"
-
-msgid "If enabled, then airspaces are filled transparently."
-msgstr "設定すると空域は透明に塗りつぶされる"
 
 #, no-c-format
 msgid "Disable final glide bar."
@@ -3089,18 +3057,6 @@ msgstr "自動非表示　（FLARM情報ボックス）"
 msgid "Show thermal assistant in center top (avoid InfoBoxes)."
 msgstr "自動非表示　（FLARM情報ボックス）"
 
-msgid ""
-"This enables the display of the FLARM radar gauge. The track bearing of the "
-"target relative to the track bearing of the aircraft is displayed as an "
-"arrow head, and a triangle pointing up or down shows the relative altitude "
-"of the target relative to you. In all modes, the color of the target "
-"indicates the threat level."
-msgstr ""
-"この設定は　FLARM　レーダーの情報を表示する\r\n"
-"付近を飛んでいる機体が有る場合　矢印（飛行方向）で表示される　矢印付近に上ま"
-"たは下に表示される数字は高度差\r\n"
-"また距離によって色が変化する"
-
 msgid "Auto close FLARM"
 msgstr "FLARM自動"
 
@@ -3109,15 +3065,9 @@ msgid ""
 "no traffic. \"Off\" will keep the dialog open even without current traffic."
 msgstr ""
 "ONに設定すると　付近にトラフィックが無い場合　FLARMボックスは自動的に閉じる"
-"\r\n"
+"\n"
 "OFFに設定するとFLARM　ボックスは付近にトラフィックが無くても表示されたままに"
 "なる"
-
-msgid "FLARM display"
-msgstr "FLARM表示"
-
-msgid "Choose a location for the FLARM display."
-msgstr "FLARM　情報ボックス表示位置"
 
 msgid ""
 "Enable and select the position of the thermal assistant when overlayed on "
@@ -3136,7 +3086,7 @@ msgid ""
 "If set to \"On\" the final glide will always be shown, if set to \"Auto\" it "
 "will be shown when approaching the final glide possibility."
 msgstr ""
-"ONの場合、常に表示される。\r\n"
+"ONの場合、常に表示される。\n"
 "AUTOの場合、フィナルグライドが可能になった時点で表示される"
 
 msgid "Final glide bar MC0"
@@ -3146,8 +3096,8 @@ msgid ""
 "If set to \"On\" the final glide bar will show a second arrow indicating the "
 "required height to reach the final waypoint at MC zero."
 msgstr ""
-"このモードがセットされている場合　もう一つの矢印が表示され\r\n"
-"ファイナル地点に到着するのに必要な高度が表示される\r\n"
+"このモードがセットされている場合　もう一つの矢印が表示され\n"
+"ファイナル地点に到着するのに必要な高度が表示される\n"
 "値はマクレディー値０の場合の数値"
 
 msgid "Vario bar"
@@ -3173,7 +3123,7 @@ msgid ""
 "Whether to show speed command arrows on the vario gauge. In cruise mode, "
 "arrows pointing up command slow down; arrows pointing down command speed up."
 msgstr ""
-"バリオメーターに表示される\r\n"
+"バリオメーターに表示される\n"
 "巡航モードで表示される場合　下向きの矢印の場合速度を増す、上向き矢印の場合速"
 "度を減らす指示が出る"
 
@@ -3184,7 +3134,7 @@ msgid ""
 "Whether to show the average climb rate. In cruise mode, this switches to "
 "showing the average netto airmass rate."
 msgstr ""
-"平均上昇率　\r\n"
+"平均上昇率　\n"
 "巡航モードの場合　空気の塊の平均上昇率"
 
 msgid "Show MacReady"
@@ -3219,9 +3169,9 @@ msgid ""
 "cruise, this needle displays the average netto value. During circling, this "
 "needle displays the average gross value."
 msgstr ""
-"バリオのゲージ\r\n"
-"\r\n"
-"巡航モードの場合　ネット平均上昇率を表示\r\n"
+"バリオのゲージ\n"
+"\n"
+"巡航モードの場合　ネット平均上昇率を表示\n"
 "旋回モードの場合　グロス平均上昇率を表示"
 
 msgid "Thermal Averager needle"
@@ -3233,9 +3183,9 @@ msgid ""
 "thermal average netto value. During circling, this needle displays the "
 "average net value."
 msgstr ""
-"バリオのゲージ\r\n"
-"\r\n"
-"巡航モードの場合　ネット平均上昇率を表示\r\n"
+"バリオのゲージ\n"
+"\n"
+"巡航モードの場合　ネット平均上昇率を表示\n"
 "旋回モードの場合　グロス平均上昇率を表示"
 
 #, no-c-format
@@ -3248,9 +3198,9 @@ msgid ""
 "is adjusted in order to cover the greatest distance in the remaining time "
 "and reach the finish height."
 msgstr ""
-"OLC速度タスクの場合　\r\n"
-"マクレディーセッティングは\r\n"
-"残り時間と高度で最も遠くまで飛べるように\r\n"
+"OLC速度タスクの場合　\n"
+"マクレディーセッティングは\n"
+"残り時間と高度で最も遠くまで飛べるように\n"
 "最速の値を設定する"
 
 #, no-c-format
@@ -3260,7 +3210,7 @@ msgstr "平均上昇率傾向予測"
 #, no-c-format
 msgid "Sets MC to the trending average climb rate based on all climbs."
 msgstr ""
-"旋回モードの場合\r\n"
+"旋回モードの場合\n"
 "マクレディーセッティングは予想される平均の値を設定する"
 
 #, no-c-format
@@ -3272,7 +3222,7 @@ msgid ""
 "Uses trending average during task, then fastest arrival when in final glide "
 "mode."
 msgstr ""
-"タスク中は平均値を使用する\r\n"
+"タスク中は平均値を使用する\n"
 "ファイナルグライドでは最速値を使用する"
 
 msgid "Auto MC mode"
@@ -3290,7 +3240,7 @@ msgid ""
 "is set to the dolphin speed to fly, equivalent to the MacCready speed with "
 "vertical air-mass movement."
 msgstr ""
-"ブロックモードに設定された場合　巡航モードでは気団の動きは考慮しない\r\n"
+"ブロックモードに設定された場合　巡航モードでは気団の動きは考慮しない\n"
 "ブロックを解除したモードの場合　ドルフィン速度、気団の平均上昇率と同じになる"
 
 msgid "Nav. by baro altitude"
@@ -3300,19 +3250,9 @@ msgid ""
 "When enabled and if connected to a barometric altimeter, barometric altitude "
 "is used for all navigation functions. Otherwise GPS altitude is used."
 msgstr ""
-"気圧高度計のデーターを接続できる場合\r\n"
-"ナビゲーションには気圧高度が使用される\r\n"
+"気圧高度計のデーターを接続できる場合\n"
+"ナビゲーションには気圧高度が使用される\n"
 "そうでない場合はGPS高度を使用する"
-
-msgid "Flap forces cruise"
-msgstr "フラップ　使用指示"
-
-msgid ""
-"When Vega variometer is connected and this option is true, the positive flap "
-"setting switches the flight mode between circling and cruise."
-msgstr ""
-"Vega　バリオメーターを接続している場合\r\n"
-"旋回時と　巡航時のフラップの設定を表示する"
 
 #, no-c-format
 msgid "Preferred period for paragliders."
@@ -3330,9 +3270,9 @@ msgid ""
 "done. Normally for gliders a good value is 90-120 seconds, and for "
 "paragliders 15 seconds."
 msgstr ""
-"平均滑空比演算時間\r\n"
-"平均滑空比を求める時間　\r\n"
-"グライダーの場合90から120秒　\r\n"
+"平均滑空比演算時間\n"
+"平均滑空比を求める時間　\n"
+"グライダーの場合90から120秒　\n"
 "パラグライダーの場合15秒"
 
 msgid "Predict wind drift"
@@ -3342,7 +3282,7 @@ msgid ""
 "Account for wind drift for the predicted circling duration. This reduces the "
 "arrival height for legs with head wind."
 msgstr ""
-"旋回中の航跡から風の成分を求める\r\n"
+"旋回中の航跡から風の成分を求める\n"
 "向かい風の場合到着高度は低くなる"
 
 msgid "Wave assistant"
@@ -3381,12 +3321,10 @@ msgstr "ファイナルグライド　モードを自動モードで使用する
 msgid "Text size"
 msgstr "文字サイズ"
 
-msgid "Display Resolution"
-msgstr "表示解像度"
-
 msgid "The display resolution is used to adapt line widths, font size, landable size and more."
 msgstr "画面表示解像度は、線の幅、フォントサイズ、表示ラベルなど。"
 
+#. the Kobo has no time zone configuration which we could follow
 msgid "Automatic"
 msgstr "自動"
 
@@ -3395,7 +3333,7 @@ msgstr "イベント"
 
 msgid "The Input Events file defines the menu system and how XCSoar responds to button presses and events from external devices."
 msgstr ""
-"アイデントボタン\r\n"
+"アイデントボタン\n"
 "外部装置からのアイデント信号をXCSOARに取り込む設定"
 
 msgid "Language"
@@ -3403,8 +3341,8 @@ msgstr "言語"
 
 msgid "The language options selects translations for English texts to other languages. Select English for a native interface or Automatic to localise XCSoar according to the system settings."
 msgstr ""
-"言語選択オプション\r\n"
-"ネイティブ言語は英語です\r\n"
+"言語選択オプション\n"
+"ネイティブ言語は英語です\n"
 "XCSOARのコマンドは英語モードです"
 
 msgid "Menu timeout"
@@ -3412,8 +3350,8 @@ msgstr "メニュー　タイムアウト"
 
 msgid "This determines how long menus will appear on screen if the user does not make any button presses or interacts with the computer."
 msgstr ""
-"メニュー終了時間\r\n"
-"メニューモードを選択してから　一定の時間経過しても入力がない場合\r\n"
+"メニュー終了時間\n"
+"メニューモードを選択してから　一定の時間経過しても入力がない場合\n"
 "自動的に元のモードに戻る"
 
 #, no-c-format
@@ -3429,7 +3367,7 @@ msgstr "テキスト入力方法"
 
 msgid "Determines how the user is prompted for text input (filename, teamcode etc.)"
 msgstr ""
-"入力方法の選択\r\n"
+"入力方法の選択\n"
 "ユーザーがファイル名　チームコードなどを入力する方法の選択"
 
 #, no-c-format
@@ -3457,90 +3395,6 @@ msgstr "縦型表示を選択"
 #, no-c-format
 msgid "Reverse Landscape"
 msgstr "横型表示を選択"
-
-#, no-c-format
-msgid "8 Split"
-msgstr "８　スプリット"
-
-#, no-c-format
-msgid "10 Split"
-msgstr "８　スプリット"
-
-#, no-c-format
-msgid "12 Split in 3 rows"
-msgstr "12分割3行"
-
-#, no-c-format
-msgid "15 Split in 3 rows"
-msgstr "15分割3行"
-
-#, no-c-format
-msgid "18 Split in 3 rows"
-msgstr "18分割を3行に"
-
-#, no-c-format
-msgid "8 Bottom or Right"
-msgstr "８　下　または　右"
-
-#, no-c-format
-msgid "8 Bottom + Vario (Portrait)"
-msgstr "8下　＋バリオ　（縦型）"
-
-#, no-c-format
-msgid "8 Top or Left"
-msgstr "８　上　または　左"
-
-#, no-c-format
-msgid "8 Top + Vario (Portrait)"
-msgstr "８上　＋　バリオ"
-
-#, no-c-format
-msgid "9 Right + Vario (Landscape)"
-msgstr "9右　＋　バリオ　（横型）"
-
-#, no-c-format
-msgid "9 Left + Right + Vario (Landscape)"
-msgstr "9左　+右　+バリオ　（横型）"
-
-#, no-c-format
-msgid "12 Left + 3 Right Vario (Landscape)"
-msgstr "12左　+3右　バリオ　（横型）"
-
-#, no-c-format
-msgid "5 Right (Square)"
-msgstr "５右　（四角型）"
-
-#, no-c-format
-msgid "10 Bottom or Right"
-msgstr "１２　下　または　右"
-
-#, no-c-format
-msgid "12 Bottom or Right"
-msgstr "１２　下　または　右"
-
-#, no-c-format
-msgid "10 Top or Left"
-msgstr "１２　上　または　左"
-
-#, no-c-format
-msgid "12 Top or Left"
-msgstr "１２　上　または　左"
-
-#, no-c-format
-msgid "16 Right (Landscape)"
-msgstr "１６　ライト"
-
-#, no-c-format
-msgid "24 Bottom or Right"
-msgstr "４　下　または　右"
-
-#, no-c-format
-msgid "4 Top or Left"
-msgstr "４　上　または　左"
-
-#, no-c-format
-msgid "4 Bottom or Right"
-msgstr "４　下　または　右"
 
 #, no-c-format
 msgid "Text"
@@ -3633,9 +3487,6 @@ msgstr "常に、暗い InfoBox の背景に明るいテキストを使用して
 msgid "Full screen"
 msgstr "地図（全画面表示）"
 
-msgid "Run XCSoar in full screen mode"
-msgstr "全画面モードでXCSoarを実行する"
-
 msgid "Display orientation"
 msgstr "向きを表示"
 
@@ -3652,7 +3503,7 @@ msgid ""
 "A list of possible InfoBox layouts. Do some trials to find the best for your "
 "screen size."
 msgstr ""
-"可能なインフォボックス配置リスト\r\n"
+"可能なインフォボックス配置リスト\n"
 "表示を選んで見やすい設定を確認してください"
 
 msgid "InfoBox title size"
@@ -3674,7 +3525,7 @@ msgid ""
 "If true, certain InfoBoxes will have coloured text. For example, the active "
 "waypoint InfoBox will be blue when the glider is above final glide."
 msgstr ""
-"いくつかのインフォボックスは状況変化により　バックやテキストの色が変わる\r\n"
+"いくつかのインフォボックスは状況変化により　バックやテキストの色が変わる\n"
 "ウエイポイントボックスはフィナルグライドの場合青色に変化する"
 
 msgid "InfoBox theme"
@@ -3751,7 +3602,7 @@ msgid ""
 "Enables the automatic starting and stopping of logger on takeoff and landing "
 "respectively. Disable when flying paragliders."
 msgstr ""
-"自動の場合離陸着陸を自動的に検出して　IGC航跡ファイルを自動生成する\r\n"
+"自動の場合離陸着陸を自動的に検出して　IGC航跡ファイルを自動生成する\n"
 "パラグライダーの場合非自動に設定する"
 
 msgid ""
@@ -3791,7 +3642,7 @@ msgid ""
 "The moving map display will always be orientated north to south and the "
 "glider icon will be rotated to show its course."
 msgstr ""
-"地図は北を上に固定\r\n"
+"地図は北を上に固定\n"
 "向きを変えると機体が動く"
 
 #, no-c-format
@@ -3855,7 +3706,7 @@ msgid ""
 "If enabled, then the map will zoom in automatically when entering circling "
 "mode and zoom out automatically when leaving circling mode."
 msgstr ""
-"設定すると　旋回モードになった場合　サーマル表示が拡大される。\r\n"
+"設定すると　旋回モードになった場合　サーマル表示が拡大される。\n"
 "拡大は旋回モードを離れると自動的に解除する"
 
 msgid "Map shift reference"
@@ -3961,7 +3812,7 @@ msgid ""
 "When enabled and MC is positive, route planning allows climbs between the "
 "aircraft location and destination."
 msgstr ""
-"選択されていてマクレディー値が設定されている場合　\r\n"
+"選択されていてマクレディー値が設定されている場合　\n"
 "現在位置と目的地の間で上昇するよう設定される"
 
 msgid "Route ceiling"
@@ -3972,30 +3823,18 @@ msgid ""
 "greater of current aircraft altitude plus 500 m and the thermal ceiling. If "
 "disabled, climbs are unlimited."
 msgstr ""
-"設定されている場合　上昇の上限は設定値\r\n"
+"設定されている場合　上昇の上限は設定値\n"
 "リフトバンドは現在位置から５００ｍ上からシーリング設定高度までの間に限定され"
-"る\r\n"
+"る\n"
 "設定されていない場合　シーりングは無制限"
-
-#, no-c-format
-msgid "Reach calculations disabled."
-msgstr "到達範囲計算しない"
 
 #, no-c-format
 msgid "Straight"
 msgstr "直線"
 
 #, no-c-format
-msgid "The reach is from straight line paths from the glider."
-msgstr "到着はグライダーから直線"
-
-#, no-c-format
 msgid "Turning"
 msgstr "旋回"
-
-#, no-c-format
-msgid "The reach is calculated allowing turns around terrain obstacles."
-msgstr "到達範囲は　地形上の障害物（標高）を考慮して計算される"
 
 #. Spacer
 msgid "Reach mode"
@@ -4005,12 +3844,8 @@ msgid ""
 "How calculations are performed of the reach of the glider with respect to "
 "terrain."
 msgstr ""
-"到達範囲計算方法\r\n"
+"到達範囲計算方法\n"
 "地形の影響に対する対応設定"
-
-#, no-c-format
-msgid "Uses task glide polar."
-msgstr "タスクに使用するグライダーのポーラー"
 
 #, no-c-format
 msgid "Safety MC"
@@ -4023,56 +3858,25 @@ msgstr "安全サイドのマクレディー値を使用する"
 msgid "Reach polar"
 msgstr "到達範囲　ポーラー"
 
-msgid ""
-"This determines the glide performance used in reach, landable arrival, abort "
-"and alternate calculations."
-msgstr ""
-"到達範囲　を計算するのに使用する　グライダーのポーラー\r\n"
-"着陸地、代替飛行場決定に使用する"
-
-#, no-c-format
-msgid "Disables the reach display."
-msgstr "到達範囲　非表示"
-
 #, no-c-format
 msgid "Terrain line"
 msgstr "地形図 境界線"
-
-#, no-c-format
-msgid "Draws a dashed line at the terrain glide reach."
-msgstr "地形境界線（破線）を表示する"
 
 #, no-c-format
 msgid "Terrain shade"
 msgstr "地形の影"
 
 #, no-c-format
-msgid "Shades terrain outside glide reach."
-msgstr "到達範囲外に影をつける"
-
-#, no-c-format
 msgid "Working line"
 msgstr "到達ライン"
-
-#, no-c-format
-msgid "Draws a dashed line at the working glide reach."
-msgstr "到達ラインを破線表示する"
 
 #, no-c-format
 msgid "Working line, terrain line"
 msgstr "飛行バンド　地形境界線"
 
 #, no-c-format
-msgid "Draws a dashed line at the working and terrain glide reaches."
-msgstr "到着ライン（破線と地形線）を表示する"
-
-#, no-c-format
 msgid "Working line, terrain shade"
 msgstr "飛行バンド　と地形の影"
-
-#, no-c-format
-msgid "Draws a dashed line at working, and shade terrain, glide reaches."
-msgstr "到着ライン（破線）、と地形の影、到達ラインを表示する"
 
 msgid "Reach display"
 msgstr "到達範囲表示"
@@ -4122,15 +3926,6 @@ msgid ""
 "If enabled, adds 1% to the bugs setting after each full hour while flying."
 msgstr "設定すると飛行時間1時間ごとに１％バグレートを加算する"
 
-msgid ""
-"The MacCready setting used, when safety MC is enabled for reach "
-"calculations, in task abort mode and for determining arrival altitude at "
-"airfields."
-msgstr ""
-"マクレディー値がセットされている場合\r\n"
-"セーフティーモードの場合安全に到着できる値を計算する\r\n"
-"タスク中断モードした場合到着高度を計算する"
-
 msgid "STF risk factor"
 msgstr "安全リスク　ファクター"
 
@@ -4140,10 +3935,10 @@ msgid ""
 "no compensation, 1.0 scales MC linearly with current height (with reference "
 "to height of the maximum climb). If considered, 0.3 is recommended."
 msgstr ""
-"安全リスク　ファクター\r\n"
-"マクレディー指示速度計算上の　設定値\r\n"
-"0.0または補正無しの場合リスクが少ない\r\n"
-"1.0の場合はリスクが大きい（最大の平均上昇率設定）\r\n"
+"安全リスク　ファクター\n"
+"マクレディー指示速度計算上の　設定値\n"
+"0.0または補正無しの場合リスクが少ない\n"
+"1.0の場合はリスクが大きい（最大の平均上昇率設定）\n"
 "判断に迷う場合には0.3を推奨します"
 
 msgid "XCSoar data path"
@@ -4163,8 +3958,8 @@ msgstr "ウォッチ　ウエイポイント"
 
 msgid "Waypoint files containing special waypoints for which additional computations like calculation of arrival height in map display always takes place. Useful for waypoints like known reliable thermal sources (e.g. powerplants) or mountain passes."
 msgstr ""
-"ウォッチ　ウエイポイントは\r\n"
-"コンペ用にサーマルソース等関連場所をあらかじめマークして\r\n"
+"ウォッチ　ウエイポイントは\n"
+"コンペ用にサーマルソース等関連場所をあらかじめマークして\n"
 "地図上に表示させる機能"
 
 msgid "WPT A/F details"
@@ -4365,9 +4160,9 @@ msgid ""
 "extra distance required to reach that point as a percentage of straight-line "
 "distance to the waypoint."
 msgstr ""
-"飛行中の航空機のヘッディングが現在のウエイポイントと異なっている場合\r\n"
+"飛行中の航空機のヘッディングが現在のウエイポイントと異なっている場合\n"
 "飛行方向にあるマーカーが表示されマーカー経由の場合ウエイポイントまでの追加距"
-"離が\r\n"
+"離が\n"
 "直線コースに対する比で％表示される"
 
 msgid "Aircraft symbol"
@@ -4393,7 +4188,7 @@ msgid ""
 "Maximum speed above maximum start speed to tolerate. Set to 0 for no "
 "tolerance."
 msgstr ""
-"スタートと最大速度の上限許容範囲　\r\n"
+"スタートと最大速度の上限許容範囲　\n"
 "許容範囲が無い場合0にセット"
 
 msgid "Start max. height"
@@ -4403,7 +4198,7 @@ msgid ""
 "Maximum height based on start height reference (AGL or MSL) while starting "
 "the task. Set to 0 for no limit."
 msgstr ""
-"最大スタート高度　（AGLまたはMSL）\r\n"
+"最大スタート高度　（AGLまたはMSL）\n"
 "制限が無い場合0に設定する"
 
 msgid "Start max. height margin"
@@ -4413,7 +4208,7 @@ msgid ""
 "Maximum height above maximum start height to tolerate. Set to 0 for no "
 "tolerance."
 msgstr ""
-"最大スタート高度許容範囲\r\n"
+"最大スタート高度許容範囲\n"
 "許容範囲が無い場合0にセット"
 
 #, no-c-format
@@ -4430,6 +4225,12 @@ msgstr "スタート高度設定"
 msgid "Reference used for start max height rule."
 msgstr "最高出発高度ルールの値"
 
+msgid "Navigate to nearest point"
+msgstr "最寄りの点へナビゲート"
+
+msgid "Navigate to the nearest point of the start and finish zones."
+msgstr "スタートとゴールの区域の最寄り点へナビゲートします。"
+
 msgid "Finish min. height"
 msgstr "フィニッシュ最低高度"
 
@@ -4437,7 +4238,7 @@ msgid ""
 "Minimum height based on finish height reference (AGL or MSL) while finishing "
 "the task. Set to 0 for no limit."
 msgstr ""
-"最小フィニッシュ高度　（AGLまたはMSL）\r\n"
+"最小フィニッシュ高度　（AGLまたはMSL）\n"
 "制限が無い場合　０に設定"
 
 msgid "Finish height ref."
@@ -4514,7 +4315,7 @@ msgid ""
 "Safety margin for AAT task optimisation. Optimisation seeks to complete the "
 "task at the minimum time plus this margin time."
 msgstr ""
-"AATタスク　安全マージンの最適化\r\n"
+"AATタスク　安全マージンの最適化\n"
 "最適タスクは最小時間＋マージン時間"
 
 #, no-c-format
@@ -4524,14 +4325,14 @@ msgstr "OLC計算をしない"
 #, no-c-format
 msgid "Conforms to FAI triangle rules. Three turns and common start and finish. No leg less than 28% of total except for tasks longer than 500km: No leg less than 25% or larger than 45%."
 msgstr ""
-"FAIターンポイントルールの確認してください\r\n"
-"3回の旋回の場合　最小レグが２８％以上\r\n"
+"FAIターンポイントルールの確認してください\n"
+"3回の旋回の場合　最小レグが２８％以上\n"
 "500kｍ以上のタスクの場合２５％以上"
 
 #, no-c-format
 msgid "Up to seven points including start and finish, finish height must not be lower than start height less 1000 meters."
 msgstr ""
-"スタートからフィニッシュまで　7点以内\r\n"
+"スタートからフィニッシュまで　7点以内\n"
 "フィニッシュ高度とスタート高度の差は１０００ｍ以内"
 
 #, no-c-format
@@ -4541,27 +4342,27 @@ msgstr "最新の速度競技ルール"
 #, no-c-format
 msgid "A combination of Classic and FAI rules. 30% of the FAI score are added to the Classic score."
 msgstr ""
-"ClassicおよびFAIルールのコンビネーション\r\n"
+"ClassicおよびFAIルールのコンビネーション\n"
 "Classic得点には、FAIルールのスコアーの３０％が加算される"
 
 #, no-c-format
 msgid "PG online contest with different track values: Free flight - 1 km = 1.0 point; flat triangle - 1 km = 1.2 p; FAI triangle - 1 km = 1.4 p."
 msgstr ""
-"パラグライダー　オンラインコンテスト　採点ルール\r\n"
-"フリーフライト　１km＝1点\r\n"
-"フラット3角コース　１km＝1.2点\r\n"
+"パラグライダー　オンラインコンテスト　採点ルール\n"
+"フリーフライト　１km＝1点\n"
+"フラット3角コース　１km＝1.2点\n"
 "FAI三角コース　１km＝1.4点"
 
 #, no-c-format
 msgid "European PG online contest of the DHV organization. Pretty much the same as the XContest rules, but with different track values: 1 km = 1.5 points, 1.75 p and 2.0 p for FAI triangles respectively."
 msgstr ""
-"ヨ－ロッパ　パラグライダーOLC　DHV協会の　XCコンテストの採点方法はルールはほぼ同じですが配点は\r\n"
+"ヨ－ロッパ　パラグライダーOLC　DHV協会の　XCコンテストの採点方法はルールはほぼ同じですが配点は\n"
 "それぞれ１km＝1.5点、1.75 点　2.0点となります"
 
 #, no-c-format
 msgid "Austrian online glider contest. Tracks around max. six waypoints are scored. The bounding box part with 1 km = 1.0 point and the additional zick-zack part with 1 km = 0.5 p."
 msgstr ""
-"オーストリア　グライダーOLCでは、旋回点は最大6ポイント\r\n"
+"オーストリア　グライダーOLCでは、旋回点は最大6ポイント\n"
 "ボックス内は１km＝1.0点　追加のジグザグ部は0.5点で採点されます"
 
 #, no-c-format
@@ -4581,7 +4382,7 @@ msgstr "コンテスト"
 
 msgid "Select the rules used for calculating optimal points for a contest."
 msgstr ""
-"オンラインコンテストのオプション　点数計算方法の選択\r\n"
+"オンラインコンテストのオプション　点数計算方法の選択\n"
 "2010年9月23日版のルール"
 
 msgid "Predict Contest"
@@ -4708,8 +4509,8 @@ msgstr "地形　コントラスト"
 
 msgid "Defines the amount of Phong shading in the terrain rendering. Use large values to emphasise terrain slope, smaller values if flying in steep mountains."
 msgstr ""
-"地形の陰影表示の設定\r\n"
-"大きな値は緩やかな斜面を\r\n"
+"地形の陰影表示の設定\n"
+"大きな値は緩やかな斜面を\n"
 "小さな値は急斜面を使用する"
 
 msgid "Terrain brightness"
@@ -4717,7 +4518,7 @@ msgstr "地形の明るさ"
 
 msgid "Defines the brightness (whiteness) of the terrain rendering. This controls the average illumination of the terrain."
 msgstr ""
-"地形の表示の明るさを設定\r\n"
+"地形の表示の明るさを設定\n"
 "地形の平均的な場所の明るさを設定"
 
 msgid "Contours"
@@ -4746,7 +4547,7 @@ msgid ""
 "Units used for airspeed and ground speed. A separate unit is available for "
 "task speeds."
 msgstr ""
-"対気速度と対地速度の単位\r\n"
+"対気速度と対地速度の単位\n"
 "タスク速度は単位を別に設定可能"
 
 msgid ""
@@ -4801,14 +4602,6 @@ msgstr "翼面荷重の表示単位"
 msgid "UTC offset"
 msgstr "UTC　時差"
 
-msgid ""
-"The UTC offset field allows the UTC local time offset to be specified. The "
-"local time is displayed below in order to make it easier to verify the "
-"correct offset has been entered."
-msgstr ""
-"現地時間の設定使用\r\n"
-"ローカルタイムは下部に表示される"
-
 msgid "Use GPS time"
 msgstr "GPS時間を使用する"
 
@@ -4818,7 +4611,7 @@ msgid ""
 "battery backup or your computer frequently runs out of battery power or "
 "otherwise loses time."
 msgstr ""
-"一度設定すると　時計のバックアップバッテリーが無い場合\r\n"
+"一度設定すると　時計のバックアップバッテリーが無い場合\n"
 "バッテリーが無くなると再設定が必要"
 
 #, no-c-format
@@ -4886,7 +4679,7 @@ msgstr "地形を避けて　飛行する"
 #, no-c-format
 msgid "Arrival height considering terrain avoidance. Requires \"Reach mode: Turning\" in \"Glide Computer > Route\" settings."
 msgstr ""
-"到着高度の計算で地形を避けるモード\r\n"
+"到着高度の計算で地形を避けるモード\n"
 "”到着モード：旋回”　”グライ　ドコンピューター＞ルート　”　設定"
 
 #, no-c-format
@@ -4896,7 +4689,7 @@ msgstr "直線　＆　地形飛行"
 #, no-c-format
 msgid "Both arrival heights are displayed. Requires \"Reach mode: Turning\" in \"Glide Computer > Route\" settings."
 msgstr ""
-"両方の到着高度を表示\r\n"
+"両方の到着高度を表示\n"
 "”到着モード：旋回”　”グライ　ドコンピューター＞ルート　”　設定"
 
 #, no-c-format
@@ -4906,7 +4699,7 @@ msgstr "直線　＆　地形飛行"
 #, no-c-format
 msgid "Both Required glide ratio and terrain avoidance height are displayed. Requires \"Reach mode: Turning\" in \"Glide Computer > Route\" settings."
 msgstr ""
-"両方の到着高度を表示\r\n"
+"両方の到着高度を表示\n"
 "”到着モード：旋回”　”グライ　ドコンピューター＞ルート　”　設定"
 
 msgid "Determines how arrival height is displayed in waypoint labels"
@@ -4954,8 +4747,8 @@ msgstr "紫色丸印"
 #, no-c-format
 msgid "Airports and outlanding fields are displayed as purple circles. If the waypoint is reachable a bigger green circle is added behind the purple one. If the waypoint is blocked by a mountain the green circle will be red instead."
 msgstr ""
-"飛行場　着陸可能地を紫色の丸で表示\r\n"
-"到着可能な場合緑色の大きな円で表示\r\n"
+"飛行場　着陸可能地を紫色の丸で表示\n"
+"到着可能な場合緑色の大きな円で表示\n"
 "到着不可能な場合　赤色で表示"
 
 #, no-c-format
@@ -4965,8 +4758,8 @@ msgstr "白黒"
 #, no-c-format
 msgid "Airports and outlanding fields are displayed in white/grey. If the waypoint is reachable the color is changed to green. If the waypoint is blocked by a mountain the color is changed to red instead."
 msgstr ""
-"飛行場と着陸可能地点は　白とグレーで表示\r\n"
-"到達可能な場合グリーンで表示\r\n"
+"飛行場と着陸可能地点は　白とグレーで表示\n"
+"到達可能な場合グリーンで表示\n"
 "山でウエイポイントがブロックされている場合赤に変わる"
 
 #, no-c-format
@@ -4976,9 +4769,9 @@ msgstr "信号色"
 #, no-c-format
 msgid "Airports and outlanding fields are displayed in the colors of a traffic light. Green if reachable, Orange if blocked by mountain and red if not reachable at all."
 msgstr ""
-"飛行場と着陸可能地点は信号の色で表示される\r\n"
-"グリーン　到達可能\r\n"
-"オレンジ　山でブロックされている\r\n"
+"飛行場と着陸可能地点は信号の色で表示される\n"
+"グリーン　到達可能\n"
+"オレンジ　山でブロックされている\n"
 "レッド　到達不能"
 
 msgid "Landable symbols"
@@ -4986,7 +4779,7 @@ msgstr "着陸可能シンボル"
 
 msgid "Three styles are available: Purple circles (WinPilot style), a high contrast (monochrome) style, or orange. The rendering differs for landable field and airport. All styles mark the waypoints within reach green."
 msgstr ""
-"木の形、紫の丸、白黒の丸またはオレンジ色\r\n"
+"木の形、紫の丸、白黒の丸またはオレンジ色\n"
 "設定で共通しているのは到達可能な場合グリーン表示"
 
 msgid "Detailed landables"
@@ -5152,7 +4945,7 @@ msgid ""
 "minimum height above ground for finish to be greater than 1000m below the "
 "start height."
 msgstr ""
-"設定した場合　スタート地点より1000ｍ高い場合を除いて　\r\n"
+"設定した場合　スタート地点より1000ｍ高い場合を除いて　\n"
 "最高スタート高度、最大スタート速度、最小フィニッシュ高度は設定しない"
 
 msgid "Task not saved"
@@ -5172,6 +4965,9 @@ msgstr "宣言"
 
 msgid "Browse"
 msgstr "表示"
+
+msgid "Scan QR Code"
+msgstr "QRコードをスキャン"
 
 msgid "Download Declaration"
 msgstr "宣言をダウンロード"
@@ -5329,7 +5125,7 @@ msgid ""
 "distances, smaller values move the target points to produce smaller task "
 "distances."
 msgstr ""
-"AATタスクの場合　セクター内のターゲットポイントを調整するのに使用\r\n"
+"AATタスクの場合　セクター内のターゲットポイントを調整するのに使用\n"
 "大きな数字は大きな距離のタスク　小さな数字は短い距離のタスクを選択"
 
 #, no-c-format
@@ -5341,7 +5137,7 @@ msgid ""
 "the AAT sectors. Positive values rotate the range line clockwise, negative "
 "values rotate the range line counterclockwise."
 msgstr ""
-"AATタスクの場合　AATセクター内のポイントを調整する\r\n"
+"AATタスクの場合　AATセクター内のポイントを調整する\n"
 "プラスの値は時計回り　マイナスの値は反時計回り"
 
 msgid "ETE"
@@ -5359,9 +5155,9 @@ msgid ""
 "sector and can turn now with estimated arrival time greater than AAT time "
 "plus 5 minutes."
 msgstr ""
-"AATデルタ時間\r\n"
-"予想タスク時間と　AAT最小時間の差\r\n"
-"赤色の場合マイナス値（到着が早すぎ）\r\n"
+"AATデルタ時間\n"
+"予想タスク時間と　AAT最小時間の差\n"
+"赤色の場合マイナス値（到着が早すぎ）\n"
 "ブルーの場合でセクター内の場合AAT時間より5分以上大きくターン可能"
 
 msgid "V rem."
@@ -5455,56 +5251,6 @@ msgstr ""
 "4. **タスク** - ナビゲーション ガイダンス用のタスクを作成します。 [Nav > Task Manager](xcsoar://dialog/task)"
 
 msgid ""
-"# After Your Flight\n"
-"\n"
-"1. **Download logs** - Retrieve flight logs from your FLARM or logger device. [Config > Devices](xcsoar://config/devices)\n"
-"\n"
-"2. **Analysis** - Review your flight statistics. [Info > Analysis](xcsoar://dialog/analysis)\n"
-"\n"
-"3. **Status** - Check flight timing and statistics. [Info > Status](xcsoar://dialog/status)\n"
-"\n"
-"4. **Upload** - Upload to WeGlide directly from XCSoar. Configure your WeGlide User ID in [Config > System > WeGlide](xcsoar://config/weglide)"
-msgstr ""
-"# フライト後\n"
-"\n"
-"1. **ログのダウンロード** - FLARM またはロガー デバイスからフライト ログを取得します。 [Config > Devices](xcsoar://config/devices)\n"
-"\n"
-"2. **分析** - フライトの統計を確認します。 [Info > Analysis](xcsoar://dialog/analysis)\n"
-"\n"
-"3. **ステータス** - フライトのタイミングと統計を確認します。 [Info > Status](xcsoar://dialog/status)\n"
-"\n"
-"4. **アップロード** - XCSoar から WeGlide に直接アップロードします。 [Config > System > WeGlide](xcsoar://config/weglide) で WeGlide ユーザー ID を構成します"
-
-msgid ""
-"![](resource:IDB_LOCATION_PIN)\n"
-"\n"
-"# Location Access\n"
-"\n"
-"XCSoar collects location data to enable flight navigation, thermal mapping, and flight logging even when the app is closed or not in use.\n"
-"\n"
-"- **GPS Position** - Real-time navigation and glide computer\n"
-"- **Background Location** - Continuous flight recording when the screen is off or another app is in the foreground\n"
-"- **Foreground Service** - Keeps GPS active during your flight\n"
-"\n"
-"Your location data is stored locally on your device. It is not shared unless you explicitly enable tracking in [Config > Tracking](xcsoar://config/tracking).\n"
-"\n"
-"[Privacy Policy](https://github.com/XCSoar/XCSoar/blob/master/PRIVACY.md)"
-msgstr ""
-"![](resource:IDB_LOCATION_PIN)\n"
-"\n"
-"# 位置情報へのアクセス\n"
-"\n"
-"XCSoar は位置データを収集し、アプリが閉じている場合や使用していない場合でも、フライト ナビゲーション、サーマル マッピング、フライト ログを可能にします。\n"
-"\n"
-"- **GPS 位置** - リアルタイム ナビゲーションおよびグライド コンピューター\n"
-"- **バックグラウンドでの位置情報** - 画面がオフのとき、または別のアプリがフォアグラウンドにあるときの連続飛行記録\n"
-"- **フォアグラウンド サービス** - 飛行中に GPS をアクティブに保ちます\n"
-"\n"
-"位置データはデバイス上にローカルに保存されます。 [Config > Tracking](xcsoar://config/tracking) で明示的に追跡を有効にしない限り、共有されません。\n"
-"\n"
-"[Privacy Policy](https://github.com/XCSoar/XCSoar/blob/master/PRIVACY.md)"
-
-msgid ""
 "![](resource:IDB_NOTIFICATION_BELL)\n"
 "\n"
 "# Notifications\n"
@@ -5520,23 +5266,6 @@ msgstr ""
 "XCSoar には、フライトの記録中に永続的な通知を維持するための通知権限が必要です。この通知は Android のバックグラウンド操作に必要であり、アプリにすばやく戻る方法を提供します。\n"
 "\n"
 "この許可がないと、アプリがバックグラウンドで動作しているときに Android がフライト記録を停止する可能性があります。"
-
-msgid ""
-"# XCSoar Cloud\n"
-"\n"
-"The XCSoar project offers a service that allows sharing thermal and wave locations with other pilots in real time.\n"
-"\n"
-"If you participate, your **position**, **thermal/wave locations** and other weather data will be transmitted to the XCSoar Cloud server.\n"
-"\n"
-"You can change this at any time in [Config > Tracking](xcsoar://config/tracking)."
-msgstr ""
-"#XCSoarクラウド\n"
-"\n"
-"XCSoar プロジェクトは、熱および波の位置を他のパイロットとリアルタイムで共有できるサービスを提供します。\n"
-"\n"
-"参加すると、**位置**、**気温/波の位置**、およびその他の気象データが XCSoar クラウド サーバーに送信されます。\n"
-"\n"
-"これは、[Config > Tracking](xcsoar://config/tracking) でいつでも変更できます。"
 
 msgid "Welcome to XCSoar"
 msgstr "XCSoarへようこそ"
@@ -5562,6 +5291,7 @@ msgstr "現在位置は何処？"
 msgid "Enable XCSoar Cloud"
 msgstr "XCSoarクラウドを有効にする"
 
+#, no-c-format
 msgid "XCSoar Cloud"
 msgstr "XCSoarクラウド"
 
@@ -5766,7 +5496,7 @@ msgid ""
 "simulation mode, this value is adjustable with the up/down arrow keys; the "
 "right/left arrow keys cause the glider to turn."
 msgstr ""
-"標準海面からのGPSが計測した標高。\r\n"
+"標準海面からのGPSが計測した標高。\n"
 "シュミレーターモードの場合UP/down矢印で高度を。right/leftキーで方向を操作する"
 "ことができます"
 
@@ -5802,7 +5532,7 @@ msgid ""
 "vario if available. The number in smaller font reflects the climb rate for "
 "the current thermal since circling started."
 msgstr ""
-"30秒間の平均上昇率\r\n"
+"30秒間の平均上昇率\n"
 "GPSのデーターまたはバリオメーターの信号より算出"
 
 #, no-c-format
@@ -5814,7 +5544,7 @@ msgid ""
 "True bearing of the next waypoint. For AAT tasks, this is the true bearing "
 "to the target within the AAT sector."
 msgstr ""
-"次のウエイポイントの方角\r\n"
+"次のウエイポイントの方角\n"
 "AATタスクの場合　次のAATセクターの方角"
 
 #, no-c-format
@@ -5832,9 +5562,9 @@ msgid ""
 "indicate climbing cruise. If the vertical speed is close to zero, the "
 "displayed value is '---'."
 msgstr ""
-"20秒前から現在の滑空比\r\n"
-"対地速度（GPS速度）を垂直速度で割った値\r\n"
-"マイナスの値は上昇を意味する\r\n"
+"20秒前から現在の滑空比\n"
+"対地速度（GPS速度）を垂直速度で割った値\n"
+"マイナスの値は上昇を意味する\n"
 "数値がゼロの近い場合　”－－－”と表示される"
 
 #, no-c-format
@@ -5852,8 +5582,8 @@ msgid ""
 "(height gain since leaving the last thermal). If the vertical speed is close "
 "to zero, the displayed value is '---'."
 msgstr ""
-"前のサーマル離脱場所からの距離を巡航で使った高度で割った数値\r\n"
-"マイナス値の場合は上昇を意味する。\r\n"
+"前のサーマル離脱場所からの距離を巡航で使った高度で割った数値\n"
+"マイナス値の場合は上昇を意味する。\n"
 "数値がゼロに近い場合は”－－－”と表示される"
 
 #, no-c-format
@@ -5871,7 +5601,7 @@ msgid ""
 "simulation mode, pressing the up and down arrows adjusts the speed, and left "
 "and right turn the glider."
 msgstr ""
-"GPSが計測した対地速度\r\n"
+"GPSが計測した対地速度\n"
 "シュミレーターモードの場合でボックスがある場合、UP/DOWN　矢印で速度、Right /"
 "Left矢印でヘディングを操作することができる"
 
@@ -5882,14 +5612,6 @@ msgstr "前サーマル平均上昇"
 #, no-c-format
 msgid "TL Avg"
 msgstr "前サーマル平均"
-
-#, no-c-format
-msgid ""
-"Total altitude gain/loss in the last thermal divided by the time spent "
-"circling."
-msgstr ""
-"前のサーマル平均上昇率\r\n"
-"サーマル旋回中の高度変化を所要時間で割った数値"
 
 #, no-c-format
 msgid "Last thermal gain"
@@ -5904,7 +5626,7 @@ msgid ""
 "Total altitude gain/loss in the last thermal. The number in smaller font "
 "reflects the overall climb rate for the last thermal."
 msgstr ""
-"前のサーマル平均上昇率\r\n"
+"前のサーマル平均上昇率\n"
 "サーマル旋回中の高度変化を所要時間で割った数値"
 
 #, no-c-format
@@ -5916,10 +5638,6 @@ msgid "TL duration"
 msgstr "前のサーマル"
 
 #, no-c-format
-msgid "Time spent circling in the last thermal."
-msgstr "前のサーマルで旋回していた時間"
-
-#, no-c-format
 msgid "MacCready setting"
 msgstr "マクレデーセッティング"
 
@@ -5929,11 +5647,14 @@ msgstr "MC"
 
 #, no-c-format
 msgid ""
-"Current MacCready setting and mode (manual or auto). (Touch-screen/PC only) "
-"When this InfoBox is active, use the up/down cursor keys to adjust the "
-"MacCready setting."
+"Current MacCready setting and mode (manual or auto). The comment shows the "
+"MacCready speed-to-fly. At MacCready 0, with a task or Goto active, that "
+"speed is adjusted for wind toward the waypoint and need not match the "
+"polar's still-air best glide. With MacCready above 0, wind is not used. "
+"(Touch-screen/PC only) When this InfoBox is active, use the up/down cursor "
+"keys to adjust the MacCready setting."
 msgstr ""
-"現在のマクレディー値　およびモード（AUTO または MANUAL)\r\n"
+"現在のマクレディー値　およびモード（AUTO または MANUAL)\n"
 "インフォボックスが有る場合　（タッチスクリーンPAD または　PCの場合）UP/DOWN"
 "キーで変更できる"
 
@@ -5950,7 +5671,7 @@ msgid ""
 "Distance to the currently selected waypoint. For AAT tasks, this is the "
 "distance to the target within the AAT sector."
 msgstr ""
-"現在選択選択されている、次のウエイポイントまでの距離\r\n"
+"現在選択選択されている、次のウエイポイントまでの距離\n"
 "AATタスクの場合、次のAATセクターまでの距離"
 
 #, no-c-format
@@ -5966,7 +5687,7 @@ msgid ""
 "Arrival altitude at the next waypoint relative to the safety arrival height. "
 "For AAT tasks, the target within the AAT sector is used."
 msgstr ""
-"次のウエイポイント到着高度　安全ファクターを考慮した値\r\n"
+"次のウエイポイント到着高度　安全ファクターを考慮した値\n"
 "AATタスクの場合　AATセクター"
 
 #, no-c-format
@@ -5982,7 +5703,7 @@ msgid ""
 "Additional altitude required to reach the next turn point. For AAT tasks, "
 "the target within the AAT sector is used."
 msgstr ""
-"次のポイントに到着するのに必要な追加高度\r\n"
+"次のポイントに到着するのに必要な追加高度\n"
 "AATタスクの場合AATセクター"
 
 #, no-c-format
@@ -6017,7 +5738,7 @@ msgid ""
 "Arrival altitude at the final task turn point relative to the safety arrival "
 "height."
 msgstr ""
-"ファイナル高度\r\n"
+"ファイナル高度\n"
 "ファイナル地点に到達する予想高度　安全高度を含む"
 
 #, no-c-format
@@ -6071,7 +5792,7 @@ msgid ""
 "Elevation of the terrain above mean sea level, obtained from the terrain "
 "file at the current GPS location."
 msgstr ""
-"標高\r\n"
+"標高\n"
 "GPS計測位置において、地形ファイルが持っている標高データーの数値"
 
 #, no-c-format
@@ -6087,7 +5808,7 @@ msgid ""
 "Altitude gained/lost in the current thermal, divided by time spent "
 "thermalling."
 msgstr ""
-"高度の得失　平均上昇率\r\n"
+"高度の得失　平均上昇率\n"
 "現在にサーマルでの上昇、下降の値を飛行時間で割った値"
 
 #, no-c-format
@@ -6107,8 +5828,8 @@ msgid ""
 "Magnetic track reported by the GPS. (Touch-screen/PC only) If this InfoBox "
 "is active in simulation mode, pressing the up/down arrows adjusts the track."
 msgstr ""
-"磁方位で示されたGPS航跡\r\n"
-"タッチスクリーンPADまたはPCの場合でシュミレーションモードの場合\r\n"
+"磁方位で示されたGPS航跡\n"
+"タッチスクリーンPADまたはPCの場合でシュミレーションモードの場合\n"
 "インフォボックスがアクティブな場合　UP/DOWNキーで操作することができる"
 
 #, no-c-format
@@ -6116,7 +5837,7 @@ msgid ""
 "Instantaneous vertical speed, as reported by the GPS, or the intelligent "
 "vario total energy vario value if connected to one."
 msgstr ""
-"現在のGPSデーターによる昇降速度\r\n"
+"現在のGPSデーターによる昇降速度\n"
 "バリオメーターが接続されている場合　その値"
 
 #, no-c-format
@@ -6126,8 +5847,8 @@ msgstr "風速"
 #, no-c-format
 msgid "Wind speed estimated by XCSoar. Manual adjustment is possible with the connected InfoBox dialogue. Pressing the up/down cursor keys to cycle through settings, adjust the values with left/right cursor keys."
 msgstr ""
-"XCSOARが計算した風速。\r\n"
-"インフォボックス　ダイアログを開いて手動補正可能。\r\n"
+"XCSOARが計算した風速。\n"
+"インフォボックス　ダイアログを開いて手動補正可能。\n"
 "up/downボタンをおしてコマンド選択left/rightキーで数値を操作する"
 
 #, no-c-format
@@ -6140,8 +5861,8 @@ msgid ""
 "connected InfoBox dialogue. Pressing the up/down cursor keys to cycle "
 "through settings, adjust the values with left/right cursor keys."
 msgstr ""
-"XCSOARが計算した風向。\r\n"
-"インフォボックス　ダイアログを開いて手動補正可能。\r\n"
+"XCSOARが計算した風向。\n"
+"インフォボックス　ダイアログを開いて手動補正可能。\n"
 "up/downボタンをおしてコマンド選択left/rightキーで数値を操作する"
 
 #, no-c-format
@@ -6156,7 +5877,7 @@ msgstr "AAT時間"
 msgid ""
 "Assigned Area Task time remaining. Goes red when time remaining has expired."
 msgstr ""
-"AATタスク残り時間　\r\n"
+"AATタスク残り時間　\n"
 "ゲートクロース後の場合赤の数字"
 
 #, no-c-format
@@ -6170,7 +5891,7 @@ msgstr "AAT最大距離"
 #, no-c-format
 msgid "Assigned Area Task maximum distance possible for remainder of task."
 msgstr ""
-"AAT最大距離\r\n"
+"AAT最大距離\n"
 "現在のタスクで可能な最大の距離"
 
 #, no-c-format
@@ -6184,7 +5905,7 @@ msgstr "AAT最小距離"
 #, no-c-format
 msgid "Assigned Area Task minimum distance possible for remainder of task."
 msgstr ""
-"AAT最小距離\r\n"
+"AAT最小距離\n"
 "現在のタスクで可能な最小の距離"
 
 #, no-c-format
@@ -6200,7 +5921,7 @@ msgid ""
 "Assigned Area Task average speed achievable if flying maximum possible "
 "distance remaining in minimum AAT time."
 msgstr ""
-"AATタスク最大速度\r\n"
+"AATタスク最大速度\n"
 "AATタスクで可能な最大平均速度を出すのに必要な最大距離。"
 
 #, no-c-format
@@ -6216,7 +5937,7 @@ msgid ""
 "Assigned Area Task average speed achievable if flying minimum possible "
 "distance remaining in minimum AAT time."
 msgstr ""
-"AATタスクの場合で\r\n"
+"AATタスクの場合で\n"
 "最小の時間で飛行可能な最大距離"
 
 #, no-c-format
@@ -6243,7 +5964,7 @@ msgstr "気圧高度"
 msgid ""
 "Barometric altitude obtained from a device equipped with a pressure sensor."
 msgstr ""
-"気圧高度\r\n"
+"気圧高度\n"
 "圧力センサーからの信号"
 
 #, no-c-format
@@ -6258,7 +5979,10 @@ msgstr "MC速度"
 msgid ""
 "MacCready speed-to-fly for optimal flight to the next waypoint. In cruise "
 "flight mode, this speed-to-fly is calculated for maintaining altitude. In "
-"final glide mode, this speed-to-fly is calculated for descent."
+"final glide mode, this speed-to-fly is calculated for descent. At MacCready "
+"0, with a task or Goto active, this speed is adjusted for wind toward the "
+"waypoint and need not match the polar's still-air best glide. With MacCready "
+"above 0, wind is not used."
 msgstr "次のウエイポイントに到着に必要なマクレディ設定値"
 
 #, no-c-format
@@ -6274,7 +5998,7 @@ msgid ""
 "Percentage of time spent in climb mode. These statistics are reset upon "
 "starting the task."
 msgstr ""
-"旋回時間　％\r\n"
+"旋回時間　％\n"
 "タスク開始飛行時間のうち上昇旋回に使用した時間（％）"
 
 #, no-c-format
@@ -6298,7 +6022,7 @@ msgid ""
 "Magnitude of G loading reported by a supported external intelligent vario. "
 "This value is negative for pitch-down manoeuvres."
 msgstr ""
-"G　メーターの数値　（外部計器からの信号）またはバリオメーターの数値\r\n"
+"G　メーターの数値　（外部計器からの信号）またはバリオメーターの数値\n"
 "マイナス数値の場合はピッチダウン操作をした場合"
 
 #, no-c-format
@@ -6315,8 +6039,8 @@ msgid ""
 "distance to the next waypoint divided by the height required to arrive at "
 "the safety arrival height."
 msgstr ""
-"次のウエイポイントまで到達するのに必要な滑空比\r\n"
-"残りの距離を滑空して到達するのに必要な高度で割った値\r\n"
+"次のウエイポイントまで到達するのに必要な滑空比\n"
+"残りの距離を滑空して到達するのに必要な高度で割った値\n"
 "安全到達高度を考慮している"
 
 #, no-c-format
@@ -6352,7 +6076,7 @@ msgid ""
 "Estimated time required to complete task, assuming performance of ideal "
 "MacCready cruise/climb cycle."
 msgstr ""
-"フィニッシュ見込時間\r\n"
+"フィニッシュ見込時間\n"
 "現在のマクレディー設定による予想値"
 
 #, no-c-format
@@ -6368,7 +6092,7 @@ msgid ""
 "Estimated time required to reach next waypoint, assuming performance of "
 "ideal MacCready cruise/climb cycle."
 msgstr ""
-"次のウエイポイントまでの見込所要時間\r\n"
+"次のウエイポイントまでの見込所要時間\n"
 "現在のマクレディー設定による予想値"
 
 #, no-c-format
@@ -6383,13 +6107,16 @@ msgid ""
 "final glide mode, this speed-to-fly is calculated for descent. In climb "
 "mode, this switches to the speed for minimum sink at the current load factor "
 "(if an accelerometer is connected). When Block mode speed-to-fly is "
-"selected, this InfoBox displays the MacCready speed."
+"selected, this InfoBox displays the MacCready speed. At MacCready 0, with a "
+"task or Goto active, this speed is adjusted for wind toward the waypoint and "
+"need not match the polar's still-air best glide. With MacCready above 0, "
+"wind is not used."
 msgstr ""
 "ドルフィン飛行の場合に現在の飛行方向に対して計算される　現在のマクレディー指"
-"示速度\r\n"
-"巡航モードの場合　高度を維持しながら飛行するように指示される\r\n"
-"ファイナルモードの場合はファイナル地に向かって降下するよう指示される\r\n"
-"上昇モードの場合最小沈下速度を指示する\r\n"
+"示速度\n"
+"巡航モードの場合　高度を維持しながら飛行するように指示される\n"
+"ファイナルモードの場合はファイナル地に向かって降下するよう指示される\n"
+"上昇モードの場合最小沈下速度を指示する\n"
 "ブロックモードが選択された場合（加速装置が接続された場合）インフォボックスは"
 "そのマクレディー指示速度を表示する"
 
@@ -6408,9 +6135,9 @@ msgid ""
 "vario are connected, otherwise calculations are based on GPS measurements "
 "and wind estimates."
 msgstr ""
-"現在飛行しているの空気の塊上昇速度\r\n"
-"バリオメーターの数値からグライダーの沈下率を引いた数値\r\n"
-"高機能バリオメーターを搭載している場合其の数値\r\n"
+"現在飛行しているの空気の塊上昇速度\n"
+"バリオメーターの数値からグライダーの沈下率を引いた数値\n"
+"高機能バリオメーターを搭載している場合其の数値\n"
 "それ以外の場合はGPSの数値より算出"
 
 #, no-c-format
@@ -6426,7 +6153,7 @@ msgid ""
 "Estimated arrival local time at task completion, assuming performance of "
 "ideal MacCready cruise/climb cycle."
 msgstr ""
-"ファイナル到着時間\r\n"
+"ファイナル到着時間\n"
 "ファイナルポイント到着予想時間　現在のマクレディー設定値により算出"
 
 #, no-c-format
@@ -6442,7 +6169,7 @@ msgid ""
 "Estimated arrival local time at next waypoint, assuming performance of ideal "
 "MacCready cruise/climb cycle."
 msgstr ""
-"ウエイポイント到着時間\r\n"
+"ウエイポイント到着時間\n"
 "ウエイポイント到着予想時間　現在のマクレディー設定値により算出"
 
 #, no-c-format
@@ -6464,10 +6191,10 @@ msgid ""
 "directly toward the next waypoint. This calculation accounts for the "
 "curvature of the Earth."
 msgstr ""
-"次のウエイポイントまでのコースと、GPS航跡との差\r\n"
-"AAT タスクの場合次のセクターまでの針路との差\r\n"
-"GPS航跡は対地航跡なので実際の機体のヘッディングは、風向風速の影響を受ける\r\n"
-"差が少ないほどコースから逸れていない\r\n"
+"次のウエイポイントまでのコースと、GPS航跡との差\n"
+"AAT タスクの場合次のセクターまでの針路との差\n"
+"GPS航跡は対地航跡なので実際の機体のヘッディングは、風向風速の影響を受ける\n"
+"差が少ないほどコースから逸れていない\n"
 "針路は地球の曲率を考慮している"
 
 #, no-c-format
@@ -6483,7 +6210,7 @@ msgid ""
 "Outside air temperature measured by a probe if supported by a connected "
 "intelligent variometer."
 msgstr ""
-"外部温度\r\n"
+"外部温度\n"
 "外部計器または高機能バリオメーターからの数値"
 
 #, no-c-format
@@ -6499,7 +6226,7 @@ msgid ""
 "Relative humidity of the air in percent as measured by a probe if supported "
 "by a connected intelligent variometer."
 msgstr ""
-"相対湿度　％\r\n"
+"相対湿度　％\n"
 "バリオメーターからの信号が有る場合　単位％"
 
 #, no-c-format
@@ -6513,8 +6240,8 @@ msgid ""
 "and relative humidity probe. (Touch-screen/PC only) Pressing the up/down "
 "cursor keys adjusts this forecast temperature."
 msgstr ""
-"ホーム飛行場の地上予想気温\r\n"
-"外部温度湿度センサーが装備されている場合には雲低の高さ予報が可能\r\n"
+"ホーム飛行場の地上予想気温\n"
+"外部温度湿度センサーが装備されている場合には雲低の高さ予報が可能\n"
 "タッチパネルPDAまたはPC の場合　UP/DOWN矢印キーで予想温度を設定する"
 
 #, no-c-format
@@ -6528,7 +6255,7 @@ msgstr "AAT目標距離"
 #, no-c-format
 msgid "Assigned Area Task distance around target points for remainder of task."
 msgstr ""
-"AAT目標距離\r\n"
+"AAT目標距離\n"
 "現在のタスクの目標距離"
 
 #, no-c-format
@@ -6544,7 +6271,7 @@ msgid ""
 "Assigned Area Task average speed achievable around target points remaining "
 "in minimum AAT time."
 msgstr ""
-"AAT目標最小平均速度\r\n"
+"AAT目標最小平均速度\n"
 "残りの時間で可能な最小目標平均速度"
 
 #, no-c-format
@@ -6562,9 +6289,9 @@ msgid ""
 "variometer. Negative values indicate climbing cruise. If the total energy "
 "vario speed is close to zero, the displayed value is '---'."
 msgstr ""
-"現在の滑空比　計器速度をトータルエネルギー垂直速度で割った値\r\n"
-"複合バリオメータが接続されている場合その値を使用\r\n"
-"マイナス値は上昇を意味する\r\n"
+"現在の滑空比　計器速度をトータルエネルギー垂直速度で割った値\n"
+"複合バリオメータが接続されている場合その値を使用\n"
+"マイナス値は上昇を意味する\n"
 "数値がゼロに近い場合”－－－”と表示される"
 
 #, no-c-format
@@ -6576,10 +6303,8 @@ msgid "V TAS"
 msgstr "真対気速度"
 
 #, no-c-format
-msgid "True Airspeed reported by a supported external intelligent vario."
-msgstr ""
-"真大気速度\r\n"
-"高機能バリオからの信号"
+msgid "True Airspeed reported by a supported external intelligent vario. The value is blue when estimated from ground speed and wind."
+msgstr "真対気速度\n対応する外部の高機能バリオが報告する値。対地速度と風から推定した値は青色です。"
 
 #, no-c-format
 msgid "Team code"
@@ -6590,7 +6315,7 @@ msgid ""
 "Current Team code for this aircraft. Use this to report to other team "
 "members. The last team aircraft code entered is displayed underneath."
 msgstr ""
-"この航空機が使用しているチームコード\r\n"
+"この航空機が使用しているチームコード\n"
 "チームコードは、ディスプレイの下部に表示される"
 
 #, no-c-format
@@ -6604,7 +6329,7 @@ msgstr "チーム　方向"
 #, no-c-format
 msgid "Bearing to the team aircraft location at the last team code report."
 msgstr ""
-"チーム　針路\r\n"
+"チーム　針路\n"
 "前のレポートポイントからの針路"
 
 #, no-c-format
@@ -6620,7 +6345,7 @@ msgid ""
 "Relative bearing to the team aircraft location at the last reported team "
 "code."
 msgstr ""
-"現在のチーム針路\r\n"
+"現在のチーム針路\n"
 "前のレポートポイントから見た現在の飛行位置の針路"
 
 #, no-c-format
@@ -6634,7 +6359,7 @@ msgstr "チーム距離"
 #, no-c-format
 msgid "Range to the team aircraft location at the last reported team code."
 msgstr ""
-"チームの飛行幅\r\n"
+"チームの飛行幅\n"
 "前回のレポート地点から現在の飛行位置へのチームの飛行幅"
 
 #, no-c-format
@@ -6650,8 +6375,8 @@ msgid ""
 "Instantaneous cross-country speed while on current task, compensated for "
 "altitude. Equivalent to instantaneous Pirker cross-country speed."
 msgstr ""
-"現在のタスク速度\r\n"
-"現在のタスク平均の飛行速度　高度補正済み　\r\n"
+"現在のタスク速度\n"
+"現在のタスク平均の飛行速度　高度補正済み　\n"
 "パーカー　クロスカントリー速度と同要"
 
 #, no-c-format
@@ -6679,7 +6404,7 @@ msgid ""
 "Achieved cross-country speed while on current task, compensated for "
 "altitude. Equivalent to Pirker cross-country speed remaining."
 msgstr ""
-"現在のタスクの平均飛行速度\r\n"
+"現在のタスクの平均飛行速度\n"
 "温度補正済み　パーカークロスカントリー速度と同じ"
 
 #, no-c-format
@@ -6696,8 +6421,8 @@ msgid ""
 "negative (expected arrival too early), or blue if in sector and can turn now "
 "with estimated arrival time greater than AAT time plus 5 minutes."
 msgstr ""
-"AATタスクの場合　AAT 最小時間と実際の到着時間の差\r\n"
-"赤い色表示の場合　飛行時間が不足している（到着していない）\r\n"
+"AATタスクの場合　AAT 最小時間と実際の到着時間の差\n"
+"赤い色表示の場合　飛行時間が不足している（到着していない）\n"
 "ブルーの場合すでに到着していて旋回可能"
 
 #, no-c-format
@@ -6725,7 +6450,7 @@ msgid ""
 "Trend (or neg. of the variation) of the total required height to complete "
 "the task."
 msgstr ""
-"必要高度\r\n"
+"必要高度\n"
 "タスクを終了するのに必要な高度"
 
 #, no-c-format
@@ -6737,7 +6462,7 @@ msgid ""
 "Percentage of device battery remaining (where applicable) and status/voltage "
 "of external power supply."
 msgstr ""
-"バッテリー残量表示　％\r\n"
+"バッテリー残量表示　％\n"
 "外部バッテリー残量表示"
 
 #, no-c-format
@@ -6753,8 +6478,8 @@ msgid ""
 "Required glide ratio over ground to finish the task, given by the distance "
 "to go divided by the height required to arrive at the safety arrival height."
 msgstr ""
-"タスクを終了するのに必要な滑空比\r\n"
-"残りの距離を滑空してゴールするのに必要な高度で割った値\r\n"
+"タスクを終了するのに必要な滑空比\n"
+"残りの距離を滑空してゴールするのに必要な高度で割った値\n"
 "安全到達高度を考慮している"
 
 #, no-c-format
@@ -6792,7 +6517,7 @@ msgstr "代替１　滑空比"
 #, no-c-format
 msgid "Geometric gradient to the arrival height above the best alternate landing location. This is not adjusted for total energy."
 msgstr ""
-"代替飛行場　到着に必要な滑空比\r\n"
+"代替飛行場　到着に必要な滑空比\n"
 "トータルエナジー補正無し"
 
 #, no-c-format
@@ -6818,11 +6543,11 @@ msgstr "平均滑空比"
 #, no-c-format
 msgid "Distance flown during the configured averaging period divided by the altitude lost during that period. Negative values are shown as ^^^ and indicate climbing cruise (height gain). For GR >200, the value is shown as +++. You can configure the averaging period in the system setup (suggested: 60, 90 or 120s). Lower values will be closer to GR Inst, and higher values will be closer to GR Cruise. Note: The distance is not the straight line between your previous and current positions; it is the actual path distance flown (including zigzags). This value is not calculated while circling."
 msgstr ""
-"一定時間内に飛行した距離を失った高度で割った値、　滑空比\r\n"
-"マイナスの値の場合”＾＾＾”で表示し獲得した高度を表示する\r\n"
-"２００以上の値の場合”+++”で表示される\r\n"
-"平均値を求める時間は、６０、９０、１２０秒のいずれかから選択することができる、時間が短ければ瞬間値、長ければ巡航値に近づく\r\n"
-"飛行距離はポイントまでの直線距離ではなく、実際に飛行した航跡の距離で計算する。\r\n"
+"一定時間内に飛行した距離を失った高度で割った値、　滑空比\n"
+"マイナスの値の場合”＾＾＾”で表示し獲得した高度を表示する\n"
+"２００以上の値の場合”+++”で表示される\n"
+"平均値を求める時間は、６０、９０、１２０秒のいずれかから選択することができる、時間が短ければ瞬間値、長ければ巡航値に近づく\n"
+"飛行距離はポイントまでの直線距離ではなく、実際に飛行した航跡の距離で計算する。\n"
 "旋回中の距離は算入されない"
 
 #, no-c-format
@@ -6876,7 +6601,7 @@ msgstr "WP　標高"
 #, no-c-format
 msgid "Absolute arrival altitude at the next waypoint in final glide. For AAT tasks, the target within the AAT sector is used."
 msgstr ""
-"次のウエイポイント到着高度\r\n"
+"次のウエイポイント到着高度\n"
 "AATタスクの場合次のAATセクター"
 
 #, no-c-format
@@ -6918,7 +6643,7 @@ msgstr "バリオ　航跡"
 #, no-c-format
 msgid "Trace of vertical speed, as reported by the GPS, or the intelligent vario total energy vario value if connected to one."
 msgstr ""
-"GPS高度トレース\r\n"
+"GPS高度トレース\n"
 "高機能バリオメーターが接続されている場合その値"
 
 #, no-c-format
@@ -6932,7 +6657,7 @@ msgstr "気団速度の記録"
 #, no-c-format
 msgid "Trace of vertical speed of air-mass, equal to vario value less the glider's estimated sink rate."
 msgstr ""
-"空域の昇降速度記録\r\n"
+"空域の昇降速度記録\n"
 "バリオメーターの数値マイナス　グライダーの沈下率"
 
 #, no-c-format
@@ -6946,7 +6671,7 @@ msgstr "サーマル航跡"
 #, no-c-format
 msgid "Trace of average climb rate each turn in circling, based of the reported GPS altitude, or vario if available."
 msgstr ""
-"旋回ごとの平均上昇率の記録\r\n"
+"旋回ごとの平均上昇率の記録\n"
 "GPSの値またはバリオメーターの値"
 
 #, no-c-format
@@ -6960,7 +6685,7 @@ msgstr "上昇バンド"
 #, no-c-format
 msgid "Graph of average circling climb rate (horizontal axis) as a function of altitude (vertical axis)."
 msgstr ""
-"平均上昇率のグラフ\r\n"
+"平均上昇率のグラフ\n"
 "上昇率　（水平軸）　高度（縦軸）"
 
 #, no-c-format
@@ -6974,7 +6699,7 @@ msgstr "達成率"
 #, no-c-format
 msgid "Clock-like display of distance remaining along task, showing achieved task points."
 msgstr ""
-"時計表示\r\n"
+"時計表示\n"
 "タスク残り距離　タスクのポイントに表示"
 
 #, no-c-format
@@ -7020,8 +6745,8 @@ msgstr "姿勢表示器"
 #, no-c-format
 msgid "Attitude indicator (artificial horizon) display calculated from flight path, supplemented with acceleration and variometer data if available."
 msgstr ""
-"姿勢指示器　（人口水平儀）\r\n"
-"飛行パスの表示\r\n"
+"姿勢指示器　（人口水平儀）\n"
+"飛行パスの表示\n"
 "オプションで　アクセラレーターとバリオのデーターを接続可能"
 
 #, no-c-format
@@ -7047,8 +6772,8 @@ msgstr "空域境界線までの垂直距離"
 #, no-c-format
 msgid "Vertical distance to the nearest airspace. A positive value means the airspace is above you; a negative value means the airspace is below you."
 msgstr ""
-"空域境界線までの垂直距離\r\n"
-"スプラスの値の場合　上方向\r\n"
+"空域境界線までの垂直距離\n"
+"スプラスの値の場合　上方向\n"
 "マイナスの値の場合　下方向"
 
 #, no-c-format
@@ -7062,7 +6787,7 @@ msgstr "次のポイント　到着見込み高度差　マクレディ値ゼロ
 #, no-c-format
 msgid "Arrival altitude at the next waypoint with MC 0 setting relative to the safety arrival height. For AAT tasks, the target within the AAT sector is used."
 msgstr ""
-"次のウエイポイント到着高度　マクレディー値0の場合安全な到着高度になる\r\n"
+"次のウエイポイント到着高度　マクレディー値0の場合安全な到着高度になる\n"
 "AATタスクの場合AATセクターが使用される"
 
 #, no-c-format
@@ -7076,7 +6801,7 @@ msgstr "向かい風"
 #, no-c-format
 msgid "Current head wind component. Head wind is calculated from TAS and GPS ground speed if airspeed is available from an external device; otherwise, the estimated wind is used."
 msgstr ""
-"現在の向かい風成分\r\n"
+"現在の向かい風成分\n"
 "GPS対地速度と真対気速度（外部計器からの信号）　またはXCSOARが飛行データーから解析した値"
 
 #, no-c-format
@@ -7090,7 +6815,7 @@ msgstr "地面衝突"
 #, no-c-format
 msgid "Distance to the next terrain collision along the current task leg. At this location, the altitude will be below the configured terrain clearance altitude."
 msgstr ""
-"現在の針路上の地上衝突地点までの距離\r\n"
+"現在の針路上の地上衝突地点までの距離\n"
 "この距離では地表より低い高度になる場所までの距離"
 
 #, no-c-format
@@ -7104,7 +6829,7 @@ msgstr "高度（自動）"
 #, no-c-format
 msgid "Barometric altitude obtained from a device equipped with a pressure sensor, or GPS altitude if barometric altitude is not available."
 msgstr ""
-"気圧高度計が接続されている場合はその高度\r\n"
+"気圧高度計が接続されている場合はその高度\n"
 "接続されていない場合はGPSの高度を表示する"
 
 #, no-c-format
@@ -7114,12 +6839,6 @@ msgstr "サーマル　次のレッグも同じ"
 #, no-c-format
 msgid "T Next Leg"
 msgstr "TC　次レッグ"
-
-#, no-c-format
-msgid "Thermal climb rate on the next leg that is equivalent to a thermal climb rate equal to the MacCready setting on the current leg."
-msgstr ""
-"次のレッグのサーマルの平均上昇率設定\r\n"
-"現在のレッグのマクレディー設定値と同じ"
 
 #, no-c-format
 msgid "Wind, head component (simplified)"
@@ -7132,7 +6851,7 @@ msgstr "向かい風"
 #, no-c-format
 msgid "Current head wind component. The simplified head wind is calculated by subtracting GPS ground speed from TAS if airspeed is available from an external device."
 msgstr ""
-"現在の向かい風成分\r\n"
+"現在の向かい風成分\n"
 "外部計器からの真対気速度とGPS対地得速度の差"
 
 #, no-c-format
@@ -7146,14 +6865,14 @@ msgstr "巡航効率"
 #, no-c-format
 msgid "Efficiency of cruise. 100 indicates perfect MacCready performance. This value estimates your cruise efficiency according to the current flight history with the set MC value. Calculation begins after task is started."
 msgstr ""
-"巡航効率　\r\n"
-"100の場合完全にマクレディー値を達成している\r\n"
+"巡航効率　\n"
+"100の場合完全にマクレディー値を達成している\n"
 "現在までの飛行データー　タスクをスタートしてからの飛行方向"
 
 #, no-c-format
 msgid "Circular thermal assistant that shows the lift distribution over each part of the circle."
 msgstr ""
-"サーマルアシストは旋回円のそれぞれの場所の\r\n"
+"サーマルアシストは旋回円のそれぞれの場所の\n"
 "上昇風の強さを表示する"
 
 #, no-c-format
@@ -7187,7 +6906,7 @@ msgstr "ATC 半径"
 #, no-c-format
 msgid "Bearing from the selected reference location to your position. The distance is displayed in nautical miles for communication with ATC. If declination is entered, magnetic bearing is given to match VOR radials."
 msgstr ""
-"選択された位置からの正磁方位\r\n"
+"選択された位置からの正磁方位\n"
 "距離はATCと共にNMで表示される"
 
 #, no-c-format
@@ -7201,7 +6920,7 @@ msgstr "速度タスク　残り時間"
 #, no-c-format
 msgid "Average cross-country speed while on current task over the last hour, not compensated for altitude."
 msgstr ""
-"現在んタスクにおける過去１時間の平均速度\r\n"
+"現在んタスクにおける過去１時間の平均速度\n"
 "クロスカントリー中の平均速度で高度補正無し"
 
 #, no-c-format
@@ -7215,7 +6934,7 @@ msgstr "ウエイポイント距離"
 #, no-c-format
 msgid "Distance to the currently selected waypoint. For AAT tasks, this is the distance to the origin of the AAT sector."
 msgstr ""
-"現在選択されているウエイポイントまでの距離\r\n"
+"現在選択されているウエイポイントまでの距離\n"
 "AATタスクの場合、AATセクターまでの距離"
 
 #, no-c-format
@@ -7229,7 +6948,7 @@ msgstr "円の直径"
 #, no-c-format
 msgid "Circle diameter. Displays estimated circle diameter and full circle flight time. Useful for evaluating best thermalling mode with a glider at different wing loading."
 msgstr ""
-"旋回直径、予想される旋回時間\r\n"
+"旋回直径、予想される旋回時間\n"
 "翼面荷重の違いによる最良滑空モードを判断するために活用できる"
 
 #, no-c-format
@@ -7373,7 +7092,7 @@ msgstr "代替１　滑空比"
 #, no-c-format
 msgid "Geometric gradient to the arrival height above the second-best alternate landing location. This is not adjusted for total energy."
 msgstr ""
-"代替飛行場　到着に必要な滑空比\r\n"
+"代替飛行場　到着に必要な滑空比\n"
 "トータルエナジー補正無し"
 
 #, no-c-format
@@ -7459,7 +7178,7 @@ msgstr "タスク現在速度"
 #, no-c-format
 msgid "Estimated average cross-country speed for current task as of task completion, assuming performance of ideal MacCready cruise/climb cycle."
 msgstr ""
-"ファイナル到着時間\r\n"
+"ファイナル到着時間\n"
 "ファイナルポイント到着予想時間　現在のマクレディー設定値により算出"
 
 #, no-c-format
@@ -7473,7 +7192,7 @@ msgstr "ホーム距離"
 #, no-c-format
 msgid "Arrival altitude at the home waypoint relative to the safety arrival height."
 msgstr ""
-"ファイナル高度\r\n"
+"ファイナル高度\n"
 "ファイナル地点に到達する予想高度　安全高度を含む"
 
 #, no-c-format
@@ -7497,12 +7216,6 @@ msgid "Altn 1 AltD"
 msgstr "代替地　１"
 
 #, no-c-format
-msgid "Arrival altitude at the best alternate landing location relative to the safety arrival height."
-msgstr ""
-"ファイナル高度\r\n"
-"ファイナル地点に到達する予想高度　安全高度を含む"
-
-#, no-c-format
 msgid "Alternate 2 altitude difference"
 msgstr "WP 到着高度"
 
@@ -7511,17 +7224,14 @@ msgid "Altn 2 AltD"
 msgstr "代替地２"
 
 #, no-c-format
-msgid "Arrival altitude at the second-best alternate landing location relative to the safety arrival height."
-msgstr ""
-"ファイナル高度\r\n"
-"ファイナル地点に到達する予想高度　安全高度を含む"
-
-#, no-c-format
 msgid "Simulator"
 msgstr "シュミレーター"
 
 msgid "no QNH"
 msgstr "QNHではない"
+
+msgid "no wind"
+msgstr "風なし"
 
 msgid "Not flying"
 msgstr "旋回していません"
@@ -7576,7 +7286,7 @@ msgstr "ファイナルグライド"
 
 msgid "Area pressure for barometric altimeter calibration.  This is set automatically if Vega connected."
 msgstr ""
-"高度の気圧補正\r\n"
+"高度の気圧補正\n"
 "Vegaが接続されている場合　自動的にセットされる"
 
 msgid "Ground elevation for device calibration (meters)."
@@ -7764,7 +7474,7 @@ msgstr "巡航時の音量"
 msgid ""
 "Mean volume level in cruise modes. If set to zero, scales with airspeed."
 msgstr ""
-"巡航モードの主音量\r\n"
+"巡航モードの主音量\n"
 "ゼロにセットした場合　速度に応じて増減する"
 
 #, no-c-format
@@ -7782,7 +7492,7 @@ msgstr "旋回　フィルター"
 #, no-c-format
 msgid "Variometer low pass filter time constant in circling mode."
 msgstr ""
-"バリオメーター　音下限設定\r\n"
+"バリオメーター　音下限設定\n"
 "旋回モードの場合は一定"
 
 #, no-c-format
@@ -7792,7 +7502,7 @@ msgstr "巡航　フィルター"
 #, no-c-format
 msgid "Variometer low pass filter time constant in cruise mode."
 msgstr ""
-"バリオメーター　音下限設定\r\n"
+"バリオメーター　音下限設定\n"
 "巡航モードの場合は一定"
 
 #, no-c-format
@@ -7947,7 +7657,7 @@ msgid ""
 "accelerometer has malfunctioned or the instrument cannot be installed with "
 "correct alignment."
 msgstr ""
-"内臓加速度計を使用するかどうか\r\n"
+"内臓加速度計を使用するかどうか\n"
 "設定変更は加速度計器に異常がある場合またはインストールできない場合"
 
 #, no-c-format
@@ -7955,9 +7665,9 @@ msgid ""
 "Whether a temperature and humidity sensor is installed. Set to 0 to disable, "
 "255 to enable auto-detect; otherwise the 1-Wire device ID can be specified."
 msgstr ""
-"温度湿度センサーを使用するかどうか　\r\n"
-"０に設定すると使用しない\r\n"
-"２５５に設定すると自動検出\r\n"
+"温度湿度センサーを使用するかどうか　\n"
+"０に設定すると使用しない\n"
+"２５５に設定すると自動検出\n"
 "有線接続の場合デバイスIDを指定"
 
 #, no-c-format
@@ -7970,9 +7680,9 @@ msgid ""
 "third party GPS or data-logger instead of FLARM. If FLARM is connected the "
 "baud rate will be fixed at 38400. For OzFLARM, the value can be set to 19200."
 msgstr ""
-"Vega　ポート　X1に接続する通信速度\r\n"
+"Vega　ポート　X1に接続する通信速度\n"
 "外着けGPSを接続する場合またはFLARMの代わりに　データーロガーを接続する場合"
-"\r\n"
+"\n"
 "FLARMの通信速度は３８４００固定　OzFLARMの場合は１９２００も使用することがで"
 "きる"
 
@@ -8372,12 +8082,6 @@ msgstr "ウェイポイントアイコンサイズ"
 msgid "Size of waypoint symbols on the map as a percentage of the built-in artwork (list dialogs keep a fixed row icon size)."
 msgstr "地図上のウェイポイント記号サイズを内蔵アートワークに対する百分率で指定（一覧ダイアログは固定の行アイコンサイズ）。"
 
-msgid "Altn mode: MANUAL"
-msgstr "代替モード: 手動"
-
-msgid "Altn mode: AUTO"
-msgstr "代替モード: 自動"
-
 msgid ""
 "# Gesture Navigation\n"
 "\n"
@@ -8551,10 +8255,6 @@ msgstr "権限が拒否されました。このネットワークへの接続が
 
 msgid "Could not connect. Check the passphrase and try again."
 msgstr "接続できませんでした。パスフレーズを確認して再試行してください。"
-
-#, no-c-format
-msgid "Current QNH pressure setting used for barometric altitude calculation. Tap the infobox to open the setup panel and adjust QNH manually."
-msgstr "気圧高度計算に使う現在の QNH 設定。InfoBox をタップして設定パネルを開き、QNH を手動調整。"
 
 #, no-c-format
 msgid "Active waypoint: shows the next task waypoint when an ordered task is loaded, otherwise the Goto waypoint. Displays the waypoint name, arrival altitude difference relative to the safety arrival height, and distance. Click to choose a different waypoint (a task waypoint to skip to that leg, or any waypoint to set as Goto when no task is loaded)."
@@ -9978,14 +9678,6 @@ msgid ""
 "throughout the whole Alps region. ICON-CH model."
 msgstr "ウィーンからペルピニャンまでのアルプス弧全体をカバーし、アルプス全域のウェーブを予報。ICON-CH モデル。"
 
-#, no-c-format
-msgid "UK"
-msgstr "UK"
-
-#, no-c-format
-msgid "United Kingdom. ICON-UK model."
-msgstr "英国。ICON-UK モデル。"
-
 msgid "XC Therm email"
 msgstr "XC Therm メール"
 
@@ -10141,60 +9833,6 @@ msgstr ""
 "\n"
 "**機長** は常に航空機の安全運航に責任を負います。航法や状況認識を XCSoar のみに依存しないでください。\n"
 "\n"
-
-#, c-format
-msgid ""
-"# Getting Started\n"
-"\n"
-"To use XCSoar effectively, configure the following:\n"
-"\n"
-"- [Restore from backup](xcsoar://dialog/backup) - Restore previous XCSoar data from a USB or SD card (optional)\n"
-"\n"
-"- [%s] [Map and data](xcsoar://config/site-files) - Download maps, waypoints, and airspace files for your region\n"
-"\n"
-"- [%s] [Aircraft polar](xcsoar://config/planes) - Set up your aircraft with the correct polar curve\n"
-"\n"
-"- [%s] [Pilot info](xcsoar://config/logger) - Enter your name and weight\n"
-"\n"
-"- [%s] [Devices](xcsoar://config/devices) - Connect your flight instruments\n"
-"\n"
-"- [%s] [WeGlide](xcsoar://config/weglide) - Upload flights automatically to WeGlide\n"
-"\n"
-"- [%s] [Thermal Information Map](xcsoar://config/weather) - Show thermal locations from thermalmap.info on the map\n"
-"\n"
-"- [%s] [Safety factors](xcsoar://config/safety) - Set arrival height, terrain clearance and polar degradation\n"
-"\n"
-"- [%s] [Terrain Display](xcsoar://config/terrain) - Choose terrain colors, shading and contour lines\n"
-"\n"
-"- [ ] [Live tracking](xcsoar://config/tracking) *(optional)* - Share your position via SkyLines or LiveTrack24\n"
-"\n"
-"Explore XCSoar easily by restarting in Simulator mode, or by [replaying an IGC flight](xcsoar://dialog/replay)."
-msgstr ""
-"# はじめに\n"
-"\n"
-"XCSoar を効果的に使うには、以下を設定してください:\n"
-"\n"
-"- [バックアップから復元](xcsoar://dialog/backup) - USB または SD カードから以前の XCSoar データを復元（任意）\n"
-"\n"
-"- [%s] [地図とデータ](xcsoar://config/site-files) - 地域の地図、ウェイポイント、空域ファイルをダウンロード\n"
-"\n"
-"- [%s] [機体ポーラ](xcsoar://config/planes) - 正しいポーラ曲線で機体を設定\n"
-"\n"
-"- [%s] [パイロット情報](xcsoar://config/logger) - 氏名と重量を入力\n"
-"\n"
-"- [%s] [デバイス](xcsoar://config/devices) - 飛行計器を接続\n"
-"\n"
-"- [%s] [WeGlide](xcsoar://config/weglide) - フライトを WeGlide へ自動アップロード\n"
-"\n"
-"- [%s] [サーマル情報マップ](xcsoar://config/weather) - thermalmap.info のサーマル位置を地図に表示\n"
-"\n"
-"- [%s] [安全係数](xcsoar://config/safety) - 到着高度、地形クリアランス、ポーラ劣化を設定\n"
-"\n"
-"- [%s] [地形表示](xcsoar://config/terrain) - 地形の色、陰影、等高線を選択\n"
-"\n"
-"- [ ] [ライブトラッキング](xcsoar://config/tracking) *(任意)* - SkyLines または LiveTrack24 で位置を共有\n"
-"\n"
-"シミュレータモードで再起動するか、[IGC フライトを再生](xcsoar://dialog/replay) して XCSoar を簡単に試せます。"
 
 msgid ""
 "# That's it!\n"
@@ -10737,10 +10375,6 @@ msgstr "RASP 気象オーバーレイに等高線を描画します。密度が�
 msgid "Page"
 msgstr "ページ"
 
-msgid "Determines whether the snail trail is drifted with the wind when displayed in circling mode at near map scales. Switched Off, the snail trail stays uncompensated for wind drift."
-msgstr ""
-"近くの地図縮尺で旋回モード表示時に、スネイルトレイルを風でドリフトさせるかどうかを決めます。オフの場合、トレイルは風ドリフト補正なしのままです。"
-
 #, c-format
 msgid "Download limit: retry in %u s"
 msgstr "ダウンロード制限: %u 秒後に再試行"
@@ -11087,4 +10721,1919 @@ msgstr "自動"
 msgctxt "Setting"
 msgid "Manual"
 msgstr "手動"
+
+#, no-c-format
+msgid "Blood Oxygen"
+msgstr "血中酸素"
+
+#, no-c-format
+msgid "SpO2"
+msgstr "SpO2"
+
+#, no-c-format
+msgid "Blood oxygen saturation in percent, from a Bluetooth pulse oximeter."
+msgstr "Bluetoothパルスオキシメータによる血中酸素飽和度（パーセント）。"
+
+#, no-c-format
+msgid "Recently used waypoints"
+msgstr "最近使ったウエイポイント"
+
+msgid "Connect to the device Wi-Fi to download flights from this FLARM."
+msgstr "このFLARMからフライトをダウンロードするため、機器のWi-Fiに接続します。"
+msgid "Determines whether the snail trail is drifted with the wind when displayed in circling mode at near map scales. Switched Off, the snail trail stays uncompensated for wind drift. In circling this also applies to the projected track curve: On keeps it relative to the air mass; Off includes wind."
+msgstr "近くの地図縮尺で旋回モード表示時に、スネイルトレイルを風でドリフトさせるかどうかを決めます。オフの場合、トレイルは風ドリフト補正なしのままです。 旋回中は予測航跡にも適用されます。オンは気団基準、オフは風を含みます。"
+
+#, no-c-format
+msgid "Overlays"
+msgstr "オーバーレイ"
+
+#, no-c-format
+msgid "Screen"
+msgstr "画面"
+
+#, no-c-format
+msgid "Layout"
+msgstr "レイアウト"
+
+#, no-c-format
+msgid "System Services"
+msgstr "システムサービス"
+
+#, no-c-format
+msgctxt "Menu"
+msgid "Services"
+msgstr "サービス"
+
+msgid "Back"
+msgstr "戻る"
+
+#, no-c-format
+msgid "Disable the traffic radar."
+msgstr "トラフィックレーダーを無効にします。"
+
+msgid "Enable the traffic radar and choose its position on the main screen. The track bearing of the target relative to the track bearing of the aircraft is displayed as an arrow head, and a triangle pointing up or down shows the relative altitude of the target relative to you. In all modes, the color of the target indicates the threat level."
+msgstr "トラフィックレーダーを有効にし、メイン画面上の位置を選びます。目標の対地航跡は自機の対地航跡に対する矢印で示され、上または下向きの三角は相対高度を示します。どのモードでも、目標の色は脅威レベルを表します。"
+
+
+msgid "Display resolution"
+msgstr "画面解像度"
+
+msgid "Screen brightness"
+msgstr "画面の明るさ"
+
+msgid "Adjust the screen brightness."
+msgstr "画面の明るさを調整します。"
+
+msgid "Screen brightness is read-only because writing requires additional permissions."
+msgstr "書き込みに追加の権限が必要なため、画面の明るさは読み取り専用です。"
+
+#, no-c-format
+msgid "Auto"
+msgstr "自動"
+
+#, no-c-format
+msgid "Disables map reach (terrain line and shade). Abort, alternates and landable arrival still use the Reach polar."
+msgstr "地図上の到達範囲（地形線と陰影）を無効にします。中止、代替、着陸可能地点への到達は引き続き到達ポーラーを使用します。"
+
+#. Alternate Mode: Auto returns a MANUAL slot to the computed
+#. list. Pinning is Select as Alternate, which is always
+#. available and sets MANUAL.
+#, no-c-format
+msgctxt "Button"
+msgid "Alternate Mode: Auto"
+msgstr "代替モード: 自動"
+
+msgid "Paste"
+msgstr "貼り付け"
+
+#, c-format
+msgid ""
+"# Getting Started\n"
+"\n"
+"To use XCSoar effectively, configure the following:\n"
+"\n"
+"- [Restore from backup](xcsoar://dialog/backup) - Restore previous XCSoar data from a USB or SD card (optional)\n"
+"\n"
+"- [%s] [Map and data](xcsoar://config/site-files) - Download maps, waypoints, and airspace files for your region\n"
+"\n"
+"- [%s] [Aircraft polar](xcsoar://config/planes) - Set up your aircraft with the correct polar curve\n"
+"\n"
+"- [%s] [Pilot info](xcsoar://config/logger) - Enter your name and weight\n"
+"\n"
+"- [%s] [Devices](xcsoar://config/devices) - Connect your flight instruments\n"
+"\n"
+"- [%s] [WeGlide](xcsoar://config/weglide) - Upload flights automatically to WeGlide\n"
+"\n"
+"- [%s] [Thermal Information Map](xcsoar://config/weather) - Show thermal locations from thermalmap.info on the map\n"
+"\n"
+"- [%s] [Safety factors](xcsoar://config/safety) - Set arrival height, terrain clearance and polar degradation\n"
+"\n"
+"- [%s] [Terrain Display](xcsoar://config/terrain) - Choose terrain colors, shading and contour lines\n"
+"\n"
+msgstr "# はじめに\n\nXCSoar を効果的に使うには、以下を設定してください:\n\n- [バックアップから復元](xcsoar://dialog/backup) - USB または SD カードから以前の XCSoar データを復元（任意）\n\n- [%s] [地図とデータ](xcsoar://config/site-files) - 地域の地図、ウェイポイント、空域ファイルをダウンロード\n\n- [%s] [機体ポーラ](xcsoar://config/planes) - 正しいポーラ曲線で機体を設定\n\n- [%s] [パイロット情報](xcsoar://config/logger) - 氏名と重量を入力\n\n- [%s] [デバイス](xcsoar://config/devices) - 飛行計器を接続\n\n- [%s] [WeGlide](xcsoar://config/weglide) - フライトを WeGlide へ自動アップロード\n\n- [%s] [サーマル情報マップ](xcsoar://config/weather) - thermalmap.info のサーマル位置を地図に表示\n\n- [%s] [安全係数](xcsoar://config/safety) - 到着高度、地形クリアランス、ポーラ劣化を設定\n\n- [%s] [地形表示](xcsoar://config/terrain) - 地形の色、陰影、等高線を選択\n\n"
+
+msgid ""
+"- [ ] [SkyLines](xcsoar://config/skylines) *(optional)* - Share your position via SkyLines\n"
+"\n"
+msgstr "- [ ] [SkyLines](xcsoar://config/skylines) *(任意)* - SkyLines で位置を共有\n\n"
+
+msgid ""
+"- [ ] [LiveTrack24](xcsoar://config/livetrack24) *(optional)* - Share your position via LiveTrack24\n"
+"\n"
+msgstr "- [ ] [LiveTrack24](xcsoar://config/livetrack24) *(任意)* - LiveTrack24 で位置を共有\n\n"
+
+msgid ""
+"- [ ] [XCSoar Cloud](xcsoar://config/cloud) *(optional)* - Share position and thermals, and receive OGN traffic\n"
+"\n"
+msgstr "- [ ] [XCSoar Cloud](xcsoar://config/cloud) *(任意)* - 位置とサーマルを共有し、OGN トラフィックを受信\n\n"
+
+msgid "Explore XCSoar easily by restarting in Simulator mode, or by [replaying an IGC flight](xcsoar://dialog/replay)."
+msgstr "シミュレータモードで再起動するか、[IGC フライトを再生](xcsoar://dialog/replay) して XCSoar を簡単に試せます。"
+
+msgid ""
+"# After Your Flight\n"
+"\n"
+"1. **Download logs** - Retrieve flight logs from your FLARM or logger device. [Config > Devices](xcsoar://config/devices)\n"
+"\n"
+"2. **Analysis** - Review your flight statistics. [Info > Analysis](xcsoar://dialog/analysis)\n"
+"\n"
+"3. **Status** - Check flight timing and statistics. [Info > Status](xcsoar://dialog/status)\n"
+"\n"
+"4. **Upload** - Upload to WeGlide directly from XCSoar. Configure your WeGlide User ID in [Config > Services > WeGlide](xcsoar://config/weglide)"
+msgstr "# フライト後\n\n1. **ログのダウンロード** - FLARM またはロガー デバイスからフライト ログを取得します。 [Config > Devices](xcsoar://config/devices)\n\n2. **分析** - フライトの統計を確認します。 [Info > Analysis](xcsoar://dialog/analysis)\n\n3. **ステータス** - フライトのタイミングと統計を確認します。 [Info > Status](xcsoar://dialog/status)\n\n4. **アップロード** - XCSoar から WeGlide に直接アップロードします。 [Config > サービス > WeGlide](xcsoar://config/weglide) で WeGlide ユーザー ID を構成します"
+
+msgid ""
+"![](resource:IDB_LOCATION_PIN)\n"
+"\n"
+"# Location Access\n"
+"\n"
+"XCSoar collects location data to enable flight navigation, thermal mapping, and flight logging even when the app is closed or not in use.\n"
+"\n"
+"- **GPS Position** - Real-time navigation and glide computer\n"
+"- **Background Location** - Continuous flight recording when the screen is off or another app is in the foreground\n"
+"- **Foreground Service** - Keeps GPS active during your flight\n"
+"\n"
+"Your location data is stored locally on your device. It is not shared unless you explicitly enable [SkyLines](xcsoar://config/skylines), [LiveTrack24](xcsoar://config/livetrack24) or [XCSoar Cloud](xcsoar://config/cloud).\n"
+"\n"
+"[Privacy Policy](https://github.com/XCSoar/XCSoar/blob/master/PRIVACY.md)"
+msgstr "![](resource:IDB_LOCATION_PIN)\n\n# 位置情報へのアクセス\n\nXCSoar は位置データを収集し、アプリが閉じている場合や使用していない場合でも、フライト ナビゲーション、サーマル マッピング、フライト ログを可能にします。\n\n- **GPS 位置** - リアルタイム ナビゲーションおよびグライド コンピューター\n- **バックグラウンドでの位置情報** - 画面がオフのとき、または別のアプリがフォアグラウンドにあるときの連続飛行記録\n- **フォアグラウンド サービス** - 飛行中に GPS をアクティブに保ちます\n\n[SkyLines](xcsoar://config/skylines)、[LiveTrack24](xcsoar://config/livetrack24)、[XCSoar Cloud](xcsoar://config/cloud) を明示的に有効にしない限り共有されません。\n\n[Privacy Policy](https://github.com/XCSoar/XCSoar/blob/master/PRIVACY.md)"
+
+msgid ""
+"# XCSoar Cloud\n"
+"\n"
+"The XCSoar project offers a service that allows sharing thermal and wave locations with other pilots in real time, and receiving nearby traffic from other participants and from OGN.\n"
+"\n"
+"If you participate, your **position**, **thermal/wave locations** and other weather data will be transmitted to the XCSoar Cloud server.\n"
+"\n"
+"You can change this at any time in [Config > Services > XCSoar Cloud](xcsoar://config/cloud)."
+msgstr "#XCSoarクラウド\n\nXCSoar プロジェクトは、熱および波の位置を他のパイロットとリアルタイムで共有できるサービスを提供します。また、他の参加者と OGN からの付近のトラフィックを受信できます。\n\n参加すると、**位置**、**気温/波の位置**、およびその他の気象データが XCSoar クラウド サーバーに送信されます。\n\nこれは、[Config > サービス > XCSoar Cloud](xcsoar://config/cloud) でいつでも変更できます。"
+
+msgid "Vario Volume"
+msgstr "バリオ音量"
+
+#, no-c-format
+msgctxt "Setting"
+msgid "Key"
+msgstr "キー"
+
+msgid "Name of vehicle used."
+msgstr "使用する機体の名前。"
+
+#, c-format
+msgid "%u sec"
+msgstr "%u 秒"
+
+#, c-format
+msgid "%u min"
+msgstr "%u 分"
+
+msgid "No supported services found"
+msgstr "対応するサービスが見つかりません"
+
+msgid "No selected systemd units are installed."
+msgstr "選択したsystemdユニットはインストールされていません。"
+
+msgid "Unavailable"
+msgstr "利用不可"
+
+msgid "Starting..."
+msgstr "起動中..."
+
+msgid "Stopping..."
+msgstr "停止中…"
+
+msgid "Reloading..."
+msgstr "再読み込み中..."
+
+msgid "Failed"
+msgstr "失敗"
+
+msgid "Turn on"
+msgstr "オン"
+
+msgid "Restart"
+msgstr "再起動"
+
+msgid "Turn off"
+msgstr "オフ"
+
+msgid "System service"
+msgstr "システムサービス"
+
+msgid "SSH server"
+msgstr "SSHサーバー"
+
+msgid "Remote terminal access"
+msgstr "遠隔端末"
+
+msgid "Sensors"
+msgstr "センサー"
+
+msgid "OpenVario sensor daemon"
+msgstr "OpenVarioセンサーサービス"
+
+msgid "Audio vario"
+msgstr "オーディオバリオ"
+
+msgid "OpenVario audio vario daemon"
+msgstr "OpenVarioオーディオバリオサービス"
+
+msgid "Max. temp. from forecast"
+msgstr "予報からの最高気温"
+
+msgid "Fill Max. temp. in the flight setup from the day's DWD forecast for the nearest MOSMIX station.  Needs a position fix, and fetches once a day; no account."
+msgstr "その日のDWD予報から、最寄りのMOSMIX地点の最高気温を飛行設定に入れます。位置が必要で、1日1回取得します。アカウントは不要です。"
+
+msgid "The day's maximum ground temperature. A dry adiabat from it against the outside air temperature measured while climbing gives the estimated thermal ceiling; the cloud base needs a humidity probe as well. Both are drawn on the temperature trace page of the Analysis dialog, once the glider has climbed through the layer."
+msgstr "その日の地上の最高気温。上昇中に測った外気温に対する乾燥断熱線から、推定サーマル上限が得られます。雲底には湿度センサも必要です。両方は、グライダーが層を抜けたあと、解析ダイアログの温度トレースページに描かれます。"
+
+msgid "Startup Task MC"
+msgstr "起動時のタスクMC"
+
+#. no help text: this row always carries a value, and
+#. WndProperty::BeginEditing() then shows the value instead of the
+#. help; the explanation is on the safety MC row above
+msgid "Safety MC GR"
+msgstr "セーフティMCの滑空比"
+
+msgid "Spoken alerts"
+msgstr "音声警報"
+
+msgid "Speak the collision alarms of FLARM, with the urgency, the clock position and whether the traffic is above or below: \"Traffic urgent! Three o'clock. Above.\" Obstacle and alert zone alarms are not spoken."
+msgstr ""
+"FLARMの衝突警報を、緊急度、時計位置、相手が上か下かとともに読み上げます: \"Traffic urgent! Three o'clock. Ab"
+"ove.\" 障害物と警戒区域の警報は読み上げません。"
+
+msgid "Test spoken alert"
+msgstr "音声警報を試す"
+
+msgid "Speed command switch"
+msgstr "スピードコマンド切替"
+
+msgid "How XCSoar uses the variometer's cruise/climb report."
+msgstr "XCSoarが昇降計の巡航/上昇報告をどう使うか。"
+
+#, no-c-format
+msgid "Flight mode"
+msgstr "飛行モード"
+
+#, no-c-format
+msgid "While flying, the variometer's cruise/climb report is the flight mode. Cruise ends the climb and restarts the average. Climb starts a new thermal. Final glide can still appear in cruise. On a Vega this is the circling output."
+msgstr "飛行中、昇降計の巡航/上昇報告が飛行モードです。巡航は上昇を終えて平均を最初から計算します。上昇は新しいサーマルを始めます。ファイナルグライドは巡航中でも出ることがあります。Vegaではこれが旋回出力です。"
+
+#, no-c-format
+msgid "Display mode"
+msgstr "表示モード"
+
+#, no-c-format
+msgid "XCSoar decides circling from the turn. The variometer report is not used."
+msgstr "XCSoarは旋回モードを回頭から判断します。昇降計の報告は使いません。"
+
+#, no-c-format
+msgid "The page changes and the flight mode does not. Cruise shows the cruise page, including while turning, and hides final glide. Climb shows the vario page. On a Vega this is the speed-command switch."
+msgstr "ページは変わり、飛行モードは変わりません。巡航は旋回中も含めて巡航ページを表示し、ファイナルグライドを隠します。上昇はバリオページを表示します。Vegaではこれがスピードコマンド切替です。"
+
+#, no-c-format
+msgid "System Tools"
+msgstr "システムツール"
+
+msgid "Not available while flying."
+msgstr "飛行中は利用できません。"
+
+msgid "User"
+msgstr "ユーザー"
+
+msgid "Show QR Code"
+msgstr "QRコードを表示"
+
+msgid "QR Code"
+msgstr "QRコード"
+
+msgid "This task cannot be shown as a QR code"
+msgstr "このタスクはQRコードとして表示できません"
+
+msgid "XCSoar task"
+msgstr "XCSoarタスク"
+
+#. a PowerFLARM keeps statistics of its own; for any other FLARM,
+#. XCSoar estimates the range from the traffic it reports
+msgid "Range statistics"
+msgstr "到達距離の統計"
+
+msgid "Antenna"
+msgstr "アンテナ"
+
+msgid "The FLARM keeps the statistics for each of its two radio channels."
+msgstr "FLARMは2つの無線チャネルそれぞれについて統計を保持します。"
+
+msgid "Data points"
+msgstr "データ点"
+
+msgid "Period"
+msgstr "期間"
+
+msgid "FLARM range"
+msgstr "FLARM到達距離"
+
+msgid "The FLARM did not send its range statistics."
+msgstr "FLARMは到達距離の統計を送りませんでした。"
+
+msgid "Reset the range statistics? Do this after a change to the antennas; the FLARM then collects them anew."
+msgstr "到達距離の統計をリセットしますか? アンテナ交換のあとで行ってください。FLARMが集め直します。"
+
+msgid "The FLARM did not confirm the reset."
+msgstr "FLARMはリセットを確認しませんでした。"
+
+msgid "Below minimum range"
+msgstr "最小到達距離未満"
+
+msgid "Measured sectors of this channel whose mean range is shorter than FLARM's minimum: 2 nm ahead, 1 nm to the sides and behind.  Check the antenna installation."
+msgstr "このチャネルで、平均到達距離がFLARMの最小値より短い測定済みセクター: 前方2 nm、側方と後方1 nm。アンテナの取付を確認してください。"
+
+msgid "Range setting"
+msgstr "到達距離の設定"
+
+msgid "The FLARM reports no aircraft beyond this distance.  The plot shows it as a dashed circle when it is within the plotted range."
+msgstr "FLARMはこの距離を超える航空機を報告しません。描画範囲内にあるとき、グラフは破線の円で示します。"
+
+msgid "Unlimited"
+msgstr "無制限"
+
+msgid "Contacts with other FLARM aircraft in flight, counted once in every sector they passed, with the largest distance they were received at there.  The sector shows the mean of the larger half of these distances, the line across it the largest one."
+msgstr ""
+"飛行中の他のFLARM機との接触。通過したセクターごとに1回、そこで受信した最大距離で数えます。セクターはその距離の大きい半分の平均を、横断線は最大を"
+"示します。"
+
+msgid "Measured sectors whose estimated range is shorter than FLARM's minimum: 2 nm ahead, 1 nm to the sides and behind.  Check the antenna installation."
+msgstr "推定到達距離がFLARMの最小値より短い測定済みセクター: 前方2 nm、側方と後方1 nm。アンテナの取付を確認してください。"
+
+msgid "Reset the range estimate? Do this after a change to the antenna; XCSoar then collects it anew."
+msgstr "到達距離の推定をリセットしますか? アンテナ交換のあとで行ってください。XCSoarが集め直します。"
+
+msgid "FLARM range estimate"
+msgstr "FLARM到達距離の推定"
+
+#, no-c-format
+msgid "Zoom in"
+msgstr "ズームイン"
+
+#, no-c-format
+msgid "Zoom out"
+msgstr "ズームアウト"
+
+#, no-c-format
+msgid "Auto zoom"
+msgstr "自動ズーム"
+
+#, no-c-format
+msgid "Next page"
+msgstr "次のページ"
+
+#, no-c-format
+msgid "Previous page"
+msgstr "前のページ"
+
+#, no-c-format
+msgid "Waypoint list"
+msgstr "ウェイポイントリスト"
+
+#, no-c-format
+msgid "Menu"
+msgstr "メニュー"
+
+#, no-c-format
+msgid "Task manager"
+msgstr "タスク管理"
+
+#, no-c-format
+msgid "Pan mode"
+msgstr "パンモード"
+
+#, no-c-format
+msgid "Quick menu"
+msgstr "クイックメニュー"
+
+#. OPERA is published under CC BY 4.0, so the attribution has to
+#. travel with the picture; the overlay label carries it, which is
+#. what the map shows when the pilot taps it
+#, no-c-format
+msgid "Radar"
+msgstr "レーダー"
+
+#, no-c-format
+msgid "Satellite"
+msgstr "衛星"
+
+msgid "(Inside)"
+msgstr "(内側)"
+
+msgid "(Near)"
+msgstr "(近く)"
+
+msgid "Cleared"
+msgstr "許可済み"
+
+msgid "Covered"
+msgstr "包含済み"
+
+msgid "Power off"
+msgstr "電源オフ"
+
+#, no-c-format
+msgid "Andorra"
+msgstr "アンドラ"
+
+#, no-c-format
+msgid "United Arab Emirates"
+msgstr "アラブ首長国連邦"
+
+#, no-c-format
+msgid "Afghanistan"
+msgstr "アフガニスタン"
+
+#, no-c-format
+msgid "Antigua and Barbuda"
+msgstr "アンティグア・バーブーダ"
+
+#, no-c-format
+msgid "Anguilla"
+msgstr "アンギラ"
+
+#, no-c-format
+msgid "Albania"
+msgstr "アルバニア"
+
+#, no-c-format
+msgid "Armenia"
+msgstr "アルメニア"
+
+#, no-c-format
+msgid "Angola"
+msgstr "アンゴラ"
+
+#, no-c-format
+msgid "Antarctica"
+msgstr "南極"
+
+#, no-c-format
+msgid "Argentina"
+msgstr "アルゼンチン"
+
+#, no-c-format
+msgid "American Samoa"
+msgstr "米領サモア"
+
+#, no-c-format
+msgid "Austria"
+msgstr "オーストリア"
+
+#, no-c-format
+msgid "Australia"
+msgstr "オーストラリア"
+
+#, no-c-format
+msgid "Aruba"
+msgstr "アルバ"
+
+#, no-c-format
+msgid "Åland Islands"
+msgstr "オーランド諸島"
+
+#, no-c-format
+msgid "Azerbaijan"
+msgstr "アゼルバイジャン"
+
+#, no-c-format
+msgid "Bosnia and Herzegovina"
+msgstr "ボスニア・ヘルツェゴビナ"
+
+#, no-c-format
+msgid "Barbados"
+msgstr "バルバドス"
+
+#, no-c-format
+msgid "Bangladesh"
+msgstr "バングラデシュ"
+
+#, no-c-format
+msgid "Belgium"
+msgstr "ベルギー"
+
+#, no-c-format
+msgid "Burkina Faso"
+msgstr "ブルキナファソ"
+
+#, no-c-format
+msgid "Bulgaria"
+msgstr "ブルガリア"
+
+#, no-c-format
+msgid "Bahrain"
+msgstr "バーレーン"
+
+#, no-c-format
+msgid "Burundi"
+msgstr "ブルンジ"
+
+#, no-c-format
+msgid "Benin"
+msgstr "ベナン"
+
+#, no-c-format
+msgid "Saint Barthélemy"
+msgstr "サン・バルテルミー"
+
+#, no-c-format
+msgid "Bermuda"
+msgstr "バミューダ"
+
+#, no-c-format
+msgid "Brunei"
+msgstr "ブルネイ"
+
+#, no-c-format
+msgid "Bolivia"
+msgstr "ボリビア"
+
+#, no-c-format
+msgid "Caribbean Netherlands"
+msgstr "オランダ領カリブ"
+
+#, no-c-format
+msgid "Brazil"
+msgstr "ブラジル"
+
+#, no-c-format
+msgid "Bahamas"
+msgstr "バハマ"
+
+#, no-c-format
+msgid "Bhutan"
+msgstr "ブータン"
+
+#, no-c-format
+msgid "Bouvet Island"
+msgstr "ブーベ島"
+
+#, no-c-format
+msgid "Botswana"
+msgstr "ボツワナ"
+
+#, no-c-format
+msgid "Belarus"
+msgstr "ベラルーシ"
+
+#, no-c-format
+msgid "Belize"
+msgstr "ベリーズ"
+
+#, no-c-format
+msgid "Canada"
+msgstr "カナダ"
+
+#, no-c-format
+msgid "Cocos Islands"
+msgstr "ココス(キーリング)諸島"
+
+#, no-c-format
+msgid "Congo-Kinshasa"
+msgstr "コンゴ民主共和国(キンシャサ)"
+
+#, no-c-format
+msgid "Central African Republic"
+msgstr "中央アフリカ共和国"
+
+#, no-c-format
+msgid "Congo-Brazzaville"
+msgstr "コンゴ共和国(ブラザビル)"
+
+#, no-c-format
+msgid "Switzerland"
+msgstr "スイス"
+
+#, no-c-format
+msgid "Côte d'Ivoire"
+msgstr "コートジボワール"
+
+#, no-c-format
+msgid "Cook Islands"
+msgstr "クック諸島"
+
+#, no-c-format
+msgid "Chile"
+msgstr "チリ"
+
+#, no-c-format
+msgid "Cameroon"
+msgstr "カメルーン"
+
+#, no-c-format
+msgid "China"
+msgstr "中国"
+
+#, no-c-format
+msgid "Colombia"
+msgstr "コロンビア"
+
+#, no-c-format
+msgid "Costa Rica"
+msgstr "コスタリカ"
+
+#, no-c-format
+msgid "Cuba"
+msgstr "キューバ"
+
+#, no-c-format
+msgid "Cape Verde"
+msgstr "カーボベルデ"
+
+#, no-c-format
+msgid "Curaçao"
+msgstr "キュラソー"
+
+#, no-c-format
+msgid "Christmas Island"
+msgstr "クリスマス島"
+
+#, no-c-format
+msgid "Cyprus"
+msgstr "キプロス"
+
+#, no-c-format
+msgid "Czechia"
+msgstr "チェコ"
+
+#, no-c-format
+msgid "Germany"
+msgstr "ドイツ"
+
+#, no-c-format
+msgid "Djibouti"
+msgstr "ジブチ"
+
+#, no-c-format
+msgid "Denmark"
+msgstr "デンマーク"
+
+#, no-c-format
+msgid "Dominica"
+msgstr "ドミニカ国"
+
+#, no-c-format
+msgid "Dominican Republic"
+msgstr "ドミニカ共和国"
+
+#, no-c-format
+msgid "Algeria"
+msgstr "アルジェリア"
+
+#, no-c-format
+msgid "Ecuador"
+msgstr "エクアドル"
+
+#, no-c-format
+msgid "Estonia"
+msgstr "エストニア"
+
+#, no-c-format
+msgid "Egypt"
+msgstr "エジプト"
+
+#, no-c-format
+msgid "Western Sahara"
+msgstr "西サハラ"
+
+#, no-c-format
+msgid "Eritrea"
+msgstr "エリトリア"
+
+#, no-c-format
+msgid "Spain"
+msgstr "スペイン"
+
+#, no-c-format
+msgid "Ethiopia"
+msgstr "エチオピア"
+
+#, no-c-format
+msgid "Finland"
+msgstr "フィンランド"
+
+#, no-c-format
+msgid "Fiji"
+msgstr "フィジー"
+
+#, no-c-format
+msgid "Falkland Islands"
+msgstr "フォークランド諸島"
+
+#, no-c-format
+msgid "Micronesia"
+msgstr "ミクロネシア連邦"
+
+#, no-c-format
+msgid "Faroe Islands"
+msgstr "フェロー諸島"
+
+#, no-c-format
+msgid "France"
+msgstr "フランス"
+
+#, no-c-format
+msgid "Gabon"
+msgstr "ガボン"
+
+#, no-c-format
+msgid "United Kingdom"
+msgstr "イギリス"
+
+#, no-c-format
+msgid "Grenada"
+msgstr "グレナダ"
+
+#, no-c-format
+msgid "Georgia"
+msgstr "ジョージア"
+
+#, no-c-format
+msgid "French Guiana"
+msgstr "仏領ギアナ"
+
+#, no-c-format
+msgid "Guernsey"
+msgstr "ガーンジー"
+
+#, no-c-format
+msgid "Ghana"
+msgstr "ガーナ"
+
+#, no-c-format
+msgid "Gibraltar"
+msgstr "ジブラルタル"
+
+#, no-c-format
+msgid "Greenland"
+msgstr "グリーンランド"
+
+#, no-c-format
+msgid "Gambia"
+msgstr "ガンビア"
+
+#, no-c-format
+msgid "Guinea"
+msgstr "ギニア"
+
+#, no-c-format
+msgid "Guadeloupe"
+msgstr "グアドループ"
+
+#, no-c-format
+msgid "Equatorial Guinea"
+msgstr "赤道ギニア"
+
+#, no-c-format
+msgid "Greece"
+msgstr "ギリシャ"
+
+#, no-c-format
+msgid "South Georgia"
+msgstr "サウスジョージア・サウスサンドウィッチ諸島"
+
+#, no-c-format
+msgid "Guatemala"
+msgstr "グアテマラ"
+
+#, no-c-format
+msgid "Guam"
+msgstr "グアム"
+
+#, no-c-format
+msgid "Guinea-Bissau"
+msgstr "ギニアビサウ"
+
+#, no-c-format
+msgid "Guyana"
+msgstr "ガイアナ"
+
+#, no-c-format
+msgid "Hong Kong"
+msgstr "中華人民共和国香港特別行政区"
+
+#, no-c-format
+msgid "Heard Island"
+msgstr "ハード島・マクドナルド諸島"
+
+#, no-c-format
+msgid "Honduras"
+msgstr "ホンジュラス"
+
+#, no-c-format
+msgid "Croatia"
+msgstr "クロアチア"
+
+#, no-c-format
+msgid "Haiti"
+msgstr "ハイチ"
+
+#, no-c-format
+msgid "Hungary"
+msgstr "ハンガリー"
+
+#, no-c-format
+msgid "Indonesia"
+msgstr "インドネシア"
+
+#, no-c-format
+msgid "Ireland"
+msgstr "アイルランド"
+
+#, no-c-format
+msgid "Israel"
+msgstr "イスラエル"
+
+#, no-c-format
+msgid "Isle of Man"
+msgstr "マン島"
+
+#, no-c-format
+msgid "India"
+msgstr "インド"
+
+#, no-c-format
+msgid "British Indian Ocean Territory"
+msgstr "英領インド洋地域"
+
+#, no-c-format
+msgid "Iraq"
+msgstr "イラク"
+
+#, no-c-format
+msgid "Iran"
+msgstr "イラン"
+
+#, no-c-format
+msgid "Iceland"
+msgstr "アイスランド"
+
+#, no-c-format
+msgid "Italy"
+msgstr "イタリア"
+
+#, no-c-format
+msgid "Jersey"
+msgstr "ジャージー"
+
+#, no-c-format
+msgid "Jamaica"
+msgstr "ジャマイカ"
+
+#, no-c-format
+msgid "Jordan"
+msgstr "ヨルダン"
+
+#, no-c-format
+msgid "Japan"
+msgstr "日本"
+
+#, no-c-format
+msgid "Kenya"
+msgstr "ケニア"
+
+#, no-c-format
+msgid "Kyrgyzstan"
+msgstr "キルギス"
+
+#, no-c-format
+msgid "Cambodia"
+msgstr "カンボジア"
+
+#, no-c-format
+msgid "Kiribati"
+msgstr "キリバス"
+
+#, no-c-format
+msgid "Comoros"
+msgstr "コモロ"
+
+#, no-c-format
+msgid "Saint Kitts and Nevis"
+msgstr "セントクリストファー・ネーヴィス"
+
+#, no-c-format
+msgid "North Korea"
+msgstr "北朝鮮"
+
+#, no-c-format
+msgid "South Korea"
+msgstr "韓国"
+
+#, no-c-format
+msgid "Kuwait"
+msgstr "クウェート"
+
+#, no-c-format
+msgid "Cayman Islands"
+msgstr "ケイマン諸島"
+
+#, no-c-format
+msgid "Kazakhstan"
+msgstr "カザフスタン"
+
+#, no-c-format
+msgid "Laos"
+msgstr "ラオス"
+
+#, no-c-format
+msgid "Lebanon"
+msgstr "レバノン"
+
+#, no-c-format
+msgid "Saint Lucia"
+msgstr "セントルシア"
+
+#, no-c-format
+msgid "Liechtenstein"
+msgstr "リヒテンシュタイン"
+
+#, no-c-format
+msgid "Sri Lanka"
+msgstr "スリランカ"
+
+#, no-c-format
+msgid "Liberia"
+msgstr "リベリア"
+
+#, no-c-format
+msgid "Lesotho"
+msgstr "レソト"
+
+#, no-c-format
+msgid "Lithuania"
+msgstr "リトアニア"
+
+#, no-c-format
+msgid "Luxembourg"
+msgstr "ルクセンブルク"
+
+#, no-c-format
+msgid "Latvia"
+msgstr "ラトビア"
+
+#, no-c-format
+msgid "Libya"
+msgstr "リビア"
+
+#, no-c-format
+msgid "Morocco"
+msgstr "モロッコ"
+
+#, no-c-format
+msgid "Monaco"
+msgstr "モナコ"
+
+#, no-c-format
+msgid "Moldova"
+msgstr "モルドバ"
+
+#, no-c-format
+msgid "Montenegro"
+msgstr "モンテネグロ"
+
+#, no-c-format
+msgid "Saint Martin"
+msgstr "サン・マルタン"
+
+#, no-c-format
+msgid "Madagascar"
+msgstr "マダガスカル"
+
+#, no-c-format
+msgid "Marshall Islands"
+msgstr "マーシャル諸島"
+
+#, no-c-format
+msgid "North Macedonia"
+msgstr "北マケドニア"
+
+#, no-c-format
+msgid "Mali"
+msgstr "マリ"
+
+#, no-c-format
+msgid "Myanmar"
+msgstr "ミャンマー (ビルマ)"
+
+#, no-c-format
+msgid "Mongolia"
+msgstr "モンゴル"
+
+#, no-c-format
+msgid "Macao"
+msgstr "中華人民共和国マカオ特別行政区"
+
+#, no-c-format
+msgid "Northern Mariana Islands"
+msgstr "北マリアナ諸島"
+
+#, no-c-format
+msgid "Martinique"
+msgstr "マルティニーク"
+
+#, no-c-format
+msgid "Mauritania"
+msgstr "モーリタニア"
+
+#, no-c-format
+msgid "Montserrat"
+msgstr "モントセラト"
+
+#, no-c-format
+msgid "Malta"
+msgstr "マルタ"
+
+#, no-c-format
+msgid "Mauritius"
+msgstr "モーリシャス"
+
+#, no-c-format
+msgid "Maldives"
+msgstr "モルディブ"
+
+#, no-c-format
+msgid "Malawi"
+msgstr "マラウイ"
+
+#, no-c-format
+msgid "Mexico"
+msgstr "メキシコ"
+
+#, no-c-format
+msgid "Malaysia"
+msgstr "マレーシア"
+
+#, no-c-format
+msgid "Mozambique"
+msgstr "モザンビーク"
+
+#, no-c-format
+msgid "Namibia"
+msgstr "ナミビア"
+
+#, no-c-format
+msgid "New Caledonia"
+msgstr "ニューカレドニア"
+
+#, no-c-format
+msgid "Niger"
+msgstr "ニジェール"
+
+#, no-c-format
+msgid "Norfolk Island"
+msgstr "ノーフォーク島"
+
+#, no-c-format
+msgid "Nigeria"
+msgstr "ナイジェリア"
+
+#, no-c-format
+msgid "Nicaragua"
+msgstr "ニカラグア"
+
+#, no-c-format
+msgid "Netherlands"
+msgstr "オランダ"
+
+#, no-c-format
+msgid "Norway"
+msgstr "ノルウェー"
+
+#, no-c-format
+msgid "Nepal"
+msgstr "ネパール"
+
+#, no-c-format
+msgid "Nauru"
+msgstr "ナウル"
+
+#, no-c-format
+msgid "Niue"
+msgstr "ニウエ"
+
+#, no-c-format
+msgid "New Zealand"
+msgstr "ニュージーランド"
+
+#, no-c-format
+msgid "Oman"
+msgstr "オマーン"
+
+#, no-c-format
+msgid "Panama"
+msgstr "パナマ"
+
+#, no-c-format
+msgid "Peru"
+msgstr "ペルー"
+
+#, no-c-format
+msgid "French Polynesia"
+msgstr "仏領ポリネシア"
+
+#, no-c-format
+msgid "Papua New Guinea"
+msgstr "パプアニューギニア"
+
+#, no-c-format
+msgid "Philippines"
+msgstr "フィリピン"
+
+#, no-c-format
+msgid "Pakistan"
+msgstr "パキスタン"
+
+#, no-c-format
+msgid "Poland"
+msgstr "ポーランド"
+
+#, no-c-format
+msgid "Saint Pierre and Miquelon"
+msgstr "サンピエール島・ミクロン島"
+
+#, no-c-format
+msgid "Pitcairn"
+msgstr "ピトケアン諸島"
+
+#, no-c-format
+msgid "Puerto Rico"
+msgstr "プエルトリコ"
+
+#, no-c-format
+msgid "Palestine"
+msgstr "パレスチナ自治区"
+
+#, no-c-format
+msgid "Portugal"
+msgstr "ポルトガル"
+
+#, no-c-format
+msgid "Palau"
+msgstr "パラオ"
+
+#, no-c-format
+msgid "Paraguay"
+msgstr "パラグアイ"
+
+#, no-c-format
+msgid "Qatar"
+msgstr "カタール"
+
+#, no-c-format
+msgid "Réunion"
+msgstr "レユニオン"
+
+#, no-c-format
+msgid "Romania"
+msgstr "ルーマニア"
+
+#, no-c-format
+msgid "Serbia"
+msgstr "セルビア"
+
+#, no-c-format
+msgid "Russia"
+msgstr "ロシア"
+
+#, no-c-format
+msgid "Rwanda"
+msgstr "ルワンダ"
+
+#, no-c-format
+msgid "Saudi Arabia"
+msgstr "サウジアラビア"
+
+#, no-c-format
+msgid "Solomon Islands"
+msgstr "ソロモン諸島"
+
+#, no-c-format
+msgid "Seychelles"
+msgstr "セーシェル"
+
+#, no-c-format
+msgid "Sudan"
+msgstr "スーダン"
+
+#, no-c-format
+msgid "Sweden"
+msgstr "スウェーデン"
+
+#, no-c-format
+msgid "Singapore"
+msgstr "シンガポール"
+
+#, no-c-format
+msgid "Saint Helena"
+msgstr "セントヘレナ"
+
+#, no-c-format
+msgid "Slovenia"
+msgstr "スロベニア"
+
+#, no-c-format
+msgid "Svalbard and Jan Mayen"
+msgstr "スバールバル諸島・ヤンマイエン島"
+
+#, no-c-format
+msgid "Slovakia"
+msgstr "スロバキア"
+
+#, no-c-format
+msgid "Sierra Leone"
+msgstr "シエラレオネ"
+
+#, no-c-format
+msgid "San Marino"
+msgstr "サンマリノ"
+
+#, no-c-format
+msgid "Senegal"
+msgstr "セネガル"
+
+#, no-c-format
+msgid "Somalia"
+msgstr "ソマリア"
+
+#, no-c-format
+msgid "Suriname"
+msgstr "スリナム"
+
+#, no-c-format
+msgid "South Sudan"
+msgstr "南スーダン"
+
+#, no-c-format
+msgid "São Tomé and Príncipe"
+msgstr "サントメ・プリンシペ"
+
+#, no-c-format
+msgid "El Salvador"
+msgstr "エルサルバドル"
+
+#, no-c-format
+msgid "Sint Maarten"
+msgstr "シント・マールテン"
+
+#, no-c-format
+msgid "Syria"
+msgstr "シリア"
+
+#, no-c-format
+msgid "Eswatini"
+msgstr "エスワティニ"
+
+#, no-c-format
+msgid "Turks and Caicos Islands"
+msgstr "タークス・カイコス諸島"
+
+#, no-c-format
+msgid "Chad"
+msgstr "チャド"
+
+#, no-c-format
+msgid "French Southern Territories"
+msgstr "仏領極南諸島"
+
+#, no-c-format
+msgid "Togo"
+msgstr "トーゴ"
+
+#, no-c-format
+msgid "Thailand"
+msgstr "タイ"
+
+#, no-c-format
+msgid "Tajikistan"
+msgstr "タジキスタン"
+
+#, no-c-format
+msgid "Tokelau"
+msgstr "トケラウ"
+
+#, no-c-format
+msgid "Timor-Leste"
+msgstr "東ティモール"
+
+#, no-c-format
+msgid "Turkmenistan"
+msgstr "トルクメニスタン"
+
+#, no-c-format
+msgid "Tunisia"
+msgstr "チュニジア"
+
+#, no-c-format
+msgid "Tonga"
+msgstr "トンガ"
+
+#, no-c-format
+msgid "Turkey"
+msgstr "トルコ"
+
+#, no-c-format
+msgid "Trinidad and Tobago"
+msgstr "トリニダード・トバゴ"
+
+#, no-c-format
+msgid "Tuvalu"
+msgstr "ツバル"
+
+#, no-c-format
+msgid "Taiwan"
+msgstr "台湾"
+
+#, no-c-format
+msgid "Tanzania"
+msgstr "タンザニア"
+
+#, no-c-format
+msgid "Ukraine"
+msgstr "ウクライナ"
+
+#, no-c-format
+msgid "Uganda"
+msgstr "ウガンダ"
+
+#, no-c-format
+msgid "U.S. Outlying Islands"
+msgstr "合衆国領有小離島"
+
+#, no-c-format
+msgid "United States"
+msgstr "アメリカ合衆国"
+
+#, no-c-format
+msgid "Uruguay"
+msgstr "ウルグアイ"
+
+#, no-c-format
+msgid "Uzbekistan"
+msgstr "ウズベキスタン"
+
+#, no-c-format
+msgid "Vatican City"
+msgstr "バチカン市国"
+
+#, no-c-format
+msgid "Saint Vincent and the Grenadines"
+msgstr "セントビンセント及びグレナディーン諸島"
+
+#, no-c-format
+msgid "Venezuela"
+msgstr "ベネズエラ"
+
+#, no-c-format
+msgid "British Virgin Islands"
+msgstr "英領ヴァージン諸島"
+
+#, no-c-format
+msgid "U.S. Virgin Islands"
+msgstr "米領ヴァージン諸島"
+
+#, no-c-format
+msgid "Vietnam"
+msgstr "ベトナム"
+
+#, no-c-format
+msgid "Vanuatu"
+msgstr "バヌアツ"
+
+#, no-c-format
+msgid "Wallis and Futuna"
+msgstr "ウォリス・フツナ"
+
+#, no-c-format
+msgid "Samoa"
+msgstr "サモア"
+
+#, no-c-format
+msgid "Kosovo"
+msgstr "コソボ"
+
+#, no-c-format
+msgid "Yemen"
+msgstr "イエメン"
+
+#, no-c-format
+msgid "Mayotte"
+msgstr "マヨット"
+
+#, no-c-format
+msgid "South Africa"
+msgstr "南アフリカ"
+
+#, no-c-format
+msgid "Zambia"
+msgstr "ザンビア"
+
+#, no-c-format
+msgid "Zimbabwe"
+msgstr "ジンバブエ"
+
+#. the backup is there, but on purpose without the files the
+#. loggers are writing right now: say so, and which ones
+msgid "Backup complete."
+msgstr "バックアップが完了しました。"
+
+msgid "Left out, being written right now:"
+msgstr "除外、ただいま書き込み中:"
+
+msgid "Don't use"
+msgstr "使用しない"
+
+msgid "Not aligned"
+msgstr "未整列"
+
+msgid "Fixed & aligned"
+msgstr "固定して整列"
+
+msgid "Built-in IMU"
+msgstr "内蔵 IMU"
+
+msgid "Whether the instrument housing the IMU is permanently fixed and its axes are aligned to the aircraft axes. Set to 'Fixed & aligned' only when the device is rigidly mounted. If in doubt, use 'Not aligned'."
+msgstr "IMU を収めた計器が恒久的に固定され、その軸が機体軸に揃っているか。剛に取り付けたときだけ「固定して整列」にします。迷うときは「未整列」。"
+
+#, no-c-format
+msgid "XCSoar uses the first device that supplies each value (device A before B, and so on). Bold flags are the values XCSoar is using from this device. Flags that are not bold mean an earlier device already supplies the same data. Baro is height with the current QNH; QNE is pressure altitude; Alt IGC is the altitude the logger writes. QNE and Pressure are the same ambient pressure, so only the earlier of those two is bold. Bad GPS and a battery below 10% are shown in red on a colour display, and in bold on e-paper."
+msgstr ""
+"XCSoar は各値を供給する最初の機器を使います（機器 A が B より前、以下同様）。太字の標識はこの機器から XCSoar が使っている値です。"
+"太字でない標識は、より前の機器が同じデータを既に供給していることを意味します。Baro は現在の QNH での高度、QNE は気圧高度、Alt IGC"
+" はロガーが書く高度です。QNE と Pressure は同じ外気圧なので、早い方だけが太字です。不良な GPS と 10パーセント 未満のバッテリー"
+"はカラー画面では赤、電子ペーパーでは太字で示されます。"
+
+msgid "QNE"
+msgstr "QNE"
+
+msgid "Engine"
+msgstr "エンジン"
+
+msgid "Set Clearance"
+msgstr "許可を設定"
+
+msgid "Revoke Clearance"
+msgstr "許可を取り消す"
+
+msgid "Failed to update airspace clearance"
+msgstr "空域許可を更新できませんでした"
+
+msgid "Clrnc"
+msgstr "許可"
+
+msgid ""
+"Per-class filter settings. For airspaces where both\n"
+"type (CTR, FIR, ...) and class are given, the type\n"
+"takes precedence over class in XCSoar.\n"
+"Columns:\n"
+"  Show  - draw airspaces of this class on the map\n"
+"  Warn  - enable warnings when approaching / inside\n"
+"  Clrnc - allow granting a clearance to suppress\n"
+"           warnings from other overlapping airspaces"
+msgstr ""
+"クラスごとのフィルタ設定。空域に種類 (CTR, FIR, ...) とクラスの両方があるとき、XCSoar では種類がクラスより優先されます。\n列"
+":\n  表示 — このクラスの空域を地図に描く\n  警告 — 接近時と内部での警告\n  許可 — 重なる他の空域の警告を\n         抑"
+"える許可を与えられるようにする"
+
+msgid "Clearance"
+msgstr "許可"
+
+msgid "Groups"
+msgstr "グループ"
+
+msgid "Show only the InfoBoxes of these groups in the list."
+msgstr "一覧にはこれらのグループの情報表示だけを出します。"
+
+msgid "Share location"
+msgstr "位置を共有"
+
+#, no-c-format
+msgctxt "Screen edge"
+msgid "Top"
+msgstr "上"
+
+#, no-c-format
+msgctxt "Screen edge"
+msgid "Right"
+msgstr "右"
+
+#, no-c-format
+msgctxt "Screen edge"
+msgid "Bottom"
+msgstr "下"
+
+#, no-c-format
+msgctxt "Screen edge"
+msgid "Left"
+msgstr "左"
+
+#, no-c-format
+msgid "Tap an edge to stretch the InfoBox area out to the screen border there."
+msgstr "端をタップすると、情報表示領域がそこまで画面の端へ広がります。"
+
+#, no-c-format
+msgid "The InfoBox area is the part of the screen available to the InfoBoxes, gauges, map overlays and the menu. Pick the edges on which it is stretched out to the screen border. Unstretched edges stay clear of the system bars and rounded corners. The map always uses the whole screen, and dialogs always stay inside the safe area. Only relevant while full screen mode is enabled."
+msgstr ""
+"情報表示領域は、情報表示、計器、地図オーバーレイ、メニューに使える画面の部分です。画面の端まで広げる辺を選びます。広げない辺はシステムバーと丸い角から"
+"離れます。地図は常に画面全体を使い、ダイアログは安全領域の中に留まります。全画面のときだけ意味があります。"
+
+msgid "Stretch InfoBox area"
+msgstr "情報表示領域を広げる"
+
+#, no-c-format
+msgid "Show the status bar unless the InfoBox area is stretched to the top screen edge, where it would cover the InfoBoxes."
+msgstr "情報表示領域が画面上端まで伸びて情報表示を隠す場合を除き、ステータスバーを表示します。"
+
+#, no-c-format
+msgid "Visible"
+msgstr "表示"
+
+#, no-c-format
+msgid "Always show the status bar, even in full screen mode. The InfoBoxes cannot be drawn behind it, so they keep clear of the top screen edge."
+msgstr "全画面でもステータスバーを常に表示します。情報表示はその背後に描けないため、画面上端から離れます。"
+
+#, no-c-format
+msgid "Hidden"
+msgstr "非表示"
+
+#, no-c-format
+msgid "Never show the status bar."
+msgstr "ステータスバーを表示しない。"
+
+msgid "Let XCSoar use the whole screen, including the areas behind the system bars and the display cutout. The map fills it completely, while \"Stretch InfoBox area\" decides which edges the InfoBoxes, gauges, map overlays and the menu may reach."
+msgstr ""
+"XCSoar にシステムバーや切り欠きの裏を含む画面全体を使わせます。地図はそれを完全に埋め、「情報表示領域を広げる」が情報表示、計器、地図オーバーレ"
+"イ、メニューが届く端を決めます。"
+
+msgid "System status bar"
+msgstr "システムステータスバー"
+
+msgid "Whether the system status bar with the clock and the battery level stays visible."
+msgstr "時計とバッテリー残量のあるシステムステータスバーを表示したままにするか。"
+
+#, no-c-format
+msgctxt "Setting"
+msgid "Warn when radar expires"
+msgstr "レーダーの期限切れを警告"
+
+msgid "If enabled, a warning is shown when the rain radar overlay could not be refreshed and was removed from the map."
+msgstr "有効にすると、降雨レーダーのオーバーレイを更新できず地図から消したときに警告を出します。"
+
+#, no-c-format
+msgid "Shrink type when the short edge is under 3.2 inches."
+msgstr "短い辺が 3.2 インチ未満のとき文字を小さくします。"
+
+#, no-c-format
+msgid "Handheld"
+msgstr "手持ち"
+
+#, no-c-format
+msgid "Always use the closer-view size."
+msgstr "常に近距離表示のサイズを使います。"
+
+#, no-c-format
+msgid "Panel"
+msgstr "パネル"
+
+#, no-c-format
+msgid "Keep full-size type, for a screen read at arm's length."
+msgstr "腕の長さで読む画面向けに、文字をフルサイズのままにします。"
+
+msgid "Viewing distance"
+msgstr "視距離"
+
+msgid "Auto shrinks type when the short edge is under 3.2 inches. Handheld always uses that closer size. Panel keeps full-size type."
+msgstr "短い辺が 3.2 インチ未満だと自動で文字を小さくします。「手持ち」は常にその近いサイズです。「パネル」はフルサイズのままです。"
+
+#, no-c-format
+msgctxt "Setting"
+msgid "Satellite layer"
+msgstr "衛星レイヤー"
+
+msgid "Which EUMETView satellite product this page draws under the map."
+msgstr "このページが地図の下に描く EUMETView 衛星プロダクト。"
+
+#, no-c-format
+msgid "Rain radar"
+msgstr "降雨レーダー"
+
+#, no-c-format
+msgid "The reach is from straight line paths from the glider. Landable colours and the Alternates list use this reach."
+msgstr "到達範囲はグライダーからの直線経路です。着陸可能地の色と代替地リストはこの範囲を使います。"
+
+#, no-c-format
+msgid "The reach is calculated allowing turns around terrain obstacles. Landable colours and the Alternates list use this reach."
+msgstr "到達範囲は地形の障害物を回る旋回を許して計算します。着陸可能地の色と代替地リストはこの範囲を使います。"
+
+#, no-c-format
+msgid "Task MC"
+msgstr "タスク MC"
+
+#, no-c-format
+msgid "Uses task MacCready value."
+msgstr "タスクのマクレディ値を使います。"
+
+msgid "Which MacCready is used for terrain reach, landable colours, abort and the Alternates list. This still applies when Reach mode is Off. The working line always uses Task MC. Alternate InfoBoxes and waypoint Alt. diff. Safety MC always use Safety MC."
+msgstr ""
+"地形の到達範囲、着陸可能地の色、中断、代替地リストに使うマクレディ。到達範囲モードがオフでも適用されます。作業線は常にタスク MC を使います。代替地"
+"の情報表示と安全 MC の高度差は常に安全 MC を使います。"
+
+#, no-c-format
+msgid "No reach overlay on the map."
+msgstr "地図に到達範囲のオーバーレイはありません。"
+
+#, no-c-format
+msgid "How far you can glide to the ground. Uses the Reach polar."
+msgstr "地面まで滑空できる距離。到達範囲のポーラーを使います。"
+
+#, no-c-format
+msgid "Shades the map beyond glide to the ground. Uses the Reach polar."
+msgstr "地面までの滑空の外側を地図上で影にします。到達範囲のポーラーを使います。"
+
+#, no-c-format
+msgid "How far you can glide and still arrive at typical thermal-base height from this flight. Always uses Task MC."
+msgstr "この飛行の典型的なサーマルベース高度にまだ届く範囲で、どこまで滑空できるか。常にタスク MC を使います。"
+
+#, no-c-format
+msgid "Working line to typical thermal-base height using Task MC, plus terrain line to the ground using the Reach polar."
+msgstr "タスク MC による典型的なサーマルベース高度までの作業線と、到達範囲ポーラーによる地面までの地形線。"
+
+#, no-c-format
+msgid "Working line to typical thermal-base height using Task MC, plus shade beyond the ground using the Reach polar."
+msgstr "タスク MC による典型的なサーマルベース高度までの作業線と、到達範囲ポーラーによる地面の外側の影。"
+
+msgid "The MacCready used for terrain reach, landable colours, abort and the Alternates list when Reach polar is Safety MC. Alternate InfoBoxes and waypoint Alt. diff. Safety MC always use this value. Speed-to-fly is not affected. Higher values treat fewer fields as reachable."
+msgstr ""
+"到達範囲のポーラーが安全 MC のとき、地形の到達範囲、着陸可能地の色、中断、代替地リストに使うマクレディ。代替地の情報表示と安全 MC の高度差は常"
+"にこの値を使います。最適滑空速度には影響しません。値が高いほど到達できる圃場は少なくなります。"
+
+msgid "No glide polar is configured, so no glide ratio can be shown. Select a plane first."
+msgstr "滑空ポーラーが未設定のため、滑空比を表示できません。先に機体を選んでください。"
+
+msgid "The glide ratio next to each value is the best glide ratio in still air at that MacCready setting, including bugs, ballast and polar degradation."
+msgstr "各値の横の滑空比は、そのマクレディ設定での静穏大気における最良滑空比で、バグ、バラスト、ポーラー劣化を含みます。"
+
+#, c-format
+msgid "Active polar: %s"
+msgstr "使用中のポーラー: %s"
+
+msgid "The MacCready used at startup for speed-to-fly and task calculations. Changing it here also sets the live MacCready. Terrain reach, landable colours, abort and the Alternates list follow Reach polar, not this value unless Reach polar is Task MC."
+msgstr ""
+"最適滑空速度とタスク計算のために起動時に使うマクレディ。ここで変えると現在のマクレディも設定されます。地形の到達範囲、着陸可能地の色、中断、代替地リス"
+"トは、到達範囲のポーラーがタスク MC でない限り、この値ではなく到達範囲のポーラーに従います。"
+
+#, no-c-format
+msgid "Use the time zone which is configured in the operating system, and keep following it across daylight saving time changes and when travelling to another time zone."
+msgstr "オペレーティングシステムに設定されたタイムゾーンを使い、夏時間の切り替えや別のゾーンへの移動でもそれに従い続けます。"
+
+#, no-c-format
+msgid "Time zone"
+msgstr "タイムゾーン"
+
+#, no-c-format
+msgid "Use the time zone selected below.  XCSoar knows its daylight saving time rules and applies the transitions on its own, which means the setting does not need to be corrected twice a year."
+msgstr ""
+"下で選んだタイムゾーンを使います。XCSoar はその夏時間の規則を知っていて切り替わりを自分で適用するので、設定を年に 2 回直す必要はありません。"
+
+#, no-c-format
+msgid "Manual UTC offset"
+msgstr "手動 UTC オフセット"
+
+#, no-c-format
+msgid "Use the fixed UTC offset entered below.  It has to be corrected manually whenever daylight saving time begins or ends."
+msgstr "下に入力した固定 UTC オフセットを使います。夏時間の開始と終了のたびに手で直す必要があります。"
+
+msgid "Local time source"
+msgstr "現地時刻のソース"
+
+msgid "Selects where XCSoar gets the offset between UTC and local time from."
+msgstr "XCSoar が UTC と現地時刻の差をどこから得るかを選びます。"
+
+msgid "The time zone of the airfield you are flying at."
+msgstr "飛行している飛行場のタイムゾーン。"
+
+msgid "The UTC offset field allows the UTC local time offset to be specified. It keeps the value you entered even while another local time source is selected. The local time is displayed below, along with the UTC offset which is currently in effect."
+msgstr ""
+"UTC オフセット欄で UTC と現地時刻の差を指定できます。別の現地時刻のソースを選んでいても、入力した値は残ります。下には現地時刻と、いま有効な "
+"UTC オフセットが表示されます。"
+
+#, no-c-format
+msgid "UKV Model"
+msgstr "UKV モデル"
+
+#, no-c-format
+msgid "United Kingdom. UKV model."
+msgstr "イギリス。UKV モデル。"
+
+#. the other tabs are named after their service, which is why they
+#. are not translated; this one is a common noun
+msgid "Overlay"
+msgstr "オーバーレイ"
+
+msgid "Revoke"
+msgstr "取り消し"
+
+#, no-c-format
+msgid "Radar (EUMETNET OPERA)"
+msgstr "Radar (EUMETNET OPERA)"
+
+#. the server answered but the product had nothing to draw here:
+#. say so, rather than leaving an empty map to be read as a slow
+#. download
+msgid "no data"
+msgstr "データなし"
+
+msgid "Downloading radar..."
+msgstr "レーダーをダウンロード中..."
+
+#. the opt-out follows the Quick Guide dialog: answering "no" writes
+#. the choice to the profile, and the Look configuration page can
+#. switch it back on
+msgid ""
+"The radar image could not be refreshed and has been removed, so that no outdated echo is shown.\n"
+"\n"
+"Warn again when this happens?"
+msgstr "レーダー画像を更新できなかったため削除しました。古いエコーを出さないためです。\n\n次も起きたら警告しますか？"
+
+#. first, and the default: the closest counterpart to the pc_met
+#. vis_hrv images, and the one product here that covers Europe at
+#. the HRV sampling German pilots are used to reading
+#, no-c-format
+msgid "European HRV RGB"
+msgstr "ヨーロッパ HRV RGB"
+
+#. MTG, which resolves about twice as finely as SEVIRI HRV
+#, no-c-format
+msgid "Visible 0.6 µm (MTG)"
+msgstr "可視 0.6 µm (MTG)"
+
+#, no-c-format
+msgid "Infrared 10.5 µm (MTG)"
+msgstr "赤外 10.5 µm (MTG)"
+
+#. the RGB composites are assembled from several channels and reach
+#. the server a few minutes behind the single channel products, which
+#. the frame search follows on its own
+#, no-c-format
+msgid "True colour (MTG)"
+msgstr "トゥルーカラー (MTG)"
+
+#, no-c-format
+msgid "Geo colour (MTG)"
+msgstr "ジオカラー (MTG)"
+
+#. five minute cadence, and the promptest of them by a wide margin
+#, no-c-format
+msgid "Rapid scan natural colour"
+msgstr "高速スキャン自然色"
+
+msgid "No satellite imagery here right now"
+msgstr "現在ここには衛星画像がありません"
+
+msgid "Countries"
+msgstr "国"
+
+msgid "Show only the files of these countries - the same selection for maps, waypoints and airspaces, kept in the profile.  Files that concern every country stay listed."
+msgstr ""
+"これらの国のファイルだけを表示します。地図、ウェイポイント、空域で同じ選択がプロファイルに保存されます。すべての国に関するファイルは一覧に残ります。"
+
+msgid "Search"
+msgstr "検索"
+
+msgid "Show only the files whose name or description contains this text."
+msgstr "名前または説明にこの文字列を含むファイルだけを表示します。"
+
+msgid "No file matches the filter."
+msgstr "フィルタに一致するファイルはありません。"
+
+msgid "Complete"
+msgstr "完了"
+
+msgid "Cancelled"
+msgstr "キャンセル済み"
+
+#, no-c-format
+msgid "Total altitude gain/loss in the last thermal divided by the time spent circling. The seconds in smaller font reflect the time spent circling."
+msgstr "最後のサーマルの高度増減を旋回時間で割った値。小さい秒数は旋回時間です。"
+
+#, no-c-format
+msgid "Time spent circling in the last thermal. The number in smaller font reflects the overall climb rate for the last thermal."
+msgstr "最後のサーマルで旋回した時間。小さい数字は最後のサーマルの平均上昇率です。"
+
+#, no-c-format
+msgid "Main value: thermal climb rate on the next leg that is equivalent to a thermal climb rate equal to the MacCready setting on the current leg. Secondary value: thermal climb rate on the current leg that is equivalent to a thermal climb rate equal to the MacCready setting on the next leg."
+msgstr ""
+"主値: 次のレグのサーマル上昇率で、現在のレグのマクレディに等しい上昇率に相当します。副値: 現在のレグのサーマル上昇率で、次のレグのマクレディに等し"
+"い上昇率に相当します。"
+
+#, no-c-format
+msgid "Arrival altitude at the best alternate landing location using Safety MC, relative to the safety arrival height."
+msgstr "安全 MC を使った最良の代替着陸地での到着高度。安全到着高度との差です。"
+
+#, no-c-format
+msgid "Arrival altitude at the second-best alternate landing location using Safety MC, relative to the safety arrival height."
+msgstr "安全 MC を使った次善の代替着陸地での到着高度。安全到着高度との差です。"
+
+#, no-c-format
+msgid "Current QNH pressure setting used for barometric altitude calculation. The line below shows that altitude when a pressure sensor is available. Tap the infobox to open the setup panel and adjust QNH manually."
+msgstr ""
+"気圧高度の計算に使う現在の QNH。気圧センサがあるとき、下の行がその高度を示します。情報表示をタップしてパネルを開き、QNH を手で調整します。"
+
+#, no-c-format
+msgid "Speed VMG"
+msgstr "速度 VMG"
+
+#, no-c-format
+msgid "V VMG"
+msgstr "V VMG"
+
+#, no-c-format
+msgid "The component of the ground speed in the direction of the next waypoint. It equals the ground speed when tracking straight at it, falls to zero at right angles and goes negative when flying away. It puts a number on what a detour off the direct course costs."
+msgstr ""
+"次のウェイポイント方向の対地速度の成分。まっすぐ向かうときは対地速度に等しく、直角ではゼロになり、離れると負になります。直線コースから外れた迂回の代償"
+"を数値にします。"
+
+#, no-c-format
+msgid "Vario and thermal"
+msgstr "バリオとサーマル"
+
+#, no-c-format
+msgid "Glide"
+msgstr "滑空"
+
+#, no-c-format
+msgid "Speed and attitude"
+msgstr "速度と姿勢"
+
+#, no-c-format
+msgid "Wind and weather"
+msgstr "風と気象"
+
+#, no-c-format
+msgid "Time"
+msgstr "時刻"
+
+#, no-c-format
+msgid "Airspace and team"
+msgstr "空域とチーム"
+
+#, no-c-format
+msgid "Other"
+msgstr "その他"
+
+msgid "Drag an InfoBox onto another one to exchange the two.  Hold an InfoBox and lift to choose a different InfoBox for that position."
+msgstr "情報表示を別の上へドラッグすると入れ替わります。長押しして持ち上げると、その位置の別の情報表示を選べます。"
+
+msgid "Press Enter to take the selected InfoBox, move it with the cursor keys and press Enter again to put it down.  Pressing Enter twice without moving an InfoBox chooses a different InfoBox for that position."
+msgstr ""
+"Enter で選んだ情報表示を取り、カーソルキーで動かし、もう一度 Enter で置きます。動かさずに Enter を二度押すと、その位置の別の情報表"
+"示を選びます。"
+
+msgid "Arrange InfoBoxes"
+msgstr "情報表示の配置"
+
+msgid ""
+"Arrange\n"
+"InfoBoxes"
+msgstr "配置\n情報表示"
+
+msgid "The current wing loading, calculated from the glider's empty weight, crew weight, and ballast. Shown in red when the glider is heavier than its MTOW."
+msgstr "グライダーの空重量、乗員重量、バラストから計算される現在の翼荷重。最大離陸重量を超えると赤で表示されます。"
+
+msgid "MTOW"
+msgstr "MTOW"
+
+msgid "Maximum takeoff weight of the glider."
+msgstr "グライダーの最大離陸重量。"
+
+#, no-c-format
+msgid "Water ballast on board, in litres. The comment shows the wing loading, in red when the glider is heavier than its MTOW. The value is blue while ballast is being dumped. Tap to change the ballast."
+msgstr "搭載中の水バラスト、リットル。コメントは翼面荷重を示し、最大離陸重量を超えると赤です。投棄中は値が青です。タップしてバラストを変更します。"
 

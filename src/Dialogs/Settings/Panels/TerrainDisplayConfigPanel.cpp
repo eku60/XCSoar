@@ -31,6 +31,7 @@
 enum ControlIndex {
   EnableTerrain,
   EnableTopography,
+  SPACER_APPEARANCE,
   TerrainColors,
   TerrainSlopeShading,
   TerrainContrast,
@@ -116,14 +117,15 @@ void
 TerrainDisplayConfigPanel::ShowTerrainControls()
 {
   bool show = terrain_settings.enable;
-  SetRowVisible(TerrainColors, show);
-  SetRowVisible(TerrainSlopeShading, show);
-  SetRowVisible(TerrainContrast, show);
-  SetRowVisible(TerrainBrightness, show);
-  SetRowVisible(TerrainContours, show);
+  SetRowAvailable(SPACER_APPEARANCE, show);
+  SetRowAvailable(TerrainColors, show);
+  SetRowAvailable(TerrainSlopeShading, show);
+  SetRowAvailable(TerrainContrast, show);
+  SetRowAvailable(TerrainBrightness, show);
+  SetRowAvailable(TerrainContours, show);
   if (have_terrain_preview) {
-    SetRowVisible(TerrainSpacer, show);
-    SetRowVisible(TerrainPreview, show);
+    SetRowAvailable(TerrainSpacer, show);
+    SetRowAvailable(TerrainPreview, show);
   }
 }
 
@@ -242,6 +244,8 @@ TerrainDisplayConfigPanel::Prepare(ContainerWindow &parent,
              _("Draw topographical features (roads, rivers, lakes etc.) on the map."),
              settings_map.topography_enabled);
   GetDataField(EnableTopography).SetListener(this);
+
+  AddSpacer();
 
   static constexpr StaticEnumChoice terrain_ramp_list[] = {
     { 0, N_("Low lands"), },
