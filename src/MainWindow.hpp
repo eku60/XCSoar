@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ui/window/SingleWindow.hpp"
+#include "ui/window/Features.hpp" // for HAVE_FULL_SCREEN_SETTING
 #include "ui/event/PeriodicTimer.hpp"
 #include "ui/event/Notify.hpp"
 #include "ui/event/Timer.hpp"
@@ -26,6 +27,7 @@ class Menu;
 class MenuBar;
 class GlueMapWindow;
 class Widget;
+class WindowWidget;
 class RasterTerrain;
 class TopographyStore;
 class MapWindowProjection;
@@ -71,14 +73,20 @@ class MainWindow : public UI::SingleWindow {
   GlueMapWindow *map = nullptr;
 
   /**
-   * A #Widget that is shown above the map.
+   * A #Widget that is shown above the main content.
    */
   Widget *top_widget = nullptr;
 
   /**
-   * A #Widget that is shown below the map.
+   * A #Widget that is shown below the main content.
    */
   Widget *bottom_widget = nullptr;
+
+  /**
+   * A transient #Widget between the main content and the configured
+   * bottom widget, or in a reserved screen-bottom strip while dialogs are open.
+   */
+  WindowWidget *bottom_banner_widget = nullptr;
 
   /**
    * A #Widget that is shown instead of the map.  The #GlueMapWindow
@@ -134,9 +142,45 @@ private:
 
   UI::PeriodicTimer timer{[this]{ RunTimer(); }};
 
+  /**
+   * One-shot timer that re-checks the safe area on the next event
+   * loop iteration, which is when the system has applied a change we
+   * asked for.
+   *
+   * @see CheckSafeAreaChange()
+   */
+  UI::Timer safe_area_timer{[this]{ CheckSafeAreaChange(); }};
+
   BatteryTimer battery_timer;
 
   PixelRect map_rect;
+
+  /**
+   * The part of #map_rect that is covered neither by InfoBoxes nor
+   * by system UI: the stack of the top area, the main area and the
+   * bottom area.
+   *
+   * @see GetAreaStackRect()
+   */
+  PixelRect area_stack_rect{0, 0, 0, 0};
+
+  /**
+   * #area_stack_rect without the top and bottom areas; the HUD
+   * elements are drawn here.
+   *
+   * @see GetHudRect()
+   */
+  PixelRect hud_rect{0, 0, 0, 0};
+
+  /**
+   * The safe area the current layout was calculated for.  The system
+   * applies changes to it asynchronously (e.g. after the status bar
+   * has been hidden during startup), so poll for them.
+   *
+   * @see CheckSafeAreaChange()
+   */
+  PixelRect safe_area_rect{0, 0, 0, 0};
+
   bool FullScreen = false;
 
   /**
@@ -165,14 +209,15 @@ private:
 #else
   /**
    * Number of frames which must still be repainted with a cleared
-   * background to erase a gesture trail which the #GlueMapWindow has
-   * painted outside its own rectangle.  Sized from the swap-chain
-   * depth so every presentation buffer gets a clean frame.
+   * background to erase what the #GlueMapWindow (gesture trail) or
+   * the InfoBox arrange overlay (dragged InfoBox) has painted outside
+   * its own rectangle.  Sized from the swap-chain depth so every
+   * presentation buffer gets a clean frame.
    *
    * @see OnPaint()
    * @see TopWindow::GetPresentationBufferCount()
    */
-  unsigned clear_gesture_frames = 0;
+  unsigned clear_trail_frames = 0;
 #endif
 
   bool restore_page_pending = false;
@@ -219,11 +264,7 @@ protected:
   void KillTopWidget() noexcept;
 
   bool HaveBottomWidget() const noexcept {
-    /* currently, the bottom widget is only visible below the map, but
-       not below a custom main widget */
-    /* TODO: eliminate this limitation; don't forget to remove the
-       "widget==nullptr" check from MainWindow::KillBottomWidget() */
-    return bottom_widget != nullptr && widget == nullptr;
+    return bottom_widget != nullptr;
   }
 
   /**
@@ -232,6 +273,20 @@ protected:
    * new bottom Widget.
    */
   void KillBottomWidget() noexcept;
+
+  bool HaveBottomBannerWidget() const noexcept {
+    return bottom_banner_widget != nullptr;
+  }
+
+  /**
+   * Destroy the current bottom banner Widget, but don't resize the main
+   * area.  The caller is responsible for doing that or installing a new
+   * bottom banner Widget.
+   */
+  void KillBottomBannerWidget() noexcept;
+
+  /** Keep the banner above page content, below menu buttons and dialogs. */
+  void RaiseBottomBannerWidget() noexcept;
 
 public:
   Widget *GetBottomWidget() const noexcept {
@@ -273,14 +328,49 @@ public:
 
 private:
   [[gnu::pure]]
-  const PixelRect &GetMainRect(const PixelRect &full_rc) const noexcept {
-    return FullScreen ? full_rc : map_rect;
-  }
-
-  [[gnu::pure]]
   PixelRect GetMainRect() const noexcept {
     return FullScreen ? GetClientRect() : map_rect;
   }
+
+  /**
+   * The area in which everything except the map itself is laid out.
+   * This is the whole client area on the edges the user chose to
+   * stretch to, and the safe area on all others.
+   *
+   * @see DisplaySettings::infobox_area_stretch
+   */
+  [[gnu::pure]]
+  PixelRect GetInfoBoxAreaRect() const noexcept;
+
+  /**
+   * Re-run the layout if the system has changed the safe area behind
+   * our back.
+   */
+  void CheckSafeAreaChange() noexcept;
+
+  /**
+   * The stack of the top area, the main area and the bottom area,
+   * which is what the InfoBoxes and the system UI leave over.  What
+   * the top and bottom areas leave over is #GetHudRect().
+   *
+   * @see PageSettings
+   */
+  [[gnu::pure]]
+  PixelRect GetAreaStackRect() const noexcept;
+
+  /**
+   * The part of the main area that is covered neither by InfoBoxes,
+   * nor by the top and bottom areas, nor by system UI.  The HUD
+   * elements (compass, map scale, final glide bar, overlay buttons)
+   * are drawn here, and a #Widget shown instead of the map (FLARM
+   * radar, analysis, ...) is laid out here.  The map itself may
+   * extend beyond it, behind the InfoBoxes, behind the widgets and
+   * behind the system bars and the display cutout.
+   *
+   * Updated by #LayoutMapArea().
+   */
+  [[gnu::pure]]
+  PixelRect GetHudRect() const noexcept;
 
   /**
    * The visible #GlueMapWindow area.  After layout, this is
@@ -291,15 +381,31 @@ private:
   PixelRect GetMapAreaRect() const noexcept;
 
   /**
-   * Move top/bottom widgets and the map into the area returned by
-   * #GetMapAreaRect().
+   * Return the banner rectangle inside the InfoBox boundaries, above the
+   * configured bottom widget, for both map and custom pages.  While a dialog
+   * is open, use a full-width strip at the bottom of the client area instead.
+   */
+  [[gnu::pure]]
+  PixelRect GetBottomBannerRect() const noexcept;
+
+  /**
+   * Lay out the top/bottom widgets, banner and active main content inside
+   * #GetMainRect().  The hidden map follows the same content rectangle.
    */
   void LayoutMapArea() noexcept;
 
-  void UpdateMapOverlayButtonLayout() noexcept;
+  /**
+   * Move everything that follows #GetHudRect(): the current widget,
+   * the overlapped gauges and the status messages.  #LayoutMapArea()
+   * computes that rectangle, and must have run.
+   */
+  void LayoutHudElements() noexcept;
 
   /**
    * Adjust the flarm radar position
+   *
+   * @param rc the InfoBox area; the positions that do not avoid the
+   * InfoBoxes are laid out in it, the others in #GetHudRect()
    */
   void ReinitialiseLayout_flarm(PixelRect rc,
                                 const InfoBoxLayout::Layout &ib_layout) noexcept;
@@ -309,6 +415,12 @@ private:
    */
   void ReinitialiseLayout_vario(const InfoBoxLayout::Layout &layout) noexcept;
 
+  /**
+   * Adjust the thermal assistant position
+   *
+   * @param rc the InfoBox area; the positions that do not avoid the
+   * InfoBoxes are laid out in it, the others in #GetHudRect()
+   */
   void ReinitialiseLayoutTA(PixelRect rc,
                             const InfoBoxLayout::Layout &layout) noexcept;
 
@@ -318,6 +430,12 @@ public:
    * UISettings, then update their positions.
    */
   void ReinitialiseMapOverlayButtons() noexcept;
+
+  /**
+   * Show or hide the map overlay buttons for the current page and
+   * keep the north arrow's clearance in step with them.
+   */
+  void UpdateMapOverlayButtonLayout() noexcept;
 
   /**
    * Called by XCSoarInterface::Startup() after startup has been
@@ -335,6 +453,14 @@ public:
    * position/size.
    */
   void ReinitialiseLayout() noexcept;
+
+  /**
+   * Check whether the InfoBox geometry of the currently active panel
+   * differs from the one the InfoBoxes were created with, and
+   * reinitialise the layout if it does.  Cheap enough to be called
+   * whenever the display mode (and thus the panel) may have changed.
+   */
+  void CheckInfoBoxGeometry() noexcept;
 
   /**
    * Reinitialise the #Look after relevant #UISettings have been
@@ -376,6 +502,19 @@ public:
 
   void SetFullScreen(bool _full_screen) noexcept;
 
+#ifdef HAVE_FULL_SCREEN_SETTING
+  /**
+   * Apply DisplaySettings::full_screen and
+   * DisplaySettings::status_bar, i.e. hide or show the system bars
+   * (status bar, navigation bar, home indicator) and use the whole
+   * screen.
+   *
+   * Not to be confused with #SetFullScreen(), which hides the
+   * InfoBoxes.
+   */
+  void ApplyFullScreenSettings() noexcept;
+#endif
+
   /**
    * Coalesce map area layout (and map #FullRedraw) while a page layout
    * is applied in several steps (InfoBoxes, bottom widget, …).
@@ -398,6 +537,17 @@ public:
     rotation_suggestion_notify.SendNotification();
   }
 #endif
+
+  /**
+   * Show a task that arrived from outside XCSoar (a scanned QR code,
+   * or an "xctsk:" link handed over by another app).
+   *
+   * Called from the event loop via PostReceivedTask(), never directly
+   * from the thread the task arrived on.  Does nothing while XCSoar is
+   * still starting up or while another modal dialog is open; RunTimer()
+   * offers the task again in that case.
+   */
+  void OnTaskReceived() noexcept;
 
   void SetTerrain(RasterTerrain *terrain) noexcept;
   void SetTopography(TopographyStore *topography) noexcept;
@@ -465,18 +615,27 @@ public:
   void SchedulePageActionsUpdate() noexcept;
 
   /**
-   * Show this #Widget above the map.  This replaces (deletes) the
+   * Show this #Widget above the main content.  This replaces (deletes) the
    * previous top widget, if any.  To disable this feature, call this
    * method with widget==nullptr.
    */
   void SetTopWidget(Widget *widget) noexcept;
 
   /**
-   * Show this #Widget below the map.  This replaces (deletes) the
+   * Show this #Widget below the main content.  This replaces (deletes) the
    * previous bottom widget, if any.  To disable this feature, call
    * this method with widget==nullptr.
    */
   void SetBottomWidget(Widget *widget) noexcept;
+
+  /**
+   * Show a transient #Widget below the active main content, reserving space
+   * above the configured bottom widget on both map and custom pages.  This
+   * replaces (deletes) the previous bottom banner, if any.  To disable this
+   * feature, call this method with widget==nullptr.  Modal dialogs reserve
+   * space for the banner at the bottom of the screen.
+   */
+  void SetBottomBannerWidget(WindowWidget *widget) noexcept;
 
   /**
    * Replace the map with a #Widget.  The Widget instance gets deleted
@@ -535,16 +694,13 @@ private:
 #endif
 
 protected:
+  void OnDialogChanged() noexcept override;
+
   /* virtual methods from class Window */
   void OnDestroy() noexcept override;
   void OnResize(PixelSize new_size) noexcept override;
   void OnSetFocus() noexcept override;
   void OnCancelMode() noexcept override;
-
-#ifdef USE_WINUSER
-  LRESULT OnMessage(HWND hWnd, UINT message,
-                    WPARAM wParam, LPARAM lParam) noexcept override;
-#endif
   bool OnMouseDown(PixelPoint p) noexcept override;
   bool OnMouseUp(PixelPoint p) noexcept override;
   bool OnMouseMove(PixelPoint p, unsigned keys) noexcept override;
@@ -565,6 +721,5 @@ protected:
 
 #ifdef ANDROID
   void OnLook() noexcept override;
-  void OnTaskReceived() noexcept override;
 #endif
 };

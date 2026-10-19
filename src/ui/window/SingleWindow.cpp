@@ -4,12 +4,21 @@
 #include "SingleWindow.hpp"
 #include "Form/Form.hpp"
 
+#include <algorithm>
+
 namespace UI {
 
 void
 SingleWindow::AddDialog(WndForm *dialog) noexcept
 {
   dialogs.push_front(dialog);
+
+  /* remember what a maximised dialog looks like right now, so
+     OnResize() can tell one apart later.  The warning banner, if
+     any, is already excluded. */
+  dialog_rect = GetDialogRect();
+  OnDialogChanged();
+  dialog->ReinitialiseLayout(dialog_rect);
 }
 
 void
@@ -18,6 +27,44 @@ SingleWindow::RemoveDialog([[maybe_unused]] WndForm *dialog) noexcept
   assert(dialog == dialogs.front());
 
   dialogs.pop_front();
+  OnDialogChanged();
+}
+
+PixelRect
+SingleWindow::GetDialogRect(PixelRect rc) const noexcept
+{
+  rc.bottom -= std::min(dialog_bottom_margin, rc.GetHeight() / 2);
+  return rc;
+}
+
+PixelRect
+SingleWindow::GetDialogRect() const noexcept
+{
+  return GetDialogRect(GetSafeAreaRect());
+}
+
+void
+SingleWindow::SetDialogOverlay(Window *window, unsigned bottom_margin) noexcept
+{
+  dialog_overlay = window;
+  if (window == nullptr)
+    bottom_margin = 0;
+
+  if (dialog_bottom_margin == bottom_margin)
+    return;
+
+  dialog_bottom_margin = bottom_margin;
+  ReinitialiseDialogs();
+  Invalidate();
+}
+
+void
+SingleWindow::ReinitialiseDialogs() noexcept
+{
+  const auto rc = GetDialogRect();
+  for (auto *dialog : dialogs)
+    dialog->ReinitialiseLayout(rc);
+  dialog_rect = rc;
 }
 
 void
@@ -26,6 +73,19 @@ SingleWindow::CancelDialog() noexcept
   AssertThread();
 
   GetTopDialog().SetModalResult(mrCancel);
+}
+
+void
+SingleWindow::BringToTopBelowDialogs(Window &window) noexcept
+{
+  WndForm *bottom_dialog = nullptr;
+  for (auto *dialog : dialogs)
+    bottom_dialog = dialog;
+
+  if (bottom_dialog != nullptr)
+    window.PlaceBelow(*bottom_dialog);
+  else
+    window.BringToTop();
 }
 
 bool
@@ -47,25 +107,77 @@ SingleWindow::OnDestroy() noexcept
   PostQuit();
 }
 
+/**
+ * Does this dialog fill the whole area that is available to dialogs?
+ *
+ * WndForm::IsMaximised() answers the same question, but calling it
+ * here would not link: #SingleWindow is part of the screen library,
+ * which comes before the form library, and unlike WndForm's virtual
+ * methods a non-virtual one is referenced by name.
+ */
+[[gnu::pure]]
+static bool
+FillsDialogArea(const Window &dialog, const PixelRect &dialog_rect) noexcept
+{
+  const PixelSize size = dialog.GetSize();
+  const PixelSize available = dialog_rect.GetSize();
+  /* >= so a Full dialog created before the first inset report shrinks
+     into the real safe area instead of staying edge-to-edge */
+  return size.width >= available.width && size.height >= available.height;
+}
+
+bool
+SingleWindow::HasMaximisedDialog() const noexcept
+{
+  /* not just the top dialog: a small one opened on top of a maximised
+     dialog (e.g. the settings of the analysis dialog) leaves the
+     maximised one covering the screen */
+  for (const WndForm *dialog : dialogs)
+    if (FillsDialogArea(*dialog, dialog_rect))
+      return true;
+
+  return false;
+}
+
+bool
+SingleWindow::HasFullScreenDialog() const noexcept
+{
+  for (const WndForm *dialog : dialogs)
+    if (dialog->FillsClient())
+      return true;
+
+  return false;
+}
+
 void
 SingleWindow::OnResize(PixelSize new_size) noexcept
 {
-  /* Resize dialogs BEFORE calling TopWindow::OnResize, so they're at the
-   * correct size when TopWindow::OnResize calls Expose(). This is especially
-   * important for fullscreen dialogs (like dlgSimulatorPrompt) which cover
-   * the entire window.
-   * 
-   * Use the new_size to construct the client rect, since GetClientRect()
-   * would return the old size at this point. */
-  const PixelRect rc(PixelPoint(0, 0), new_size);
+  /* Resize dialogs before TopWindow::OnResize so they have the right
+     size when Expose() runs.  GetClientRect() still returns the old
+     size here, so build the rects from new_size.
+
+     Dialogs stay in the safe area, above a warning banner.  The
+     Fly/Simulator start screen is the exception: it fills the client
+     so its gradient can paint edge to edge, and only its controls
+     follow the insets. */
+  const PixelRect full_rc{new_size};
+  const PixelRect rc = GetDialogRect(GetSafeAreaRect(new_size));
   for (WndForm *dialog : dialogs) {
-    dialog->ReinitialiseLayout(rc);
-    /* Invalidate dialog to ensure it's redrawn with the new layout */
+    if (dialog->FillsClient()) {
+      dialog->Move(full_rc);
+      dialog->ForceLayout();
+    } else if (FillsDialogArea(*dialog, dialog_rect))
+      /* filled the previous safe area; grow or shrink with it.
+         ReinitialiseLayout() never resizes. */
+      dialog->Move(rc);
+    else
+      dialog->ReinitialiseLayout(rc);
+
     dialog->Invalidate();
   }
-  
-  /* Now resize the main window, which will call Expose() to redraw everything
-   * including the resized dialogs. */
+
+  dialog_rect = rc;
+
   TopWindow::OnResize(new_size);
 }
 

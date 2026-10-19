@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "NMEA/Validity.hpp"
+#include "time/Validity.hpp"
+#include "ui/event/PeriodicTimer.hpp"
 
 /**
  * Check for new airspace warnings and show the airspace warning
@@ -11,15 +12,20 @@
  */
 class AirspaceWarningMonitor {
   friend class AirspaceWarningWidget;
-  class AirspaceWarningWidget *widget = nullptr;
+  friend class CurrentAirspacesWidget;
+  class AirspaceWarningWidget *warning_widget = nullptr;
+  class CurrentAirspacesWidget *current_widget = nullptr;
 
   Validity last;
+  unsigned sound_interval_counter = 0;
+  UI::PeriodicTimer sound_timer{[this]{ PlayRepetitiveSound(); }};
 
 public:
   void Reset() noexcept;
   void Check() noexcept;
 
 private:
+  void PlayRepetitiveSound() noexcept;
   void HideWidget() noexcept;
 
   void Schedule() noexcept {

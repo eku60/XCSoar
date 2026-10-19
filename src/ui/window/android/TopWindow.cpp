@@ -86,6 +86,26 @@ TopWindow::ResumeSurface() noexcept
 }
 
 void
+TopWindow::AnnounceSafeAreaInsets(unsigned left, unsigned top,
+                                  unsigned right, unsigned bottom,
+                                  unsigned shape_left, unsigned shape_top,
+                                  unsigned shape_right,
+                                  unsigned shape_bottom) noexcept
+{
+  const std::lock_guard lock{paused_mutex};
+  pending_safe_area_insets = {left, top, right, bottom};
+  pending_shape_insets = {shape_left, shape_top, shape_right, shape_bottom};
+}
+
+void
+TopWindow::PublishSafeAreaInsets() noexcept
+{
+  const std::lock_guard lock{paused_mutex};
+  safe_area_insets = pending_safe_area_insets;
+  shape_insets = pending_shape_insets;
+}
+
+void
 TopWindow::RefreshSize() noexcept
 {
   PixelSize new_size_copy;
@@ -258,6 +278,10 @@ TopWindow::OnEvent(const Event &event)
     return OnMultiTouchUp();
 
   case Event::RESIZE: {
+    /* the insets belong to this resize; take them over before
+       anything is laid out or drawn with them */
+    PublishSafeAreaInsets();
+
     if (!screen->IsReady())
       /* postpone the resize if we're paused; the real resize will be
          handled by TopWindow::refresh() as soon as XCSoar is
@@ -267,7 +291,12 @@ TopWindow::OnEvent(const Event &event)
     PixelSize event_size(event.point.x, event.point.y);
     screen->CheckResize(event_size);
     PixelSize screen_size = screen->GetSize();
+    const bool size_changed = screen_size != GetSize();
     Resize(screen_size);
+    if (!size_changed)
+      /* Window::Resize() is a no-op when the surface size did not
+         change, but the safe-area insets may have */
+      OnResize(screen_size);
 
     /* it seems the first page flip after a display orientation change
        is ignored on Android (tested on a Dell Streak / Android
@@ -287,10 +316,6 @@ TopWindow::OnEvent(const Event &event)
 
   case Event::SURFACE:
     OnSurface();
-    return true;
-
-  case Event::TASK_RECEIVED:
-    OnTaskReceived();
     return true;
 
   case Event::PAUSE:

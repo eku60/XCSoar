@@ -7,14 +7,15 @@
 #include "NMEA/InputLine.hpp"
 #include "NMEA/Info.hpp"
 #include "Geo/SpeedVector.hpp"
-#include "RadioFrequency.hpp"
-#include "TransponderCode.hpp"
-#include "TransponderMode.hpp"
+#include "Radio/RadioFrequency.hpp"
+#include "Radio/TransponderCode.hpp"
+#include "Radio/TransponderMode.hpp"
 #include "Units/System.hpp"
 #include "util/Macros.hpp"
 #include "util/StringCompare.hxx"
 #include "Math/Util.hpp"
 #include "util/NumberParser.hpp"
+#include "util/NumberParser.hxx"
 #include "LogFile.hpp"
 
 #include <optional>
@@ -226,7 +227,8 @@ LXWP2(NMEAInputLine &line, NMEAInfo &info)
 }
 
 bool
-LXWP3(NMEAInputLine &line, NMEAInfo &info)
+LXWP3(NMEAInputLine &line, NMEAInfo &info, LXWP3QNH qnh_mode,
+      bool *qnh_updated)
 {
   /*
    * $LXWP3,
@@ -246,13 +248,27 @@ LXWP3(NMEAInputLine &line, NMEAInfo &info)
    */
 
   double value;
+  bool updated = false;
 
   // Altitude offset -> QNH
-  if (line.ReadChecked(value)) {
-    value = Units::ToSysUnit(-value, Unit::FEET);
-    auto qnh = AtmosphericPressure::PressureAltitudeToStaticPressure(value);
-    info.settings.ProvideQNH(qnh, info.clock);
+  if (line.ReadChecked(value) && qnh_mode != LXWP3QNH::SKIP) {
+    const double offset = Units::ToSysUnit(value, Unit::FEET);
+
+    /* An S series vario (S10, firmware 9.41) derives the offset from
+       its QNH at 8.5 m per hPa: 1020.00 hPa gives 57.4 m, reported as
+       188 ft, and 1010.00 hPa gives -27.6 m (-91 ft).  The standard
+       atmosphere turns those back into 1020.15 and 1009.92 hPa, and
+       XCSoar sent that error back to the vario on every connect, so
+       the QNH crept (#3261). */
+    const auto qnh = qnh_mode == LXWP3QNH::LINEAR
+      ? AtmosphericPressure::HectoPascal(
+          AtmosphericPressure::Standard().GetHectoPascal() + offset / 8.5)
+      : AtmosphericPressure::PressureAltitudeToStaticPressure(-offset);
+    updated = info.settings.ProvideQNH(qnh, info.clock);
   }
+
+  if (qnh_updated != nullptr)
+    *qnh_updated = updated;
 
   line.Skip(); // scmode
 
@@ -284,8 +300,9 @@ ParseDoubleValue(std::string_view sv) noexcept
  */
 static bool
 PLXV0(NMEAInputLine &line, DeviceSettingsMap<std::string> &settings,
-      NMEAInfo &info, LXDevice &device)
+      NMEAInfo &info, LXDevice &device, bool &exact_qnh)
 {
+  exact_qnh = false;
   const auto name = line.ReadView();
   if (name.empty())
     return true;
@@ -302,7 +319,28 @@ PLXV0(NMEAInputLine &line, DeviceSettingsMap<std::string> &settings,
     settings.Set(std::string{name}, value);
   }
 
-  if (name == "ELEVATION"sv) {
+  if (name == "QNH"sv) {
+    /* hPa times 100 as a whole number, sent on a change; more exact
+       than the $LXWP3 offset.  ProvideQNH() keeps a value within
+       0.5 hPa, so clear the one derived from the offset first; a
+       later $LXWP3 then leaves this one alone.  Read as an integer: a
+       floating point parser would take "nan", which -ffast-math lets
+       past every range check. */
+    if (unsigned hundredths; ParseIntegerTo(value, hundredths)) {
+      /* ProvideQNH() rejects an implausible value; keep the one
+         there was then */
+      const auto previous = info.settings.qnh;
+      const auto previous_available = info.settings.qnh_available;
+      info.settings.qnh_available.Clear();
+      if (!info.settings.ProvideQNH(
+            AtmosphericPressure::HectoPascal(hundredths / 100.),
+            info.clock)) {
+        info.settings.qnh = previous;
+        info.settings.qnh_available = previous_available;
+      } else
+        exact_qnh = true;
+    }
+  } else if (name == "ELEVATION"sv) {
     if (auto d = ParseDoubleValue(value))
       info.settings.ProvideElevation(iround(*d), info.clock);
   } else if (name == "MC"sv) {
@@ -360,6 +398,25 @@ LXDevice::StoreReceivedPolar(std::string_view value,
     device_polar.name = name;
     device_polar.stall = stall;
     device_polar.valid = true;
+
+    /* A send that waited for this cache must win over the mass in
+       the reply, or PolarProcessTimer writes the vario's old mass
+       into the plane file (#3353). */
+    if (pending_empty_mass &&
+        (*pending_empty_mass > empty_weight + 0.1 ||
+         *pending_empty_mass < empty_weight - 0.1)) {
+      empty_weight = *pending_empty_mass;
+      device_polar.empty_weight = empty_weight;
+    } else
+      pending_empty_mass.reset();
+
+    if (pending_max_takeoff_mass &&
+        (*pending_max_takeoff_mass > max_weight + 0.1 ||
+         *pending_max_takeoff_mass < max_weight - 0.1)) {
+      max_weight = *pending_max_takeoff_mass;
+      device_polar.max_weight = max_weight;
+    } else
+      pending_max_takeoff_mass.reset();
   }
 
   info.settings.ProvidePolarCoefficients(pc.a, pc.b, pc.c, info.clock);
@@ -716,6 +773,9 @@ LXDevice::IdDeviceByNameLocked(const StaticString<16> &product_name,
   is_sVario = new_sVario;
   is_nano = new_nano;
   is_lx16xx = new_lx16xx;
+
+  if (!product_name.empty())
+    NoteQnhModelLocked(new_sVario);
 }
 
 void
@@ -766,7 +826,40 @@ LXDevice::UpdateDeviceFlags(const DeviceInfo &device_info,
 
     if (!was_vario && (saw_v7 || saw_sVario))
       vario_just_detected = true;
+
+    if (!device_info.product.empty()) {
+      /* In pass-through the $LXWP1 product is the forwarded device.
+         Do not forget an S series vario because of that. */
+      if (!pass_through)
+        NoteQnhModelLocked(saw_sVario);
+      else if (saw_sVario)
+        NoteQnhModelLocked(true);
+    }
   }
+}
+
+void
+LXDevice::NoteQnhModelLocked(bool linear) noexcept
+{
+  const auto next = linear ? QnhModel::LINEAR : QnhModel::STANDARD;
+  if (qnh_model == next)
+    return;
+
+  qnh_model = next;
+  /* Nothing derived from the old model yet: the next offset can be
+     stored normally. */
+  if (qnh_from_lxwp3)
+    replace_lxwp3_qnh = true;
+}
+
+void
+LXDevice::RememberReceivedQNH(const ExternalSettings &settings) noexcept
+{
+  if (!settings.qnh_available)
+    return;
+
+  const std::lock_guard lock{mutex};
+  last_received_qnh = settings.qnh.GetHectoPascal();
 }
 
 bool
@@ -794,12 +887,65 @@ LXDevice::ParseNMEA(const char *String, NMEAInfo &info)
   if (type == "$LXWP2"sv)
     return LX::LXWP2(line, info);
 
-  if (type == "$LXWP3"sv)
-    return LX::LXWP3(line, info);
+  if (type == "$LXWP3"sv) {
+    LX::LXWP3QNH mode = LX::LXWP3QNH::SKIP;
+    bool replace = false;
+    {
+      const std::lock_guard lock{mutex};
+      switch (qnh_model) {
+      case QnhModel::LINEAR:
+        mode = LX::LXWP3QNH::LINEAR;
+        break;
+      case QnhModel::STANDARD:
+        mode = LX::LXWP3QNH::STANDARD;
+        break;
+      case QnhModel::UNKNOWN:
+        mode = LX::LXWP3QNH::SKIP;
+        break;
+      }
+
+      /* A value derived with the other model is within 0.5 hPa of
+         the right one, so ProvideQNH() would keep it.  An exact
+         $PLXV0,QNH stays. */
+      replace = replace_lxwp3_qnh && qnh_from_lxwp3 &&
+                mode != LX::LXWP3QNH::SKIP;
+      if (mode != LX::LXWP3QNH::SKIP)
+        replace_lxwp3_qnh = false;
+    }
+
+    const auto previous = info.settings.qnh;
+    const auto previous_available = info.settings.qnh_available;
+    if (replace)
+      info.settings.qnh_available.Clear();
+
+    bool updated = false;
+    const bool result = LX::LXWP3(line, info, mode, &updated);
+    if (replace && !info.settings.qnh_available) {
+      info.settings.qnh = previous;
+      info.settings.qnh_available = previous_available;
+    }
+
+    if (updated) {
+      const std::lock_guard lock{mutex};
+      qnh_from_lxwp3 = true;
+    }
+
+    RememberReceivedQNH(info.settings);
+    return result;
+  }
 
   if (type == "$PLXV0"sv) {
     is_colibri = false;
-    return PLXV0(line, lxnav_vario_settings, info, *this);
+    bool exact_qnh = false;
+    const bool result = PLXV0(line, lxnav_vario_settings, info, *this,
+                              exact_qnh);
+    if (exact_qnh) {
+      const std::lock_guard lock{mutex};
+      qnh_from_lxwp3 = false;
+      replace_lxwp3_qnh = false;
+    }
+    RememberReceivedQNH(info.settings);
+    return result;
   }
 
   if (type == "$PLXVC"sv) {

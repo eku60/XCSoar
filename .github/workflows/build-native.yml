@@ -25,6 +25,7 @@ on:
       - '.github/workflows/build-docs.yml'
       - '.github/workflows/build-unix.yml'
       - '.github/workflows/build-translation.yml'
+      - '.github/workflows/complexity.yml'
       - '.readthedocs.yaml'
       - '.pre-commit-config.yaml'
       - 'renovate.json'
@@ -58,6 +59,7 @@ on:
       - '.github/workflows/build-docs.yml'
       - '.github/workflows/build-unix.yml'
       - '.github/workflows/build-translation.yml'
+      - '.github/workflows/complexity.yml'
       - '.readthedocs.yaml'
       - '.pre-commit-config.yaml'
       - 'renovate.json'
@@ -75,13 +77,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: build-native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   DEBUG: y
   BOOST: boost_1_87_0
   # Names in the run Artifacts list; must match upload + download in
   # "Upload artifact for VirusTotal" and the upload-to-virustotal job.
-  VT_ARTIFACT_WIN64: virustotal-win64
-  VT_ARTIFACT_PC: virustotal-pc
   VT_ARTIFACT_WIN64OPENGL: virustotal-opengl-WIN64OPENGL
   VT_ARTIFACT_WIN32OPENGL: virustotal-opengl-WIN32OPENGL
 
@@ -106,7 +110,7 @@ jobs:
         run: |
           TAG=$(echo "${{ github.ref }}" | cut -f3 -d '/')
           echo "TAG=$TAG" >> $GITHUB_ENV
-          echo "::set-output name=TAG::$TAG"
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo 'CHANGELOGENTRY<<EOF' >> $GITHUB_ENV
           ./tools/changelog.sh "$TAG" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
@@ -126,7 +130,7 @@ jobs:
           VERSION=$(cat VERSION.txt)
           echo "$VERSION"
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
-          echo "::set-output name=VERSION::${VERSION}"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Create release
         id: create_release
@@ -194,23 +198,6 @@ jobs:
             ndk: r26d
             target_container: debian:trixie-slim
           - os: ubuntu-24.04
-            target: ANDROID_BUNDLE
-            target_bin: XCSoar
-            target_bin_path: bin
-            target_final: XCSoar
-            target_ext: .apk
-            target_upload: false
-            ndk: r26d
-            target_container: debian:trixie-slim
-          - os: ubuntu-24.04
-            target: WIN64
-            target_bin: XCSoar
-            target_bin_path: bin
-            target_final: XCSoar
-            target_ext: .exe
-            target_upload: true
-            target_container: debian:trixie-slim
-          - os: ubuntu-24.04
             target: WIN64OPENGL
             target_bin: XCSoar
             target_bin_path: bin
@@ -224,14 +211,6 @@ jobs:
             target_bin_path: bin
             target_final: XCSoar
             target_ext: .zip
-            target_upload: true
-            target_container: debian:trixie-slim
-          - os: ubuntu-24.04
-            target: PC
-            target_bin: XCSoar
-            target_bin_path: bin
-            target_final: XCSoar
-            target_ext: .exe
             target_upload: true
             target_container: debian:trixie-slim
           - os: macos-26
@@ -274,6 +253,9 @@ jobs:
           ref: ${{ (github.event.inputs != null && github.event.inputs.ref) || github.ref }}
           submodules: true
 
+      - name: Mark git directory as safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Verify Xcode version
         if: ${{ matrix.target == 'IOS64' }}
         run: |
@@ -282,13 +264,13 @@ jobs:
       - name: Cache ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ matrix.target == 'ANDROID_BUNDLE' && format('ANDROID_BUNDLE-{0}-ccache', env.DEBUG) || (matrix.target == 'ANDROID' && format('ANDROIDFAT-{0}-ccache', env.DEBUG)) || format('{0}-{1}-ccache', matrix.target, env.DEBUG) }}
+          key: ${{ matrix.target == 'ANDROID' && format('ANDROIDFAT-{0}-ccache', env.DEBUG) || format('{0}-{1}-ccache', matrix.target, env.DEBUG) }}
           restore-keys: |
-            ${{ matrix.target == 'ANDROID_BUNDLE' && 'ANDROID_BUNDLE-ccache' || (matrix.target == 'ANDROID' && 'ANDROIDFAT-ccache' || format('{0}-ccache', matrix.target)) }}
+            ${{ matrix.target == 'ANDROID' && 'ANDROIDFAT-ccache' || format('{0}-ccache', matrix.target) }}
           max-size: 3G
 
       - name: Configure ccache for cross-compilation
-        if: ${{ matrix.target == 'KOBO' || matrix.target == 'ANDROID' || matrix.target == 'ANDROID_BUNDLE' || matrix.target == 'WIN64' || matrix.target == 'PC' }}
+        if: ${{ matrix.target == 'KOBO' || matrix.target == 'ANDROID' }}
         run: |
           ccache --set-config compiler_check=content
           ccache --set-config hard_link=false
@@ -306,9 +288,11 @@ jobs:
         uses: actions/cache@v6
         with:
           key: downloads-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('build/kobo.mk', 'build/thirdparty.py', 'build/python/build/libs.py') }}
+          # Only this target's own cache, or the shared one.  A bare
+          # "downloads-$os-" would also match another target's cache,
+          # which restores 190 MB without the files this target needs.
           restore-keys: |
             downloads-${{ runner.os }}-${{ matrix.target }}-
-            downloads-${{ runner.os }}-
             downloads-common-${{ runner.os }}-
           path: ${{ github.workspace }}/output/download
 
@@ -355,10 +339,10 @@ jobs:
             ${{ github.workspace }}/output/src/${{ env.BOOST }}/boost
 
       - name: "Cache Android SDK/NDK"
-        if: ${{ matrix.target == 'ANDROID' || matrix.target == 'ANDROID_BUNDLE' }}
+        if: ${{ matrix.target == 'ANDROID' }}
         uses: actions/cache@v6
         with:
-          key: android-tools-${{ matrix.ndk }}-${{ hashFiles('ide/provisioning/install-android-tools.sh', 'build/android.mk', 'build/android_bundle.mk', 'build/targets.mk') }}
+          key: android-tools-${{ matrix.ndk }}-${{ hashFiles('ide/provisioning/install-android-tools.sh', 'build/android.mk', 'build/targets.mk') }}
           restore-keys: |
             android-tools-${{ matrix.ndk }}-
             android-tools-
@@ -367,8 +351,19 @@ jobs:
             ~/opt/android-ndk-${{ matrix.ndk }}
             ~/opt/bundletool
 
+      - name: "Cache third-party libraries (Android)"
+        if: ${{ matrix.target == 'ANDROID' }}
+        uses: actions/cache@v6
+        with:
+          key: thirdparty-${{ matrix.target }}-${{ hashFiles('build/thirdparty.py', 'build/pkg-config.sh', 'build/python/build/cmake.py', 'build/python/build/libs.py', 'build/python/build/project.py', 'build/python/build/*.py', 'build/thirdparty.mk', 'build/targets.mk', 'ide/provisioning/install-android-tools.sh', 'lib/**/patches/**') }}
+          path: |
+            ${{ github.workspace }}/output/${{ matrix.target }}/armeabi-v7a/lib
+            ${{ github.workspace }}/output/${{ matrix.target }}/arm64-v8a/lib
+            ${{ github.workspace }}/output/${{ matrix.target }}/x86/lib
+            ${{ github.workspace }}/output/${{ matrix.target }}/x86_64/lib
+
       - name: "Cache third-party libraries"
-        if: ${{ matrix.target == 'ANDROID' || matrix.target == 'ANDROID_BUNDLE' || matrix.target == 'KOBO' || matrix.target == 'MACOS' }}
+        if: ${{ matrix.target == 'KOBO' || matrix.target == 'MACOS' }}
         uses: actions/cache@v6
         with:
           key: thirdparty-${{ matrix.target }}-${{ hashFiles('build/thirdparty.py', 'build/pkg-config.sh', 'build/python/build/cmake.py', 'build/python/build/libs.py', 'build/python/build/project.py', 'build/python/build/*.py', 'build/thirdparty.mk', 'lib/**/patches/**') }}
@@ -390,15 +385,11 @@ jobs:
               ./ide/provisioning/install-debian-packages.sh ARM
               ./ide/provisioning/install-debian-packages.sh KOBO
             fi
-            if [ ${{ matrix.target }} = 'WIN64' ] || [ ${{ matrix.target }} = 'WIN64OPENGL' ] || [ ${{ matrix.target }} = 'WIN32OPENGL' ]; then
+            if [ ${{ matrix.target }} = 'WIN64OPENGL' ] || [ ${{ matrix.target }} = 'WIN32OPENGL' ]; then
               ./ide/provisioning/install-debian-packages.sh LINUX
               ./ide/provisioning/install-debian-packages.sh WIN
             fi
-            if [ ${{ matrix.target }} = 'PC' ]; then
-              ./ide/provisioning/install-debian-packages.sh LINUX
-              ./ide/provisioning/install-debian-packages.sh WIN
-            fi
-            if [ ${{ matrix.target }} = 'ANDROID' ] || [ ${{ matrix.target}} = 'ANDROID_BUNDLE' ]; then
+            if [ ${{ matrix.target }} = 'ANDROID' ]; then
               ./ide/provisioning/install-debian-packages.sh LINUX
               ./ide/provisioning/install-debian-packages.sh ARM
               ./ide/provisioning/install-debian-packages.sh LLVM
@@ -416,11 +407,11 @@ jobs:
               ./ide/provisioning/install-darwin-packages.sh IOS
             fi
           fi
-          echo "git_hash=$(git rev-parse --short $GITHUB_SHA)" >> $GITHUB_ENV
+          echo "git_hash=$(git rev-parse --short "$GITHUB_SHA" 2>/dev/null || printf '%.7s' "$GITHUB_SHA")" >> $GITHUB_ENV
 
       - name: Prepare signing key
         shell: bash
-        if: ${{ (matrix.target == 'ANDROID' || matrix.target == 'ANDROID_BUNDLE') && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master') }}
+        if: ${{ matrix.target == 'ANDROID' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master') }}
         run: |
           if [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_BASE64 }}" ]; then
             mkdir -p ~/.android/
@@ -429,7 +420,7 @@ jobs:
           fi
 
       - name: Set Android version for master and tags
-        if: ${{ (matrix.target == 'ANDROID' || matrix.target == 'ANDROID_BUNDLE') && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+        if: ${{ matrix.target == 'ANDROID' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         shell: bash
         run: |
           if [ "${GITHUB_REF#refs/tags/v}" != "${GITHUB_REF}" ]; then
@@ -528,6 +519,8 @@ jobs:
 
       - name: Compile XCSoar - PR
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          ANDROID_KEYSTORE_PASS: ${{ secrets.XCSOAR_UPLOAD_KEY_JKS_PASSWORD }}
         run: |
           if [ ${{ matrix.target }} = "IOS64" ]; then
             export IOS_APP_BUNDLE_IDENTIFIER="${{ vars.IOS_APP_BUNDLE_IDENTIFIER || 'org.xcsoar.XCSoar' }}"
@@ -539,37 +532,53 @@ jobs:
             export MACOS_APP_BUILD_NUMBER="${{ vars.MACOS_APP_BUILD_NUMBER || github.run_number }}"
             export MACOS_PATCH_VERSION="${{ vars.MACOS_PATCH_VERSION || 0 }}"
           fi
-          if [ ${{ matrix.target }} = 'ANDROID' ] || [ ${{ matrix.target }} = "ANDROID_BUNDLE" ]; then
-            if [ "${{ matrix.target }}" = "ANDROID_BUNDLE" ]; then
-              BUNDLE=y
-              PLAY=y
-            fi
+          if [ ${{ matrix.target }} = 'ANDROID' ]; then
+            # Sideload APK is org.xcsoar.foss; Play AAB is org.xcsoar.play.
+            # Same output/ANDROID/ tree so the second make only repackages.
+            OUT="output/ANDROID"
+            BIN="$OUT/bin"
+            APK="$BIN/${{ matrix.target_bin }}${{ matrix.target_ext }}"
+            AAB="$BIN/${{ matrix.target_bin }}.aab"
+            DEBUG_APK="$BIN/${{ matrix.target_bin }}-debug${{ matrix.target_ext }}"
+            DEBUG_AAB="$BIN/${{ matrix.target_bin }}-debug.aab"
+            SYMBOLS="$OUT/symbols.zip"
+            SIDELOAD="$BIN/XCSoar-sideload.apk"
+            SIGNED=n
             if [ "${{ github.ref }}" = "refs/heads/master" ] &&
                [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_BASE64 }}" ] &&
                [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_PASSWORD }}" ] &&
                [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_KEY_ALIAS }}" ]; then
-              ANDROID_KEYSTORE_PASS=${{ secrets.XCSOAR_UPLOAD_KEY_JKS_PASSWORD }} \
-              make -j$(nproc) ANDROID_BUNDLE_BUILD="$BUNDLE" PLAY="$PLAY" TARGET=ANDROIDFAT DEBUG=n USE_CCACHE=y V=2 \
-              output/${{ matrix.target }}/bin/${{ matrix.target_bin }}${{ matrix.target_ext }} \
-              output/${{ matrix.target }}/symbols.zip \
-              ANDROID_KEYSTORE=$(eval echo ~)/.android/signing-key.jks ANDROID_KEY_ALIAS=${{ secrets.XCSOAR_UPLOAD_KEY_JKS_KEY_ALIAS }}
-            else
-              make -j$(nproc) ANDROID_BUNDLE_BUILD="$BUNDLE" PLAY="$PLAY" TARGET=ANDROIDFAT DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 \
-              output/${{ matrix.target }}/bin/${{ matrix.target_bin }}-debug${{ matrix.target_ext }} \
-              output/${{ matrix.target }}/symbols.zip
-              mv output/${{ matrix.target }}/bin/${{ matrix.target_bin }}-debug${{ matrix.target_ext }} \
-              output/${{ matrix.target }}/bin/${{ matrix.target_bin }}${{ matrix.target_ext }}
-              if [ "${{ matrix.target }}" = "ANDROID_BUNDLE" ]; then
-                mv output/${{ matrix.target }}/bin/${{ matrix.target_bin }}-debug.aab \
-                output/${{ matrix.target }}/bin/${{ matrix.target_bin }}.aab
-              fi
+              SIGNED=y
             fi
-          elif [ ${{ matrix.target }} = 'WIN64' ]; then
-            make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything
+            android_make() {
+              local play="$1" dest="$2"
+              if [ "$SIGNED" = y ]; then
+                ANDROID_KEYSTORE_PASS="$ANDROID_KEYSTORE_PASS" \
+                make -j$(nproc) PLAY="$play" TARGET=ANDROIDFAT DEBUG=n \
+                  USE_CCACHE=y V=2 \
+                  ANDROID_KEYSTORE=$(eval echo ~)/.android/signing-key.jks \
+                  ANDROID_KEY_ALIAS=${{ secrets.XCSOAR_UPLOAD_KEY_JKS_KEY_ALIAS }} \
+                  "$dest" "$SYMBOLS"
+              else
+                make -j$(nproc) PLAY="$play" TARGET=ANDROIDFAT \
+                  DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 \
+                  "$dest" "$SYMBOLS"
+              fi
+            }
+            if [ "$SIGNED" = y ]; then
+              android_make "" "$APK"
+              cp "$APK" "$SIDELOAD"
+              android_make y "$AAB"
+              mv "$SIDELOAD" "$APK"
+            else
+              android_make "" "$DEBUG_APK"
+              cp "$DEBUG_APK" "$SIDELOAD"
+              android_make y "$DEBUG_AAB"
+              mv "$SIDELOAD" "$APK"
+              mv "$DEBUG_AAB" "$AAB"
+            fi
           elif [ ${{ matrix.target }} = 'WIN64OPENGL' ] || [ ${{ matrix.target }} = 'WIN32OPENGL' ]; then
             make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything installer
-          elif [ ${{ matrix.target }} = 'PC' ]; then
-            make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything
           elif [ ${{ matrix.target }} = "KOBO" ]; then
             make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 output/${{ matrix.target }}/${{ matrix.target_bin }}${{ matrix.target_ext }}
           elif [ ${{ matrix.target }} = "MACOS" ]; then
@@ -592,6 +601,8 @@ jobs:
 
       - name: Compile XCSoar - Release
         if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ANDROID_KEYSTORE_PASS: ${{ secrets.XCSOAR_UPLOAD_KEY_JKS_PASSWORD }}
         run: |
           if [ ${{ matrix.target }} = "IOS64" ]; then
             export IOS_APP_BUNDLE_IDENTIFIER="${{ vars.IOS_APP_BUNDLE_IDENTIFIER || 'org.xcsoar.XCSoar' }}"
@@ -603,28 +614,39 @@ jobs:
             export MACOS_APP_BUILD_NUMBER="${{ vars.MACOS_APP_BUILD_NUMBER || github.run_number }}"
             export MACOS_PATCH_VERSION="${{ vars.MACOS_PATCH_VERSION || 0 }}"
           fi
-          if [ ${{ matrix.target }} = 'ANDROID' ] || [ ${{ matrix.target }} = "ANDROID_BUNDLE" ]; then
-            if [ "${{ matrix.target }}" = "ANDROID_BUNDLE" ]; then
-              BUNDLE=y
-              PLAY=y
+          if [ ${{ matrix.target }} = 'ANDROID' ]; then
+            OUT="output/ANDROID"
+            BIN="$OUT/bin"
+            APK="$BIN/${{ matrix.target_bin }}${{ matrix.target_ext }}"
+            AAB="$BIN/${{ matrix.target_bin }}.aab"
+            SYMBOLS="$OUT/symbols.zip"
+            SIDELOAD="$BIN/XCSoar-sideload.apk"
+            SIGNED=n
+            if [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_PASSWORD }}" ] &&
+               [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_KEY_ALIAS }}" ]; then
+              SIGNED=y
             fi
-            if [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_PASSWORD }}" ] && [ -n "${{ secrets.XCSOAR_UPLOAD_KEY_JKS_KEY_ALIAS }}" ]; then
-              ANDROID_KEYSTORE_PASS=${{ secrets.XCSOAR_UPLOAD_KEY_JKS_PASSWORD }} \
-              make -j$(nproc) ANDROID_BUNDLE_BUILD="$BUNDLE" PLAY="$PLAY" TARGET=ANDROIDFAT DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 \
-              output/${{ matrix.target }}/bin/${{ matrix.target_bin }}${{ matrix.target_ext }} \
-              output/${{ matrix.target }}/symbols.zip \
-              ANDROID_KEYSTORE=$(eval echo ~)/.android/signing-key.jks ANDROID_KEY_ALIAS=${{ secrets.XCSOAR_UPLOAD_KEY_JKS_KEY_ALIAS }}
-            else
-              make -j$(nproc) ANDROID_BUNDLE_BUILD="$BUNDLE" PLAY="$PLAY" TARGET=ANDROIDFAT DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 \
-              output/${{ matrix.target }}/bin/${{ matrix.target_bin }}${{ matrix.target_ext }} \
-              output/${{ matrix.target }}/symbols.zip
-            fi
-          elif [ ${{ matrix.target }} = 'WIN64' ]; then
-            make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything
+            android_make() {
+              local play="$1" dest="$2"
+              if [ "$SIGNED" = y ]; then
+                ANDROID_KEYSTORE_PASS="$ANDROID_KEYSTORE_PASS" \
+                make -j$(nproc) PLAY="$play" TARGET=ANDROIDFAT \
+                  DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 \
+                  ANDROID_KEYSTORE=$(eval echo ~)/.android/signing-key.jks \
+                  ANDROID_KEY_ALIAS=${{ secrets.XCSOAR_UPLOAD_KEY_JKS_KEY_ALIAS }} \
+                  "$dest" "$SYMBOLS"
+              else
+                make -j$(nproc) PLAY="$play" TARGET=ANDROIDFAT \
+                  DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 \
+                  "$dest" "$SYMBOLS"
+              fi
+            }
+            android_make "" "$APK"
+            cp "$APK" "$SIDELOAD"
+            android_make y "$AAB"
+            mv "$SIDELOAD" "$APK"
           elif [ ${{ matrix.target }} = 'WIN64OPENGL' ] || [ ${{ matrix.target }} = 'WIN32OPENGL' ]; then
             make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything installer
-          elif [ ${{ matrix.target }} = 'PC' ]; then
-            make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 everything
           elif [ ${{ matrix.target }} = "KOBO" ]; then
             make -j$(nproc) TARGET=${{ matrix.target }} DEBUG=${{ env.DEBUG }} USE_CCACHE=y V=2 output/${{ matrix.target }}/${{ matrix.target_bin }}${{ matrix.target_ext }}
           elif [ ${{ matrix.target }} = "MACOS" ]; then
@@ -736,7 +758,7 @@ jobs:
 
       - name: Upload artifact (Bundle)
         uses: actions/upload-artifact@v7
-        if: ${{ matrix.target == 'ANDROID_BUNDLE' }}
+        if: ${{ matrix.target == 'ANDROID' }}
         with:
           name: android-bundle
           path: |
@@ -749,20 +771,6 @@ jobs:
         with:
           name: ${{ matrix.target_final }}-${{ env.git_hash }}${{ matrix.target }}-Installer.exe
           path: output/${{ matrix.target }}/bin/XCSoar-*-${{ matrix.target }}-Installer.exe
-
-      - name: Upload artifact for VirusTotal (Win64)
-        if: ${{ github.repository == 'XCSoar/XCSoar' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) && matrix.target == 'WIN64' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.VT_ARTIFACT_WIN64 }}
-          path: output/WIN64/bin/XCSoar.exe
-
-      - name: Upload artifact for VirusTotal (PC)
-        if: ${{ github.repository == 'XCSoar/XCSoar' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) && matrix.target == 'PC' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.VT_ARTIFACT_PC }}
-          path: output/PC/bin/XCSoar.exe
 
       - name: Upload artifact for VirusTotal (Win64 OpenGL)
         if: ${{ github.repository == 'XCSoar/XCSoar' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) && matrix.target == 'WIN64OPENGL' }}
@@ -884,14 +892,14 @@ jobs:
         with:
           name: android-bundle
           # upload-artifact uses the least common ancestor of the uploaded paths
-          # (output/ANDROID_BUNDLE/) as the artifact root, so the zip contains
-          # bin/XCSoar.aab and symbols.zip — not output/ANDROID_BUNDLE/...
+          # (output/ANDROID/) as the artifact root, so the zip contains
+          # bin/XCSoar.aab and symbols.zip — not output/ANDROID/...
           path: android-bundle
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '4.0.6'
+          ruby-version: '4.0.7'
           bundler-cache: true
 
       - name: Create Play Store key
@@ -948,8 +956,8 @@ jobs:
         if: always()
         run: rm -f play-key.json
 
-  upload-to-testflight:
-    name: Upload to TestFlight (iOS / macOS)
+  upload-ios-to-testflight:
+    name: Upload to TestFlight (iOS)
     runs-on: macos-26
     needs: [build]
     if: ${{ (github.repository == 'XCSoar/XCSoar' || github.repository == 'yorickreum/XCSoar') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/apple-testing' || startsWith(github.ref, 'refs/tags/v')) }}
@@ -965,13 +973,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ios-testflight-build
-
-      - name: Download macOS PKG
-        id: macos_pkg
-        continue-on-error: true
-        uses: actions/download-artifact@v8
-        with:
-          name: macos-testflight-pkg
 
       - name: Prepare iOS archive export signing
         if: steps.ios_ipa.outcome == 'success'
@@ -1005,6 +1006,28 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         run: bash darwin/upload-ios-testflight.sh
+
+      - name: Cleanup iOS export keychain
+        if: always()
+        run: security delete-keychain ios-export.keychain || true
+
+      - name: No iOS TestFlight artifact from build
+        if: steps.ios_ipa.outcome != 'success'
+        run: |
+          echo "::warning::No iOS TestFlight artifact from the build job; skipping iOS TestFlight upload."
+
+  upload-macos-to-testflight:
+    name: Upload to TestFlight (macOS)
+    runs-on: macos-26
+    needs: [build]
+    if: ${{ (github.repository == 'XCSoar/XCSoar' || github.repository == 'yorickreum/XCSoar') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/apple-testing' || startsWith(github.ref, 'refs/tags/v')) }}
+    steps:
+      - name: Download macOS PKG
+        id: macos_pkg
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-testflight-pkg
 
       - name: Upload macOS to App Store Connect / TestFlight
         if: steps.macos_pkg.outcome == 'success'
@@ -1050,14 +1073,10 @@ jobs:
               -p "$APP_SPECIFIC_PASSWORD"
           fi
 
-      - name: Cleanup iOS export keychain
-        if: always()
-        run: security delete-keychain ios-export.keychain || true
-
-      - name: No TestFlight artifacts from build
-        if: ${{ steps.ios_ipa.outcome != 'success' && steps.macos_pkg.outcome != 'success' }}
+      - name: No macOS TestFlight artifact from build
+        if: steps.macos_pkg.outcome != 'success'
         run: |
-          echo "::warning::No iOS or macOS TestFlight artifacts from the build job; skipping TestFlight uploads."
+          echo "::warning::No macOS TestFlight artifact from the build job; skipping macOS TestFlight upload."
 
   virustotal-gate:
     name: Check VirusTotal API key
@@ -1084,22 +1103,6 @@ jobs:
     env:
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
     steps:
-      - name: Download Win64 executable
-        id: win64
-        continue-on-error: true
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.VT_ARTIFACT_WIN64 }}
-          path: vt-scan/w64
-
-      - name: Download PC executable
-        id: pc
-        continue-on-error: true
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.VT_ARTIFACT_PC }}
-          path: vt-scan/pc
-
       - name: Download Win64 OpenGL executable
         id: win64opengl
         continue-on-error: true

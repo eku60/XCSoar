@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "GlueMapWindow.hpp"
+#include "InfoBoxes/InfoBoxArrange.hpp"
 #include "Input/InputEvents.hpp"
 #include "Screen/Layout.hpp"
 #include "Simulator.hpp"
@@ -16,6 +17,9 @@
 #include "BackendComponents.hpp"
 #include "ActionInterface.hpp"
 #include "UserMapScale.hpp"
+#include "Form/Button.hpp"
+#include "util/StringAPI.hxx"
+#include "ui/event/Idle.hpp"
 #ifdef HAVE_EDL
 #include "UIState.hpp"
 #endif
@@ -59,11 +63,18 @@ GlueMapWindow::OnDestroy() noexcept
 }
 
 bool
-GlueMapWindow::OnMouseDouble([[maybe_unused]] PixelPoint p) noexcept
+GlueMapWindow::OnMouseDouble(PixelPoint p) noexcept
 {
   map_item_timer.Cancel();
 
   mouse_down_clock.Update();
+
+  if (HandleCompassTap(p)) {
+    /* rapid repeated taps on the compass are cycling through the map
+       orientations, not requesting the menu */
+    ignore_single_click = true;
+    return true;
+  }
 
   InputEvents::ShowMenu();
   ignore_single_click = true;
@@ -127,8 +138,33 @@ GlueMapWindow::OnMouseMove(PixelPoint p, unsigned keys) noexcept
     return true;
 #endif
 
-  case DRAG_GESTURE:
+  case DRAG_GESTURE: {
+#ifdef HAVE_VIBRATOR
+    const char *old_gesture = gestures.GetGesture();
+    const std::size_t old_length = old_gesture != nullptr
+      ? StringLength(old_gesture)
+      : 0;
+
+    /* an empty figure or a single stroke is only the start of a
+       gesture: continuing it is not worth a tick, so a quick gesture
+       (for example "D" to "DU") vibrates only once, when lifting the
+       finger runs it */
+    const bool tick = old_gesture != nullptr &&
+      (old_length > 1 || !InputEvents::IsGesture(old_gesture));
+#endif
+
     gestures.Update(p);
+
+#ifdef HAVE_VIBRATOR
+    /* a light tick when the figure drawn so far becomes another known
+       gesture: when the trail turns from translucent back to opaque,
+       or when one gesture of several strokes turns into another (for
+       example "Analysis" into "Pan") */
+    const char *gesture = gestures.GetGesture();
+    if (tick && StringLength(gesture) != old_length &&
+        InputEvents::IsGesture(gesture))
+      PlayHapticFeedback(HapticFeedbackType::SELECTION);
+#endif
 
     /* invoke PaintWindow's Invalidate() implementation instead of
        DoubleBufferWindow's in order to reuse the buffered map */
@@ -137,6 +173,7 @@ GlueMapWindow::OnMouseMove(PixelPoint p, unsigned keys) noexcept
     NoteTerrainQuantisationUserActivity();
 #endif
     return true;
+  }
 
   case DRAG_SIMULATOR:
     return true;
@@ -151,8 +188,6 @@ IsCtrlKeyPressed() noexcept
 {
 #ifdef ENABLE_SDL
   return SDL_GetModState() & (KMOD_LCTRL|KMOD_RCTRL);
-#elif defined(USE_WINUSER)
-  return GetKeyState(VK_CONTROL) & 0x8000;
 #elif defined(USE_X11)
   return UI::event_queue->WasCtrlClick();
 #else
@@ -163,6 +198,9 @@ IsCtrlKeyPressed() noexcept
 bool
 GlueMapWindow::OnMouseDown(PixelPoint p) noexcept
 {
+  if (InfoBoxArrange::IsActive())
+    return true;
+
   map_item_timer.Cancel();
 
   bool was_kinetic_motion = false;
@@ -354,6 +392,12 @@ GlueMapWindow::OnMouseUp(PixelPoint p) noexcept
   }
 
   if (arm_mapitem_list) {
+    /* the compass doubles as a button: tapping it resets a rotated
+       map back to north-up while panning and cycles through the map
+       orientations otherwise */
+    if (HandleCompassTap(drag_start))
+      return true;
+
     map_item_timer.Schedule(std::chrono::milliseconds(200));
     return true;
   }
@@ -365,6 +409,9 @@ bool
 GlueMapWindow::OnMouseWheel([[maybe_unused]] PixelPoint p,
                             [[maybe_unused]] int delta) noexcept
 {
+  if (InfoBoxArrange::IsActive())
+    return true;
+
   map_item_timer.Cancel();
 
 #ifdef ENABLE_OPENGL
@@ -390,6 +437,9 @@ GlueMapWindow::OnMouseWheel([[maybe_unused]] PixelPoint p,
 bool
 GlueMapWindow::OnMultiTouchDown() noexcept
 {
+  if (InfoBoxArrange::IsActive())
+    return true;
+
   if (!visible_projection.IsValid())
     return false;
 
@@ -442,7 +492,6 @@ GlueMapWindow::ResetMultiTouchSessionState() noexcept
   multi_touch_was_panning = false;
   pinch_scaling = false;
   pinch_rotating = false;
-  manual_rotation = false;
 }
 
 void
@@ -585,19 +634,19 @@ GlueMapWindow::OnMultiTouchMove(PixelPoint a, PixelPoint b) noexcept
     /* screen y grows downward, so a visually clockwise finger twist
        increases the measured angle; subtract it so the map content
        rotates with the fingers */
-    manual_rotation_angle = pinch_start_screen_angle - twist;
-    manual_rotation = true;
+    const Angle new_angle = pinch_start_screen_angle - twist;
 
     /* a rotation is a deliberate manipulation; enter pan mode so the
-       chosen angle is held */
+       chosen angle is held (UpdateScreenAngle() leaves the angle alone
+       while panning) */
     if (!multi_touch_pan_ui) {
       CommitMultiTouchPanUI();
       RebasePinchAfterLayoutChange(a, b, distance, centroid);
       pinch_start_finger_angle = finger_angle;
-      pinch_start_screen_angle = manual_rotation_angle;
+      pinch_start_screen_angle = new_angle;
     }
 
-    visible_projection.SetScreenAngle(manual_rotation_angle);
+    visible_projection.SetScreenAngle(new_angle);
     OnProjectionModified();
   }
 
@@ -627,6 +676,13 @@ GlueMapWindow::OnMultiTouchUp() noexcept
 bool
 GlueMapWindow::OnMouseGesture(const char *gesture) noexcept
 {
+#ifdef HAVE_VIBRATOR
+  /* generate the feedback before running the event, which may open a
+     modal dialog and thus return only much later */
+  if (InputEvents::IsGesture(gesture))
+    PlayHapticFeedback(HapticFeedbackType::GESTURE);
+#endif
+
   return InputEvents::processGesture(gesture);
 }
 
@@ -680,8 +736,9 @@ GlueMapWindow::OnCancelMode() noexcept
 
 #ifdef HAVE_MULTI_TOUCH
     if (was_multi_touch)
-      /* drop a held twist angle and refresh after the session flags
-         were cleared */
+      /* refresh after the session flags were cleared; a twist angle
+         from a cancelled gesture that did not enter pan mode is
+         dropped by UpdateScreenAngle() */
       QuickRedraw();
 #endif
   }
@@ -701,6 +758,10 @@ GlueMapWindow::OnPaint(Canvas &canvas) noexcept
 
   if (IsPanChromeVisible())
     DrawCrossHairs(canvas);
+
+  /* over the buffered map, so fading it out does not render the whole
+     map again */
+  DrawPageIndicator(canvas);
 
   /* the trail may leave this window (the pointer is captured); under
      OpenGL it is painted over the InfoBoxes, and MainWindow::OnPaint()
@@ -737,9 +798,10 @@ GlueMapWindow::OnPaintBuffer(Canvas &canvas) noexcept
 
   MapWindow::OnPaintBuffer(canvas);
 
-  DrawMapScale(canvas, GetClientRect(), render_projection);
-  if (IsPanChromeVisible())
-    DrawPanInfo(canvas);
+  const auto layout = GetHudLayout();
+  DrawMapScale(canvas, layout, render_projection);
+  if (IsPanChromeVisible() || DEBUG_ALL_MAP_OVERLAYS)
+    DrawPanInfo(canvas, layout);
 
 #ifdef ENABLE_OPENGL
   LeaveDrawThread();
@@ -767,6 +829,10 @@ GlueMapWindow::OnKineticTimer() noexcept
     return;
   }
 
+  /* Coasting is still a pan.  Keep the height-matrix scan deferred
+     until the map has actually stopped. */
+  ResetUserIdle();
+
   auto location = drag_projection.ScreenToGeo({kinetic_x.GetPosition(), kinetic_y.GetPosition()});
   location = drag_projection.GetGeoLocation() +
     drag_start_geopoint - location;
@@ -782,14 +848,17 @@ GlueMapWindow::Render(Canvas &canvas, const PixelRect &rc) noexcept
 {
   MapWindow::Render(canvas, rc);
 
-  if (IsNearSelf()) {
+  if (IsNearSelf() || DEBUG_ALL_MAP_OVERLAYS) {
     draw_sw.Mark("DrawGlueMisc");
-    if (GetMapSettings().show_thermal_profile)
-      DrawThermalBand(canvas, rc);
-    DrawStallRatio(canvas, rc);
-    DrawFlightMode(canvas, rc);
-    DrawFinalGlide(canvas, rc);
-    DrawVario(canvas, rc);
-    DrawGPSStatus(canvas, rc, Basic());
+
+    const auto layout = GetHudLayout(GetHudRect(rc));
+
+    if (GetMapSettings().show_thermal_profile || DEBUG_ALL_MAP_OVERLAYS)
+      DrawThermalBand(canvas, layout);
+    DrawStallRatio(canvas, layout);
+    DrawFlightMode(canvas, layout);
+    DrawFinalGlide(canvas, layout);
+    DrawVario(canvas, layout);
+    DrawGPSStatus(canvas, layout, Basic());
   }
 }

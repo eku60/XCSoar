@@ -8,8 +8,9 @@
 #include <stdexcept>
 
 AndroidPort::AndroidPort(PortListener *_listener, DataHandler &_handler,
-                         PortBridge *_bridge)
-  :BufferedPort(_listener, _handler), bridge(_bridge)
+                         PortBridge *_bridge, bool _ble_serial)
+  :BufferedPort(_listener, _handler), bridge(_bridge),
+   ble_serial(_ble_serial)
 {
   assert(bridge != nullptr);
 
@@ -55,6 +56,33 @@ AndroidPort::SetBaudrate(unsigned baud_rate)
 
   if (!bridge->setBaudRate(Java::GetEnv(), baud_rate))
     throw std::runtime_error{"Failed to set baud rate"};
+}
+
+bool
+AndroidPort::SetConnectionPriority(ConnectionPriority priority) noexcept
+{
+  assert(bridge != nullptr);
+
+  return bridge->setConnectionPriority(Java::GetEnv(),
+                                       static_cast<int>(priority));
+}
+
+bool
+AndroidPort::RequestMtu(unsigned mtu) noexcept
+{
+  assert(bridge != nullptr);
+
+  /* Android's largest ATT MTU is 517. */
+  if (mtu > 517)
+    mtu = 517;
+
+  return bridge->requestMtu(Java::GetEnv(), static_cast<int>(mtu));
+}
+
+bool
+AndroidPort::IsBleSerial() const noexcept
+{
+  return ble_serial;
 }
 
 std::size_t

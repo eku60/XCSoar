@@ -23,9 +23,11 @@ GetCancelButtonRect(const PixelRect &client_rc) noexcept
 ProgressDialog::ProgressDialog(SingleWindow &parent,
                                const DialogLook &dialog_look,
                                const char *caption)
-  :WndForm(parent, dialog_look, parent.GetClientRect(), caption),
+  :WndForm(parent, dialog_look, parent.GetDialogRect(), caption),
    progress(GetClientAreaWindow())
 {
+  SetFillsClient(true);
+
   auto layout_client = [this]() noexcept {
     const PixelRect rc = GetClientAreaWindow().GetClientRect();
     progress.Move(rc);
@@ -37,10 +39,11 @@ ProgressDialog::ProgressDialog(SingleWindow &parent,
 }
 
 void
-ProgressDialog::ReinitialiseLayout(const PixelRect &parent_rc) noexcept
+ProgressDialog::ReinitialiseLayout([[maybe_unused]] const PixelRect &rc) noexcept
 {
-  /* Cover the main window when its geometry changes (rotation, resize). */
-  Move(parent_rc);
+  /* Stay edge-to-edge on the client; the safe-area rect is only for
+     ordinary dialogs. */
+  Move(GetMainWindow().GetClientRect());
 }
 
 void

@@ -62,8 +62,11 @@ static const char *const expect[] = {
   "E112243my_event",
   "B1122435103117N00742367EA004900048700000",
   "LPLTmy_note",
+  "LXCS112248GPS:B FLARM",
   "F112253121701",
   "B1122535103117S00742367WA004900048700000",
+  "B1122585103117S00742367WA004900000000000",
+  "B1123035103117S00742367WA004900048700000",
   NULL
 };
 
@@ -88,6 +91,8 @@ Run(IGCWriter &writer)
   i.location_available.Update(i.clock);
   i.gps_altitude = 487;
   i.gps_altitude_available.Update(i.clock);
+  i.gps_ellipsoid_altitude = 487;
+  i.gps_ellipsoid_altitude_available.Update(i.clock);
   i.ProvidePressureAltitude(490);
   i.ProvideBaroAltitudeTrue(400);
 
@@ -101,12 +106,18 @@ Run(IGCWriter &writer)
 
   writer.LogEmptyFRecord(i.date_time_utc);
 
+  /* no time: no B record, so no L record for a new GPS source */
+  NMEAInfo no_time = i;
+  no_time.time_available.Clear();
+  ok1(!writer.LogPoint(no_time));
+
   i.date_time_utc.second += 5;
-  writer.LogPoint(i);
+  ok1(writer.LogPoint(i));
   i.date_time_utc.second += 5;
   writer.LogEvent(i, "my_event");
   i.date_time_utc.second += 5;
   writer.LoggerNote("my_note");
+  writer.LogGPSSource(i.date_time_utc, 'B', "FLARM");
 
   int satellites[GPSState::MAXSATELLITES];
   for (unsigned i = 0; i < GPSState::MAXSATELLITES; ++i)
@@ -123,6 +134,19 @@ Run(IGCWriter &writer)
                         Angle::Degrees(-51.051944444444445));
   writer.LogPoint(i);
 
+  /* A true-zero ellipsoid height must be written as 00000, not
+     replaced by AMSL + geoid. */
+  i.date_time_utc.second += 5;
+  i.gps_ellipsoid_altitude = 0;
+  i.gps_ellipsoid_altitude_available.Update(i.clock);
+  writer.LogPoint(i);
+
+  /* Unknown ellipsoid height is derived as AMSL + FakeGeoid (0). */
+  i.date_time_utc.minute += 1;
+  i.date_time_utc.second = 3;
+  i.gps_ellipsoid_altitude_available.Clear();
+  writer.LogPoint(i);
+
   writer.Flush();
   writer.Sign();
   writer.Flush();
@@ -135,9 +159,42 @@ Run(Path path)
   Run(writer);
 }
 
+static void
+TestIGCFixApplyEllipsoid()
+{
+  NMEAInfo basic{};
+  basic.clock = TimeStamp{std::chrono::seconds{1}};
+  basic.time = TimeStamp{std::chrono::seconds{1}};
+  basic.time_available.Update(basic.clock);
+  basic.date_time_utc.year = 2010;
+  basic.date_time_utc.month = 9;
+  basic.date_time_utc.day = 4;
+  basic.date_time_utc.hour = 11;
+  basic.date_time_utc.minute = 22;
+  basic.date_time_utc.second = 33;
+  basic.location = GeoPoint(Angle::Degrees(7.7061111111111114),
+                             Angle::Degrees(51.051944444444445));
+  basic.location_available.Update(basic.clock);
+  basic.gps_altitude = 487;
+  basic.gps_altitude_available.Update(basic.clock);
+
+  IGCFix fix;
+  fix.Clear();
+  ok1(fix.Apply(basic));
+  ok1(!fix.gps_ellipsoid_altitude_available);
+  ok1(fix.gps_ellipsoid_altitude == 0);
+  ok1(fix.gps_altitude == 487);
+
+  basic.gps_ellipsoid_altitude = 0;
+  basic.gps_ellipsoid_altitude_available.Update(basic.clock);
+  ok1(fix.Apply(basic));
+  ok1(fix.gps_ellipsoid_altitude_available);
+  ok1(fix.gps_ellipsoid_altitude == 0);
+}
+
 int main()
 try {
-  plan_tests(51);
+  plan_tests(53 + 2 + 4 + 7);
 
   const Path path("output/test/test.igc");
   File::Delete(path);
@@ -145,6 +202,8 @@ try {
   Run(path);
 
   CheckTextFile(path, expect);
+
+  TestIGCFixApplyEllipsoid();
 
   GRecord grecord;
   grecord.Initialize();

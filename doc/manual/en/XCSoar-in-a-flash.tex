@@ -164,14 +164,14 @@
 %\end{wrapfigure}
 
 Identify the appropriate distribution of XCSoar for your hardware and 
-operating system \textsf{(Android, PC, Linux)} 
+operating system \textsf{(Android, iOS, Windows, Linux, macOS)} 
 on \xcsoarwebsite{}.
 In case you choose an install directory other than standard, make sure access 
 rights are set to full/all. Create subdirectory \texttt{XCSoarData} and put all 
 data files there, which are configuration, airspace, waypoints, and the XCM 
 terrain files.
 
-Using the default from installers for Android, Windows Mobile, PC will do the 
+Using the default from installers for Android, iOS, Windows, Linux, macOS will do the 
 job smoothly.  In order to keep things easy, stay with the defaults. 
 Installation on SD-card is possible.
 
@@ -184,10 +184,10 @@ corresponding to your flight district.  If \texttt{.xcm}-file appears to be
 corrupt, use another browser. (This is an issue with several versions of 
 internet explorer, disintegrating \texttt{.xcm}-files.)
 \item[3.] Download waypoints with XCSoar supporting several file formats 
-\texttt{.dat, .cup, .wpz, .wpt}.  However, follow the roads starting with 
-{\xcsoarwebsite{/download/data.html}}.
-\item[4.] Download an airspace file \texttt{.txt} and/or \texttt{.sua}.  Again, follow
-the link last mentioned.
+\texttt{.dat, .cup, .wpz, .wpt} from the Soaring Turnpoint Exchange:
+{\url{https://soaringweb.org/TP/}}.
+\item[4.] Download an airspace file \texttt{.txt} and/or \texttt{.sua} from
+{\url{https://soaringweb.org/Airspace/}}.
 \end{compactitem}
 
 \subsection{\textcolor{flashblue}{Run XCSoar for the first time}}
@@ -225,7 +225,8 @@ team maintains this list of files and corresponding URL, read in after
 touching \blink Add in order to give you a plain list of possible downloads 
 worldwide. (Take notice, that file names of equal files might differ to names, 
 downloaded via other ways.)
-Selecting files will start downloading immediately. To add more files, repeat 
+Tick the files you want and press \blink Download. Each file is shown
+with its description. Countries and Search narrow the list. To add more files, repeat 
 \blink Add.
 Updating files is done via \blink Download on the same menu screen.  As a 
 quick start, download terrain, airspace and waypoint files apiece only. With 
@@ -238,7 +239,7 @@ Typically, XCSoar follows the operation system's language setting. If you
 prefer another, there are 28 languages available as of Dec. 2013 (sorry
 Bavarian, Boston and other people, dialects are not to be included ever):
 
-\begin{flushleft}\hspace*{1cm}\config{2}{System}{}\blink\bmenuw{Look}\blink
+\begin{flushleft}\hspace*{1cm}\config{2}{System}{}\blink\bmenuw{Setup}\blink
 \bmenuw{Language, Input}\\\end{flushleft}
 
 This menu page also allows for changing fonts and, after having prepared a
@@ -575,6 +576,8 @@ Download flight logs from your preferred \emph{connected} logger.
 \begin{flushleft}\hspace*{1cm}\config{2}{Devices}{}\\\end{flushleft}
 \begin{compactitem}
 \item select port
+\item A PowerFLARM Flex or Fusion needs the device Wi-Fi for the
+  flight log
 \item push \bmenuw{Flight download}
 \item A listing of flightlogs stored on your external logger appears.
 Choose one
@@ -720,7 +723,7 @@ Thank you for your time and
 
 \end{center}
 \begin{flushright}
-\normalsize available at: \xcsoarwebsite{/discover/manual.html}\\
+\normalsize available at: \url{https://xcsoar.org/docs/#manual}\\
 \end{flushright}
 
 \end{document}

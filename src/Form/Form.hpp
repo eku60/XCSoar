@@ -47,7 +47,21 @@ protected:
    */
   bool modeless = false;
 
+  /**
+   * Laid out edge-to-edge on the main window's client area (not only
+   * the safe area).  OnResize keeps that intent instead of inferring
+   * it from the dialog size.
+   */
+  bool fills_client = false;
+
   bool dragging = false;
+
+  /** Retain the requested geometry when a transient overlay reduces space. */
+  bool full_screen = false;
+  PixelSize preferred_size{};
+
+  /** Do not remember sizes imposed by the available dialog area. */
+  bool reinitialising_layout = false;
 
   /** The ClientWindow */
   SolidContainerWindow client_area;
@@ -113,6 +127,39 @@ public:
   [[gnu::pure]]
   UI::SingleWindow &GetMainWindow();
 
+  [[gnu::pure]]
+  const UI::SingleWindow &GetMainWindow() const {
+    return const_cast<WndForm *>(this)->GetMainWindow();
+  }
+
+  /**
+   * Does this dialog fill the whole area that is available to
+   * dialogs?  That is the safe area of the main window, shortened
+   * while a warning banner is visible.  It is smaller than the client
+   * area while the display cutout or the system bars are being drawn
+   * over.
+   *
+   * This deliberately hides Window::IsMaximised(), which compares
+   * with the parent's client area and would therefore consider no
+   * dialog maximised in full screen mode.
+   */
+  [[gnu::pure]]
+  bool IsMaximised() const noexcept;
+
+  /**
+   * Does this dialog cover the main window's client area edge to
+   * edge?  Set with #SetFillsClient when the dialog is created that
+   * way (Fly/Simulator, progress).
+   */
+  [[gnu::pure]]
+  bool FillsClient() const noexcept {
+    return fills_client;
+  }
+
+  void SetFillsClient(bool value) noexcept {
+    fills_client = value;
+  }
+
   const DialogLook &GetLook() const {
     return look;
   }
@@ -172,10 +219,6 @@ public:
   bool OnMouseUp(PixelPoint p) noexcept override;
   void OnCancelMode() noexcept override;
 
-#ifdef USE_WINUSER
-  bool OnCommand(unsigned id, unsigned code) noexcept override;
-#endif
-
   void SetKeyDownFunction(KeyDownFunction function) {
     key_down_function = function;
   }
@@ -197,12 +240,23 @@ public:
   }
 
   /**
-   * Reposition window, if possible.  Will be called whenever the
-   * parent window changes.
-   *
-   * @param parent_rc the parent's client rect
+   * Run OnResize() even when the window size did not change.  Used
+   * when only the safe-area insets have changed, so a fullscreen
+   * dialog can move its controls without changing its own size.
    */
-  virtual void ReinitialiseLayout(const PixelRect &parent_rc) noexcept;
+  void ForceLayout() noexcept {
+    OnResize(GetSize());
+  }
+
+  /**
+   * Fit the window inside the available dialog area.  Restore its
+   * preferred size when a transient overlay disappears.
+   *
+   * @param rc the area available to dialogs.  That is the safe area,
+   * shortened while a warning banner is visible, and it does not
+   * necessarily start at the window's top left corner
+   */
+  virtual void ReinitialiseLayout(const PixelRect &rc) noexcept;
 
 protected:
   /**

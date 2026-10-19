@@ -95,7 +95,41 @@ struct TaskBehaviour {
   /** Compensation factor for risk at low altitude */
   double risk_gamma;
 
-  /** Safety MacCready value (m/s) used by abort task */
+  /** Task MC at startup (m/s). */
+  static constexpr double TASK_MC_DEFAULT = 0.5;
+
+  /**
+   * Highest Task MC (m/s).  The ring, up and down, the task-status
+   * MacCready and the Startup Task MC setting all stop here.
+   */
+  static constexpr double TASK_MC_MAX = 5;
+
+  /**
+   * Safety MC at startup (m/s).  About 25:1 still-air L/D on the
+   * default LS-8 (15m) polar.
+   */
+  static constexpr double SAFETY_MC_DEFAULT = 3.2;
+
+  /**
+   * Highest Safety MC (m/s).  The Safety MC setting and abort up and
+   * down stop here.
+   */
+  static constexpr double SAFETY_MC_MAX = 10;
+
+  static_assert(TASK_MC_DEFAULT <= TASK_MC_MAX);
+  static_assert(SAFETY_MC_DEFAULT <= SAFETY_MC_MAX);
+
+  /**
+   * MacCready value (m/s) applied to the task polar at startup for
+   * speed-to-fly and task calculations.
+   */
+  double task_mc;
+
+  /**
+   * Safety MacCready (m/s) for terrain reach, landable colours, abort
+   * and the Alternates list when Reach polar is Safety MC.  Alternate
+   * InfoBoxes and waypoint Alt. diff. Safety MC always use this value.
+   */
   double safety_mc;
 
   /** Minimum height above terrain for arrival height at landable waypoint (m) */

@@ -3,25 +3,37 @@
 
 #include "Terrain/RasterRenderer.hpp"
 #include "Terrain/RasterMap.hpp"
+#include "Math/Angle.hpp"
 #include "Math/Constants.hpp"
 #include "Screen/Layout.hpp"
+#include "Asset.hpp"
 #include "ui/canvas/Ramp.hpp"
 #include "ui/canvas/Color.hpp"
 #include "ui/canvas/RawBitmap.hpp"
 #include "Renderer/GeoBitmapRenderer.hpp"
 #include "Projection/WindowProjection.hpp"
 #include "ui/event/Idle.hpp"
+#include "Hardware/CPU.hpp"
 #include "LogFile.hpp"
 
 #ifdef ENABLE_OPENGL
 #include "ui/canvas/opengl/Globals.hpp"
-#endif
-
-#ifdef ENABLE_OPENGL
 #include "ui/canvas/opengl/ConstantAlpha.hpp"
+#include "ui/canvas/opengl/Scope.hpp"
+#include "ui/canvas/opengl/Texture.hpp"
+#include "ui/canvas/opengl/Shaders.hpp"
+#include "ui/canvas/opengl/Program.hpp"
+#include "ui/canvas/opengl/Attribute.hpp"
+#include "ui/canvas/opengl/VertexPointer.hpp"
+#include "ui/dim/BulkPoint.hpp"
 #endif
 
 #include <algorithm> // for std::clamp()
+#include <cmath>
+#include <cstdlib>
+#ifdef ENABLE_OPENGL
+#include <bit>
+#endif
 #include <cassert>
 #include <cstdint>
 
@@ -197,6 +209,13 @@ RasterRenderer::~RasterRenderer() noexcept
 static unsigned
 GetQuantisation() noexcept
 {
+  /* E-paper keeps every swapped frame, so the coarse facets must
+     never appear.  Fast hosts shade on the GPU and only scan the
+     strip that enters during a pan, so the idle ladder is not
+     needed there either. */
+  if (HasEPaper() || !IsSlowCPU())
+    return 1;
+
   if (IsUserIdle(1500))
     /* full terrain resolution when the user stops interacting */
     return 1;
@@ -229,9 +248,138 @@ RasterRenderer::BindAndGetTexture() const noexcept
 
 #endif
 
+#ifdef ENABLE_OPENGL
+
+void
+RasterRenderer::FillHeightRect(const RasterMap &map,
+                              unsigned x, unsigned y,
+                              unsigned w, unsigned h) noexcept
+{
+  if (w < 2 || h == 0)
+    return;
+
+  const unsigned width = height_matrix.GetSize().x;
+  const unsigned height = height_matrix.GetSize().y;
+  const Angle north = bounds.GetNorth();
+  const Angle west = bounds.GetWest();
+  /* Rows step by span/N and the last row stops short of the south
+     edge, matching HeightMatrix::Fill().  Columns are inclusive:
+     ScanLine puts sample i at i/(N-1) of the west-east span. */
+  const Angle dlat = bounds.GetHeight() / double(height);
+  const Angle width_angle = bounds.GetWidth();
+  const double x_denom = double(width - 1);
+
+  for (unsigned row = y; row < y + h; ++row) {
+    const Angle lat = north - dlat * double(row);
+    const Angle lon0 = west + width_angle * (double(x) / x_denom);
+    const Angle lon1 =
+      west + width_angle * (double(x + w - 1) / x_denom);
+    map.ScanLine(GeoPoint(lon0, lat), GeoPoint(lon1, lat),
+                 height_matrix.GetRow(row) + x,
+                 w, true);
+  }
+}
+
+bool
+RasterRenderer::ScrollMap(const RasterMap &map, const GeoBounds &desired,
+                         UnsignedPoint2D matrix_size) noexcept
+{
+  if (!bounds.IsValid() || height_matrix.GetSize() != matrix_size)
+    return false;
+
+  const unsigned width = matrix_size.x;
+  const unsigned height = matrix_size.y;
+  if (width < 2 || height < 2)
+    return false;
+
+  /* Same spacing as Fill(): columns inclusive, rows span/N. */
+  const double dlon = bounds.GetWidth().Degrees() / double(width - 1);
+  const double dlat = bounds.GetHeight().Degrees() / height;
+  if (!(dlon > 0) || !(dlat > 0))
+    return false;
+
+  if (std::fabs(desired.GetWidth().Degrees() - bounds.GetWidth().Degrees())
+      > dlon * 0.5 ||
+      std::fabs(desired.GetHeight().Degrees() - bounds.GetHeight().Degrees())
+      > dlat * 0.5)
+    return false;
+
+  const int east = (int)std::lround(
+    (desired.GetWest() - bounds.GetWest()).Degrees() / dlon);
+  const int north = (int)std::lround(
+    (desired.GetNorth() - bounds.GetNorth()).Degrees() / dlat);
+
+  if (east == 0 && north == 0) {
+    height_matrix_changed = false;
+    return true;
+  }
+
+  if (std::abs(east) >= (int)width / 2 ||
+      std::abs(north) >= (int)height / 2)
+    return false;
+
+  const Angle new_west = bounds.GetWest() +
+    Angle::Degrees(dlon * east);
+  const Angle new_north = bounds.GetNorth() +
+    Angle::Degrees(dlat * north);
+  bounds = GeoBounds(GeoPoint(new_west, new_north),
+                     GeoPoint(new_west + bounds.GetWidth(),
+                              new_north - bounds.GetHeight()));
+
+  height_matrix.Scroll(east, north);
+  last_quantisation_pixels = quantisation_pixels;
+
+  /* The GPU texture is not shifted by Scroll().  The whole picture
+     is uploaded later; uploading only the new edge would leave the
+     old interior on the new bounds, and the terrain would slide
+     against the map. */
+  unsigned row_y = 0, row_h = 0;
+  if (north > 0) {
+    row_y = 0;
+    row_h = unsigned(north);
+  } else if (north < 0) {
+    row_h = unsigned(-north);
+    row_y = height - row_h;
+  }
+  if (row_h > 0)
+    FillHeightRect(map, 0, row_y, width, row_h);
+
+  unsigned col_x = 0, col_w = 0;
+  if (east > 0) {
+    col_w = unsigned(east);
+    col_x = width - col_w;
+    if (col_w < 2 && col_x > 0) {
+      --col_x;
+      ++col_w;
+    }
+  } else if (east < 0) {
+    col_x = 0;
+    col_w = unsigned(-east);
+    if (col_w < 2 && col_w < width)
+      ++col_w;
+  }
+
+  unsigned col_y = 0;
+  unsigned col_h = height;
+  if (north > 0) {
+    col_y = unsigned(north);
+    col_h = height - col_y;
+  } else if (north < 0) {
+    col_h = height - unsigned(-north);
+  }
+  if (col_w >= 2 && col_h > 0)
+    FillHeightRect(map, col_x, col_y, col_w, col_h);
+
+  height_matrix_changed = true;
+  return true;
+}
+
+#endif
+
 void
 RasterRenderer::ScanMap(const RasterMap &map,
-                        const WindowProjection &projection) noexcept
+                        const WindowProjection &projection,
+                        bool force_full) noexcept
 {
   // GeoPoint corresponding to the MapWindow center
   GeoPoint center = projection.ScreenToGeo(projection.GetScreenCenter());
@@ -287,14 +435,20 @@ RasterRenderer::ScanMap(const RasterMap &map,
   }
 
 #ifdef ENABLE_OPENGL
-  bounds = projection.GetScreenBounds().Scale(BOUNDS_SCALE_FACTOR);
-  bounds.IntersectWith(map.GetBounds());
+  GeoBounds desired =
+    projection.GetScreenBounds().Scale(BOUNDS_SCALE_FACTOR);
+  if (!desired.IntersectWith(map.GetBounds())) {
+    height_matrix_changed = false;
+    quantisation_effective = 0;
+    return;
+  }
 
   UnsignedPoint2D matrix_size =
     (UnsignedPoint2D)projection.GetScreenSize()
     * static_cast<unsigned>(BOUNDS_SCALE_FACTOR * 128.0f + 0.5f)
     / quantisation_pixels / 128;
   if (matrix_size.x == 0 || matrix_size.y == 0) {
+    height_matrix_changed = false;
     quantisation_effective = 0;
     return;
   }
@@ -319,6 +473,11 @@ RasterRenderer::ScanMap(const RasterMap &map,
     matrix_size = {clamped_x, clamped_y};
   }
 
+  if (!force_full && ScrollMap(map, desired, matrix_size))
+    return;
+
+  bounds = desired;
+  height_matrix_changed = true;
   height_matrix.Fill(map, bounds, matrix_size, true);
 
   ClampQuantisationEffectiveToMatrix(quantisation_effective,
@@ -326,6 +485,7 @@ RasterRenderer::ScanMap(const RasterMap &map,
 
   last_quantisation_pixels = quantisation_pixels;
 #else
+  (void)force_full;
   height_matrix.Fill(map, projection, quantisation_pixels, true);
 
   ClampQuantisationEffectiveToMatrix(quantisation_effective,
@@ -342,6 +502,30 @@ RasterRenderer::FillGradient(UnsignedPoint2D size,
   quantisation_effective = 1;
 }
 
+struct ContourSpan {
+  unsigned height_scale;
+  unsigned divisor;
+  unsigned thickness;
+};
+
+static ContourSpan
+MakeContourSpan(unsigned contour_spacing,
+                unsigned quantisation_pixels) noexcept
+{
+  if (contour_spacing == 0)
+    return {16, 0, 1};
+
+  unsigned s = 0;
+  while ((1u << s) < contour_spacing)
+    ++s;
+
+  const unsigned q = std::max(1u, quantisation_pixels);
+  const unsigned thickness = s >= 16
+    ? 1u
+    : std::max(1u, Layout::ScalePenWidth(768u) / (q * 1024u));
+  return {s, s >= 16 ? 0u : (1u << s), thickness};
+}
+
 void
 RasterRenderer::GenerateImage(bool do_shading,
                               unsigned height_scale,
@@ -349,6 +533,45 @@ RasterRenderer::GenerateImage(bool do_shading,
                               const Angle sunazimuth,
                               unsigned contour_spacing) noexcept
 {
+  // At extreme zoom out, terrain features are too small to be meaningful;
+  // disable both slope shading and contours.
+  ClampQuantisationEffectiveToMatrix(quantisation_effective,
+                                     height_matrix.GetSize());
+  if (quantisation_effective == 0) {
+    do_shading = false;
+    contour_spacing = 0;
+  }
+
+  /* scale 16 and divisor 0: no contours. Thickness aims for
+     0.75 of one 80 dpi pixel. */
+  const ContourSpan contour =
+    MakeContourSpan(contour_spacing, quantisation_pixels);
+  const unsigned contour_height_scale = contour.height_scale;
+  contour_thickness = contour.thickness;
+#ifdef ENABLE_OPENGL
+  contour_div_for_draw = contour.divisor;
+  height_scale_for_draw = height_scale;
+  shading_for_draw = do_shading;
+  {
+    const unsigned q = std::max(1u, quantisation_effective);
+    const unsigned q_sq = q * q;
+    const unsigned max_hsf = std::max(1u, 8192u / q_sq);
+    height_slope_factor_for_draw =
+      std::clamp(static_cast<unsigned>(pixel_size), 1u, max_hsf);
+  }
+
+  if (!use_cpu_hillshade && OpenGL::hillshade_shader != nullptr &&
+      !has_alpha &&
+      height_matrix.GetSize().x > 0 && height_matrix.GetSize().y > 0) {
+    UploadHeightTexture();
+    UploadRampTexture();
+    shader_hillshade = true;
+    return;
+  }
+
+  shader_hillshade = false;
+#endif
+
   if (image == nullptr ||
       height_matrix.GetSize().x > image->GetSize().width ||
       height_matrix.GetSize().y > image->GetSize().height) {
@@ -362,31 +585,6 @@ RasterRenderer::GenerateImage(bool do_shading,
     contour_pending =
       new ColumnContourPending[height_matrix.GetSize().x];
   }
-
-  // At extreme zoom out, terrain features are too small to be meaningful;
-  // disable both slope shading and contours.
-  ClampQuantisationEffectiveToMatrix(quantisation_effective,
-                                     height_matrix.GetSize());
-  if (quantisation_effective == 0) {
-    do_shading = false;
-    contour_spacing = 0;
-  }
-
-  // Convert spacing to scale, with scale=16: effectively no contours
-  unsigned contour_height_scale = 16;
-  if (contour_spacing > 0) {
-    unsigned s = 0;
-    while ((1u << s) < contour_spacing)
-      ++s;
-    contour_height_scale = s;
-  }
-
-  // Compute contour width, aiming for 0.75 units (=3/4 of one 80 dpi pixel)
-  contour_thickness = contour_height_scale < 16
-    ? std::max(1u,
-               Layout::ScalePenWidth(1u * 768u)
-               / (quantisation_pixels * 1024u))
-    : 1;
 
   ContourStart(contour_height_scale);
 
@@ -653,19 +851,28 @@ RasterRenderer::GenerateSlopeImage(unsigned height_scale,
   }
 }
 
+static void
+SunVector(const Angle sunazimuth, int brightness,
+          int &sx, int &sy, int &sz) noexcept
+{
+  const Angle fudgeelevation = Angle::Degrees(10) +
+    Angle::Degrees(80.0 / 255.0) * brightness;
+
+  sx = (int)(255 * fudgeelevation.fastcosine() *
+             -sunazimuth.fastsine());
+  sy = (int)(255 * fudgeelevation.fastcosine() *
+             -sunazimuth.fastcosine());
+  sz = (int)(255 * fudgeelevation.fastsine());
+}
+
 void
 RasterRenderer::GenerateSlopeImage(unsigned height_scale,
                                    int contrast, int brightness,
                                    const Angle sunazimuth,
                                    const unsigned contour_height_scale) noexcept
 {
-  const Angle fudgeelevation = Angle::Degrees(10) +
-    Angle::Degrees(80.0 / 255.0) * brightness;
-
-  const int sx = (int)(255 * fudgeelevation.fastcosine() * -sunazimuth.fastsine());
-  const int sy = (int)(255 * fudgeelevation.fastcosine() * -sunazimuth.fastcosine());
-  const int sz = (int)(255 * fudgeelevation.fastsine());
-
+  int sx, sy, sz;
+  SunVector(sunazimuth, brightness, sx, sy, sz);
   GenerateSlopeImage(height_scale, contrast,
                      sx, sy, sz, contour_height_scale);
 }
@@ -678,6 +885,10 @@ RasterRenderer::PrepareColorTable(const ColorRamp *color_ramp, bool do_water,
 
   if (color_table == nullptr)
     color_table = new RawColor[256 * 128];
+
+#ifdef ENABLE_OPENGL
+  ramp_texture_dirty = true;
+#endif
 
   for (int i = 0; i < 256; i++) {
     for (int mag = -64; mag < 64; mag++) {
@@ -748,6 +959,10 @@ RasterRenderer::PrepareColorTableAlpha(const ColorRamp *color_ramp,
   if (color_table == nullptr)
     color_table = new RawColor[256 * 128];
 
+#ifdef ENABLE_OPENGL
+  ramp_texture_dirty = true;
+#endif
+
   for (int i = 0; i < 256; i++) {
     for (int mag = -64; mag < 64; mag++) {
       RawColor color;
@@ -787,6 +1002,190 @@ RasterRenderer::ContourStart(const unsigned contour_height_scale) noexcept
               ColumnContourPending{});
 }
 
+#ifdef ENABLE_OPENGL
+
+static void
+FillRampRgba(uint8_t *dest, const RawColor *table) noexcept
+{
+  for (unsigned i = 0; i < 256 * 128; ++i) {
+#ifdef GREYSCALE
+    const uint8_t y = table[i].value.GetLuminosity();
+    *dest++ = y;
+    *dest++ = y;
+    *dest++ = y;
+    *dest++ = 255;
+#elif defined(USE_RGB565)
+    const uint16_t v = table[i].value.GetNativeValue();
+    *dest++ = uint8_t((v >> 8) & 0xf8);
+    *dest++ = uint8_t((v >> 3) & 0xfc);
+    *dest++ = uint8_t((v << 3) & 0xf8);
+    *dest++ = 255;
+#else
+    *dest++ = table[i].value.Red();
+    *dest++ = table[i].value.Green();
+    *dest++ = table[i].value.Blue();
+    *dest++ = table[i].alpha;
+#endif
+  }
+}
+
+void
+RasterRenderer::SetSunFromAzimuth(Angle sunazimuth, int brightness,
+                                  int contrast) noexcept
+{
+  SunVector(sunazimuth, brightness, sun_sx, sun_sy, sun_sz);
+  contrast_for_draw = contrast;
+}
+
+void
+RasterRenderer::SetContourSpacing(unsigned contour_spacing) noexcept
+{
+  const ContourSpan contour =
+    MakeContourSpan(contour_spacing, quantisation_pixels);
+  contour_thickness = contour.thickness;
+  contour_div_for_draw = contour.divisor;
+}
+
+void
+RasterRenderer::UploadHeightTexture() noexcept
+{
+  const auto sz = height_matrix.GetSize();
+  const PixelSize ps{int(sz.x), int(sz.y)};
+  const void *data = height_matrix.GetData();
+
+  /* decode_height() reads L then A as little-endian int16. */
+  static_assert(std::endian::native == std::endian::little);
+
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+  if (height_texture == nullptr || height_texture->GetSize() != ps) {
+    height_texture = std::make_unique<GLTexture>(GL_LUMINANCE_ALPHA, ps,
+                                                 GL_LUMINANCE_ALPHA,
+                                                 GL_UNSIGNED_BYTE, data);
+  } else {
+    height_texture->Bind();
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ps.width, ps.height,
+                    GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, data);
+  }
+
+  height_texture->Bind();
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+}
+
+void
+RasterRenderer::UploadRampTexture() noexcept
+{
+  assert(color_table != nullptr);
+
+  if (ramp_texture != nullptr && !ramp_texture_dirty)
+    return;
+
+  constexpr unsigned n = 256 * 128 * 4;
+  if (ramp_rgba == nullptr)
+    ramp_rgba = std::make_unique<uint8_t[]>(n);
+
+  FillRampRgba(ramp_rgba.get(), color_table);
+
+  constexpr PixelSize ramp_size{256, 128};
+
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+  if (ramp_texture == nullptr) {
+    ramp_texture = std::make_unique<GLTexture>(GL_RGBA, ramp_size,
+                                               GL_RGBA, GL_UNSIGNED_BYTE,
+                                               ramp_rgba.get());
+  } else {
+    ramp_texture->Bind();
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
+                    ramp_size.width, ramp_size.height,
+                    GL_RGBA, GL_UNSIGNED_BYTE, ramp_rgba.get());
+  }
+
+  ramp_texture->Bind();
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  ramp_texture_dirty = false;
+}
+
+void
+RasterRenderer::DrawHillshade(const WindowProjection &projection,
+                              float alpha) const noexcept
+{
+  assert(bounds.IsValid());
+  assert(height_texture != nullptr);
+  assert(ramp_texture != nullptr);
+
+  const BulkPixelPoint vertices[] = {
+    projection.GeoToScreen(bounds.GetNorthWest()),
+    projection.GeoToScreen(bounds.GetNorthEast()),
+    projection.GeoToScreen(bounds.GetSouthWest()),
+    projection.GeoToScreen(bounds.GetSouthEast()),
+  };
+
+  const ScopeVertexPointer vp(vertices);
+
+  glActiveTexture(GL_TEXTURE0);
+  height_texture->Bind();
+  glActiveTexture(GL_TEXTURE1);
+  ramp_texture->Bind();
+  glActiveTexture(GL_TEXTURE0);
+
+  OpenGL::hillshade_shader->Use();
+
+  const PixelSize allocated = height_texture->GetAllocatedSize();
+  const auto matrix_size = height_matrix.GetSize();
+  const GLfloat x1 = GLfloat(matrix_size.x) / allocated.width;
+  const GLfloat y1 = GLfloat(matrix_size.y) / allocated.height;
+  const GLfloat coord[] = {
+    0, 0,
+    x1, 0,
+    0, y1,
+    x1, y1,
+  };
+
+  glEnableVertexAttribArray(OpenGL::Attribute::TEXCOORD);
+  glVertexAttribPointer(OpenGL::Attribute::TEXCOORD, 2, GL_FLOAT, GL_FALSE,
+                        0, coord);
+
+  const unsigned q = std::max(1u, quantisation_effective);
+  glUniform2f(OpenGL::hillshade_texel_step,
+              GLfloat(q) / allocated.width,
+              GLfloat(q) / allocated.height);
+  glUniform3f(OpenGL::hillshade_sun,
+              GLfloat(sun_sx), GLfloat(sun_sy), GLfloat(sun_sz));
+  glUniform1f(OpenGL::hillshade_contrast, GLfloat(contrast_for_draw));
+  glUniform1f(OpenGL::hillshade_height_slope_factor,
+              GLfloat(height_slope_factor_for_draw));
+  glUniform1f(OpenGL::hillshade_height_div,
+              GLfloat(1u << height_scale_for_draw));
+  glUniform1f(OpenGL::hillshade_q, GLfloat(q));
+  glUniform1f(OpenGL::hillshade_do_shading, shading_for_draw ? 1.f : 0.f);
+  glUniform2f(OpenGL::hillshade_height_texel,
+              1.f / GLfloat(allocated.width),
+              1.f / GLfloat(allocated.height));
+  glUniform1f(OpenGL::hillshade_contour_div,
+              GLfloat(contour_div_for_draw));
+  glUniform1f(OpenGL::hillshade_contour_thickness,
+              GLfloat(std::min(contour_thickness, 7u)));
+
+  if (alpha < 1.0f) {
+    const GLBlend blend(alpha);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  } else {
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  }
+
+  glDisableVertexAttribArray(OpenGL::Attribute::TEXCOORD);
+
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glActiveTexture(GL_TEXTURE0);
+  OpenGL::solid_shader->Use();
+}
+
+#endif
+
 void
 RasterRenderer::Draw([[maybe_unused]] Canvas &canvas,
                      const WindowProjection &projection,
@@ -794,14 +1193,23 @@ RasterRenderer::Draw([[maybe_unused]] Canvas &canvas,
                      [[maybe_unused]] float alpha) const noexcept
 {
 #ifdef ENABLE_OPENGL
-  if (bounds.IsValid() && bounds.Overlaps(projection.GetScreenBounds())) {
-    const ScopeTextureConstantAlpha blend(has_alpha, alpha);
+  if (!bounds.IsValid() || !bounds.Overlaps(projection.GetScreenBounds()))
+    return;
 
-    DrawGeoBitmap(*image,
-                  PixelSize{height_matrix.GetSize()},
-                  bounds,
-                  projection);
+  if (shader_hillshade && height_texture && ramp_texture) {
+    DrawHillshade(projection, alpha);
+    return;
   }
+
+  if (image == nullptr)
+    return;
+
+  const ScopeTextureConstantAlpha blend(has_alpha, alpha);
+
+  DrawGeoBitmap(*image,
+                PixelSize{height_matrix.GetSize()},
+                bounds,
+                projection);
 #else
   image->StretchTo(PixelSize{height_matrix.GetSize()},
                    canvas, projection.GetScreenSize(),

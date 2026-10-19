@@ -38,7 +38,11 @@ public:
     progress.SetValue(position);
   }
 
+  void SetProgressBytes(unsigned bytes) noexcept override {
+    progress.SetByteCount(bytes);
+  }
+
   /* virtual methods from WndForm */
-  void ReinitialiseLayout(const PixelRect &parent_rc) noexcept override;
+  void ReinitialiseLayout(const PixelRect &rc) noexcept override;
   void SetModalResult(int id) noexcept override;
 };

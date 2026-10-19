@@ -22,11 +22,6 @@
 #include "Interface.hpp"
 #include "Language/Language.hpp"
 
-/* this macro exists in the WIN32 API */
-#ifdef DELETE
-#undef DELETE
-#endif
-
 class WaypointManagerWidget final
   : public ListWidget {
 
@@ -178,10 +173,10 @@ WaypointManagerWidget::OnWaypointNewClicked()
 
   if (CommonInterface::Calculated().terrain_valid) {
     edit_waypoint.elevation = CommonInterface::Calculated().terrain_altitude;
-    edit_waypoint.has_elevation = true;
+    edit_waypoint.elevation_source = Waypoint::ElevationSource::FILE;
   } else if (CommonInterface::Basic().NavAltitudeAvailable()) {
     edit_waypoint.elevation = CommonInterface::Basic().nav_altitude;
-    edit_waypoint.has_elevation = true;
+    edit_waypoint.elevation_source = Waypoint::ElevationSource::FILE;
   }
 
   if (dlgWaypointEditShowModal(edit_waypoint) == WaypointEditResult::MODIFIED &&

@@ -15,7 +15,7 @@
 #include "Engine/ThermalBand/ThermalEncounterBand.hpp"
 #include "Engine/ThermalBand/ThermalEncounterCollection.hpp"
 #include "NMEA/ThermalLocator.hpp"
-#include "NMEA/Validity.hpp"
+#include "time/Validity.hpp"
 #include "NMEA/ClimbHistory.hpp"
 #include "TeamCode/TeamCode.hpp"
 #include "Engine/Navigation/TraceHistory.hpp"
@@ -242,6 +242,13 @@ struct DerivedInfo:
    * treated as invalid.
    */
   double next_leg_eq_thermal;
+
+  /**
+   * Thermal value of current leg that is equivalent (gives the same average
+   * speed) to the current MacCready setting on the next leg.
+   * A negative value should be treated as invalid.
+   */
+  double next_leg_eq_thermal_inverse;
 
   /**
    * @todo Reset to cleared state

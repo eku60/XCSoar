@@ -3,16 +3,17 @@
 
 #include "GetWaypointReachability.hpp"
 #include "Engine/Waypoint/Waypoint.hpp"
+#include "Computer/WaypointReach.hpp"
 #include "Computer/GlideComputer.hpp"
 #include "BackendComponents.hpp"
 #include "Components.hpp"
 #include "Interface.hpp"
 
-WaypointReachability
-GetWaypointReachability(const Waypoint &waypoint) noexcept
+WaypointReach
+GetWaypointReach(const Waypoint &waypoint) noexcept
 {
   if (!waypoint.IsLandable() && !waypoint.flags.watched)
-    return WaypointReachability::INVALID;
+    return {};
 
   const auto *glide_computer = backend_components != nullptr
     ? backend_components->glide_computer.get()
@@ -25,5 +26,5 @@ GetWaypointReachability(const Waypoint &waypoint) noexcept
                                 : nullptr,
                                 CommonInterface::Basic(),
                                 CommonInterface::Calculated(),
-                                settings.polar, settings.task).reachability;
+                                settings.polar, settings.task);
 }

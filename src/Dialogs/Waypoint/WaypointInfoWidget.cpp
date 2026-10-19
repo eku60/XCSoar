@@ -146,7 +146,7 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
                      buffer.buffer(), buffer.capacity()) != nullptr)
     AddReadOnly(_("Location"), nullptr, buffer);
 
-  if (waypoint->has_elevation)
+  if (waypoint->HasElevation())
     AddReadOnly(_("Elevation"), nullptr, FormatUserAltitude(waypoint->elevation));
   else
     AddReadOnly(_("Elevation"), nullptr, "?");
@@ -209,7 +209,7 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
 
   if (basic.location_available && basic.NavAltitudeAvailable() &&
       settings.polar.glide_polar_task.IsValid() &&
-      waypoint->has_elevation) {
+      waypoint->HasElevation()) {
     const GlideState glide_state(basic.location.DistanceBearing(waypoint->location),
                                  waypoint->elevation + settings.task.safety_height_arrival,
                                  basic.nav_altitude,
@@ -221,19 +221,19 @@ WaypointInfoWidget::Prepare(ContainerWindow &parent,
                    MacCready::Solve(settings.task.glide,
                                     gp0, glide_state));
 
-    AddGlideResult(_("Alt. diff. MC safety"),
+    AddGlideResult(_("Alt. diff. Safety MC"),
                    MacCready::Solve(settings.task.glide,
                                     calculated.glide_polar_safety,
                                     glide_state));
 
-    AddGlideResult(_("Alt. diff. MC current"),
+    AddGlideResult(_("Alt. diff. Task MC"),
                    MacCready::Solve(settings.task.glide,
                                     settings.polar.glide_polar_task,
                                     glide_state));
   }
 
   if (basic.location_available && basic.NavAltitudeAvailable() &&
-      waypoint->has_elevation) {
+      waypoint->HasElevation()) {
     const TaskBehaviour &task_behaviour =
       CommonInterface::GetComputerSettings().task;
 

@@ -15,6 +15,9 @@ class TaskManagerDialog final : public TabWidget {
   enum Tabs {
     TurnpointTab,
     PropertiesTab,
+#ifdef HAVE_HTTP
+    WeGlideTab,
+#endif
     RulesTab,
     CloseTab,
   };
@@ -76,6 +79,12 @@ public:
 
   void SwitchToEditTab();
   void SwitchToPropertiesPanel();
+
+  /**
+   * Replace the task being edited with one that arrived from outside,
+   * e.g. a scanned QR code, and show it.
+   */
+  void ReceiveTask(std::unique_ptr<OrderedTask> task) noexcept;
 
   /**
    * Validates task and prompts if change or error

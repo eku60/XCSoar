@@ -2,11 +2,13 @@
 // Copyright The XCSoar Project
 
 #include "../TopWindow.hpp"
+#include "../MinimumSize.hpp"
 #include "../Features.hpp"
 #include "ui/canvas/custom/TopCanvas.hpp"
 #include "lib/fmt/RuntimeError.hxx"
 #include "util/UTF8.hpp"
 
+#include <SDL_hints.h>
 #include <SDL_video.h>
 #include <SDL_events.h>
 #include <SDL_version.h>
@@ -197,6 +199,12 @@ TopWindow::CreateNative(const char *_text, PixelSize new_size,
                           new_size.height, flags,
                           ::SDL_GetError());
 
+  if (resizable) {
+    const PixelSize min_size = MinimumWindowSize(new_size);
+    SDL_SetWindowMinimumSize(window, (int)min_size.width,
+                             (int)min_size.height);
+  }
+
 #if defined(__MACOSX__) && __MACOSX__
   SDL_SysWMinfo *wm_info =
       reinterpret_cast<SDL_SysWMinfo *>(alloca(sizeof(SDL_SysWMinfo)));
@@ -213,7 +221,44 @@ TopWindow::CreateNative(const char *_text, PixelSize new_size,
   }
 #endif
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  /* apply the initial value of #full_screen_mode to the fresh window;
+     Startup() will apply the value from the profile as soon as it has
+     been loaded */
+  ApplyFullScreenMode();
+#endif
 }
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+
+inline void
+TopWindow::ApplyFullScreenMode() noexcept
+{
+  /* SDL hides the iOS status bar while the window is "borderless" */
+  SDL_SetWindowBordered(window, status_bar_hidden ? SDL_FALSE : SDL_TRUE);
+}
+
+void
+TopWindow::SetFullScreenMode(bool _full_screen) noexcept
+{
+  if (_full_screen == full_screen_mode)
+    return;
+
+  full_screen_mode = _full_screen;
+  ApplyFullScreenMode();
+}
+
+void
+TopWindow::SetStatusBarHidden(bool _hidden) noexcept
+{
+  if (_hidden == status_bar_hidden)
+    return;
+
+  status_bar_hidden = _hidden;
+  ApplyFullScreenMode();
+}
+
+#endif
 
 #ifdef HAVE_MULTI_TOUCH
 

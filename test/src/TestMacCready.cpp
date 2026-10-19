@@ -10,6 +10,8 @@
 
 #include "TestUtil.hpp"
 
+#include <cmath>
+
 static GlideSettings glide_settings;
 static GlidePolar glide_polar(0);
 
@@ -110,6 +112,68 @@ TestWind(const SpeedVector &wind)
 }
 
 static void
+TestArrivesAtBestGlide()
+{
+  GlidePolar polar(0);
+  polar.SetMC(4);
+
+  const GeoVector vector(60000, Angle::Zero());
+  const SpeedVector wind(Angle::Zero(), 0);
+  const GlideState probe(vector, 0, 8000, wind);
+
+  GlidePolar best = polar;
+  best.SetMC(0);
+  const GlideResult at_mc =
+    MacCready(glide_settings, polar).SolveStraight(probe);
+  const GlideResult at_best =
+    MacCready(glide_settings, best).SolveGlide(probe, best.GetVBestLD());
+  ok1(at_mc.IsOk() && at_best.IsOk());
+  ok1(at_best.pure_glide_altitude_difference >
+      at_mc.pure_glide_altitude_difference + 10);
+
+  const double nav_between =
+    8000 - at_best.pure_glide_altitude_difference + 20;
+  const GlideState between(vector, 0, nav_between, wind);
+  const GlideResult mc_between =
+    MacCready(glide_settings, polar).SolveStraight(between);
+  ok1(mc_between.IsOk() &&
+      mc_between.pure_glide_altitude_difference < 0);
+  ok1(MacCready::ArrivesAtBestGlide(polar, glide_settings, between));
+
+  const GlideState low(vector, 0,
+                       nav_between - 40, wind);
+  ok1(!MacCready::ArrivesAtBestGlide(polar, glide_settings, low));
+}
+
+/**
+ * Wind not aligned with the target. A pure crosswind has no headwind
+ * component, and the cruise track is not the target bearing.
+ */
+static void
+TestCrosswind()
+{
+  GlidePolar polar(1);
+  const GeoVector north(20000, Angle::Zero());
+  const double wind_speed = 10;
+
+  const GlideState cross(north, 0, 2000,
+                         SpeedVector(Angle::Degrees(90), wind_speed));
+  ok1(equals(cross.head_wind, 0));
+
+  GlideResult result = MacCready::Solve(glide_settings, polar, cross);
+  ok1(result.IsOk());
+  result.CalcDeferred();
+  const auto track_error =
+    (result.cruise_track_bearing - north.bearing).AsDelta().Degrees();
+  ok1(std::fabs(track_error) > 1);
+
+  const GlideState quarter(north, 0, 2000,
+                           SpeedVector(Angle::Degrees(45), wind_speed));
+  ok1(equals(quarter.head_wind,
+             wind_speed * Angle::Degrees(45).cos()));
+}
+
+static void
 TestAll()
 {
   TestWind(SpeedVector(Angle::Zero(), 0));
@@ -122,10 +186,11 @@ TestAll()
 
 int main()
 {
-  plan_tests(2103);
+  plan_tests(2108 + 4);
 
   glide_settings.SetDefaults();
 
+  TestCrosswind();
   TestAll();
 
   glide_polar.SetMC(0.1);
@@ -139,6 +204,8 @@ int main()
 
   glide_polar.SetMC(10);
   TestAll();
+
+  TestArrivesAtBestGlide();
 
   return exit_status();
 }

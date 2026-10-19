@@ -17,6 +17,11 @@
 
 #include <memory>
 
+/*
+ * The format read here is described in doc/task_file.rst; see the
+ * comment in Serialiser.cpp.
+ */
+
 static void
 Deserialise(GeoPoint &data, const ConstDataNode &node)
 {
@@ -70,7 +75,7 @@ DeserialiseWaypoint(const ConstDataNode &node, const Waypoints *waypoints)
     wp->comment = comment;
 
   if (node.GetAttribute("altitude", wp->elevation))
-    wp->has_elevation = true;
+    wp->elevation_source = Waypoint::ElevationSource::FILE;
 
   return WaypointPtr(wp);
 }
@@ -248,6 +253,7 @@ static void
 Deserialise(OrderedTaskSettings &data, const ConstDataNode &node)
 {
   node.GetAttribute("aat_min_time", data.aat_min_time);
+  node.GetAttribute("navigate_nearest", data.navigate_nearest);
   node.GetAttribute("start_requires_arm",
                     data.start_constraints.require_arm);
   node.GetAttribute("start_score_exit",

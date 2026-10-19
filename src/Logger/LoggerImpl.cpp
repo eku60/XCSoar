@@ -8,10 +8,8 @@
 #include "Repository/FileType.hpp"
 #include "Device/Declaration.hpp"
 #include "NMEA/Info.hpp"
-#include "Simulator.hpp"
 #include "system/FileUtil.hpp"
 #include "Formatter/IGCFilenameFormatter.hpp"
-#include "Interface.hpp"
 #include "IGC/IGCWriter.hpp"
 #include "util/CharUtil.hxx"
 
@@ -35,6 +33,9 @@ LoggerImpl::PreTakeoffBuffer::operator=(const NMEAInfo &src)
 
   altitude_gps = src.gps_altitude;
   gps_altitude_available = src.gps_altitude_available;
+
+  altitude_ellipsoid = src.gps_ellipsoid_altitude;
+  gps_ellipsoid_altitude_available = src.gps_ellipsoid_altitude_available;
 
   date_time_utc = src.date_time_utc;
   time = src.time;
@@ -101,15 +102,15 @@ LoggerImpl::LogEvent(const NMEAInfo &gps_info, const char *event)
     writer->LogEvent(gps_info, event);
 }
 
-void
+bool
 LoggerImpl::LogPoint(const NMEAInfo &gps_info)
 {
   if (!gps_info.alive || !gps_info.time_available)
-    return;
+    return false;
 
   if (writer == nullptr) {
     LogPointToBuffer(gps_info);
-    return;
+    return false;
   }
 
   while (!pre_takeoff_buffer.empty()) {
@@ -136,6 +137,11 @@ LoggerImpl::LogPoint(const NMEAInfo &gps_info)
     if (src.gps_altitude_available) {
       tmp_info.gps_altitude = src.altitude_gps;
       tmp_info.gps_altitude_available.Update(tmp_info.clock);
+    }
+
+    if (src.gps_ellipsoid_altitude_available) {
+      tmp_info.gps_ellipsoid_altitude = src.altitude_ellipsoid;
+      tmp_info.gps_ellipsoid_altitude_available.Update(tmp_info.clock);
     }
 
     if (src.pressure_altitude_available) {
@@ -166,10 +172,10 @@ LoggerImpl::LogPoint(const NMEAInfo &gps_info)
     WritePoint(tmp_info);
   }
 
-  WritePoint(gps_info);
+  return WritePoint(gps_info);
 }
 
-void
+bool
 LoggerImpl::WritePoint(const NMEAInfo &gps_info)
 {
   assert(gps_info.alive);
@@ -186,7 +192,7 @@ LoggerImpl::WritePoint(const NMEAInfo &gps_info)
       writer->LogEmptyFRecord(gps_info.date_time_utc);
   }
 
-  writer->LogPoint(gps_info);
+  return writer->LogPoint(gps_info);
 }
 
 bool
@@ -238,29 +244,22 @@ LoggerImpl::LoggerNote(const char *text)
     writer->LoggerNote(text);
 }
 
-[[gnu::pure]]
-static const char *
-GetGPSDeviceName() noexcept
+void
+LoggerImpl::LogGPSSource(const NMEAInfo &gps_info, char device,
+                         const char *name)
 {
-  if (is_simulator())
-    return "Simulator";
-
-  const DeviceConfig &device = CommonInterface::GetSystemSettings().devices[0];
-  if (device.UsesDriver())
-    return device.driver_name;
-
-  if (device.IsAndroidInternalGPS())
-    return "Internal GPS (Android)";
-
-  return "Unknown";
+  if (writer != nullptr)
+    writer->LogGPSSource(gps_info.date_time_utc, device, name);
 }
 
-// TODO: fix scope so only gui things can start it
 void
 LoggerImpl::StartLogger(const NMEAInfo &gps_info,
                         const LoggerSettings &settings,
-                        const char *asset_number, const Declaration &decl)
+                        const char *asset_number, const Declaration &decl,
+                        const char *gps_device_name)
 {
+  assert(gps_device_name != nullptr);
+
   if (!settings.logger_id.empty())
     asset_number = settings.logger_id.c_str();
 
@@ -279,7 +278,7 @@ LoggerImpl::StartLogger(const NMEAInfo &gps_info,
   writer->WriteHeader(gps_info.date_time_utc, decl.pilot_name, decl.copilot_name,
                       decl.aircraft_type, decl.aircraft_registration,
                       decl.competition_id,
-                      logger_id, GetGPSDeviceName(), simulator);
+                      logger_id, gps_device_name, simulator);
 
   if (decl.Size()) {
     BrokenDateTime FirstDateTime = !pre_takeoff_buffer.empty()

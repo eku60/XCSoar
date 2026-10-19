@@ -4,6 +4,7 @@
 #include "TaskListPanel.hpp"
 #include "Internal.hpp"
 #include "../dlgTaskHelpers.hpp"
+#include "Task/Summary.hpp"
 #include "Dialogs/Message.hpp"
 #include "Dialogs/TextEntry.hpp"
 #include "Form/Button.hpp"
@@ -15,6 +16,7 @@
 #include "Task/TaskStore.hpp"
 #include "Task/ValidationErrorStrings.hpp"
 #include "LocalPath.hpp"
+#include "Repository/FileType.hpp"
 #include "system/FileUtil.hpp"
 #include "Language/Language.hpp"
 #include "Interface.hpp"
@@ -29,11 +31,6 @@
 #include <cassert>
 
 static unsigned task_list_serial;
-
-/* this macro exists in the WIN32 API */
-#ifdef DELETE
-#undef DELETE
-#endif
 
 class TaskListPanel final
   : public ListWidget {
@@ -282,7 +279,8 @@ TaskListPanel::RenameTask()
 
   newname.append(".tsk");
 
-  const auto tasks_path = MakeLocalPath("tasks");
+  const auto tasks_path =
+    MakeLocalPath(GetFileTypeDefaultDir(FileType::TASK).c_str());
 
   File::Rename(task_store.GetPath(cursor_index),
                AllocatedPath::Build(tasks_path, newname));

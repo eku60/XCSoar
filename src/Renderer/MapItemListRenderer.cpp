@@ -21,7 +21,7 @@
 #include "Formatter/TimeFormatter.hpp"
 #include "Formatter/LocalTimeFormatter.hpp"
 #include "Formatter/AngleFormatter.hpp"
-#include "Dialogs/Task/dlgTaskHelpers.hpp"
+#include "Task/Summary.hpp"
 #include "Renderer/OZPreviewRenderer.hpp"
 #include "Renderer/AircraftRenderer.hpp"
 #include "Language/Language.hpp"
@@ -229,7 +229,8 @@ Draw(Canvas &canvas, const PixelRect rc,
      const AirspaceLook &look,
      const AirspaceRendererSettings &renderer_settings)
 {
-  AirspaceListRenderer::Draw(canvas, rc, *item.airspace, row_renderer, look,
+  AirspaceListRenderer::Draw(canvas, rc, *item.airspace,
+                             row_renderer, look,
                              renderer_settings);
 }
 

@@ -91,27 +91,7 @@ private:
   void SetBufferPens(const AbstractAirspace &airspace) {
     AirspaceClass as_type_or_class = settings.classes[airspace.GetTypeOrClass()].display ? airspace.GetTypeOrClass() : airspace.GetClass();
 
-#ifndef HAVE_HATCHED_BRUSH
     buffer.Select(look.classes[as_type_or_class].solid_brush);
-#else /* HAVE_HATCHED_BRUSH */
-
-#ifdef HAVE_ALPHA_BLEND
-    if (settings.transparency) {
-      buffer.Select(look.classes[as_type_or_class].solid_brush);
-    } else {
-#endif
-      // this color is used as the black bit
-      buffer.SetTextColor(LightColor(look.classes[as_type_or_class].fill_color));
-
-      // get brush, can be solid or a 1bpp bitmap
-      buffer.Select(look.brushes[settings.classes[as_type_or_class].brush]);
-
-      buffer.SetBackgroundOpaque();
-      buffer.SetBackgroundColor(COLOR_WHITE);
-#ifdef HAVE_ALPHA_BLEND
-    }
-#endif
-#endif /* HAVE_HATCHED_BRUSH */
 
     buffer.SelectNullPen();
 
@@ -213,6 +193,41 @@ AirspaceRenderer::DrawFill(Canvas &buffer_canvas, Canvas &stencil_canvas,
       v.Visit(airspace);
   }
 
+  /* Clearance erasure post-pass: punch holes in the warning fill at
+     cleared airspace shapes. White in the buffer is transparent in
+     the final alpha-blend; white in the stencil is "no fill" after
+     CopyOr. */
+  if (v.buffer_drawn) {
+    helper.buffer.SelectWhiteBrush();
+    helper.buffer.SelectNullPen();
+    if (helper.use_stencil) {
+      helper.stencil.SelectWhiteBrush();
+      helper.stencil.SelectNullPen();
+    }
+    for (const auto &i : range) {
+      const AbstractAirspace &airspace = i.GetAirspace();
+      if (!visible(airspace) || !awc.IsClearedAtCurrentAltitude(airspace))
+        continue;
+
+      switch (airspace.GetShape()) {
+      case AbstractAirspace::Shape::CIRCLE: {
+        const auto &circle = (const AirspaceCircle &)airspace;
+        auto center =
+          projection.GeoToScreen(circle.GetReferenceLocation());
+        unsigned radius =
+          projection.GeoToScreenDistance(circle.GetRadius());
+        helper.DrawCircle(center, radius);
+        break;
+      }
+      case AbstractAirspace::Shape::POLYGON: {
+        const auto &polygon = (const AirspacePolygon &)airspace;
+        helper.DrawSearchPointVector(polygon.GetPoints());
+        break;
+      }
+      }
+    }
+  }
+
   return v.Commit();
 }
 
@@ -236,16 +251,7 @@ AirspaceRenderer::DrawFillCached(Canvas &canvas, Canvas &stencil_canvas,
   }
 
 #ifdef HAVE_ALPHA_BLEND
-#ifdef HAVE_HATCHED_BRUSH
-  if (settings.transparency)
-#endif
-    fill_cache.AlphaBlendTo(canvas, projection, 60);
-#ifdef HAVE_HATCHED_BRUSH
-  else
-#endif
-#endif
-#ifdef HAVE_HATCHED_BRUSH
-    fill_cache.CopyAndTo(canvas, projection);
+  fill_cache.AlphaBlendTo(canvas, projection, 60);
 #endif
 }
 

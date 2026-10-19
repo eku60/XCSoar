@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "TaskRulesConfigPanel.hpp"
+#include "Dialogs/DataField.hpp"
 #include "Profile/Keys.hpp"
 #include "Form/DataField/Enum.hpp"
 #include "Interface.hpp"
@@ -18,6 +19,7 @@ enum ControlIndex {
   StartMaxHeight,
   StartMaxHeightMargin,
   StartHeightRef,
+  NavigateNearest,
   spacer_2,
   FinishMinHeight,
   FinishHeightRef,
@@ -48,7 +50,6 @@ TaskRulesConfigPanel::Prepare(ContainerWindow &parent,
   AddFloat(_("Start max. speed"), _("Maximum speed allowed in start observation zone. Set to 0 for no limit."),
            "%.0f %s", "%.0f", 0, 300, 5, false, UnitGroup::HORIZONTAL_SPEED,
            task_behaviour.ordered_defaults.start_constraints.max_speed);
-  SetExpertRow(StartMaxSpeed);
 
   AddFloat(_("Start max. speed margin"),
            _("Maximum speed above maximum start speed to tolerate. Set to 0 for no tolerance."),
@@ -57,14 +58,13 @@ TaskRulesConfigPanel::Prepare(ContainerWindow &parent,
   SetExpertRow(StartMaxSpeedMargin);
 
   AddSpacer();
-  SetExpertRow(spacer_1);
 
   AddFloat(_("Start max. height"),
            _("Maximum height based on start height reference (AGL or MSL) while starting the task. "
                "Set to 0 for no limit."),
-           "%.0f %s", "%.0f", 0, 10000, 50, false, UnitGroup::ALTITUDE,
-           task_behaviour.ordered_defaults.start_constraints.max_height);
-  SetExpertRow(StartMaxHeight);
+           "%.0f %s", "%.0f", 0, 30000, 50, false, UnitGroup::ALTITUDE,
+           task_behaviour.ordered_defaults.start_constraints.max_height)
+    ->SetEditCallback(EditUnsignedFloatDialog);
 
   AddFloat(_("Start max. height margin"),
            _("Maximum height above maximum start height to tolerate. Set to 0 for no tolerance."),
@@ -84,23 +84,25 @@ TaskRulesConfigPanel::Prepare(ContainerWindow &parent,
           _("Reference used for start max height rule."),
           altitude_reference_list,
           (unsigned)task_behaviour.ordered_defaults.start_constraints.max_height_ref);
-  SetExpertRow(StartHeightRef);
+
+  AddBoolean(_("Navigate to nearest point"),
+             _("Navigate to the nearest point of the start and finish zones."),
+             task_behaviour.ordered_defaults.navigate_nearest);
+  SetExpertRow(NavigateNearest);
 
   AddSpacer();
-  SetExpertRow(spacer_2);
 
   AddFloat(_("Finish min. height"),
            _("Minimum height based on finish height reference (AGL or MSL) while finishing the task. "
                "Set to 0 for no limit."),
-           "%.0f %s", "%.0f", 0, 10000, 50, false, UnitGroup::ALTITUDE,
-           task_behaviour.ordered_defaults.finish_constraints.min_height);
-  SetExpertRow(FinishMinHeight);
+           "%.0f %s", "%.0f", 0, 30000, 50, false, UnitGroup::ALTITUDE,
+           task_behaviour.ordered_defaults.finish_constraints.min_height)
+    ->SetEditCallback(EditUnsignedFloatDialog);
 
   AddEnum(_("Finish height ref."),
           _("Reference used for finish min height rule."),
           altitude_reference_list,
           (unsigned)task_behaviour.ordered_defaults.finish_constraints.min_height_ref);
-  SetExpertRow(FinishHeightRef);
 
   AddSpacer();
   SetExpertRow(spacer_3);
@@ -147,6 +149,9 @@ TaskRulesConfigPanel::Save(bool &_changed) noexcept
 
   changed |= SaveValueEnum(StartHeightRef, ProfileKeys::StartHeightRef,
                            otb.start_constraints.max_height_ref);
+
+  changed |= SaveValue(NavigateNearest, ProfileKeys::NavigateNearest,
+                       otb.navigate_nearest);
 
   changed |= SaveValue(FinishMinHeight, UnitGroup::ALTITUDE,
                        ProfileKeys::FinishMinHeight,

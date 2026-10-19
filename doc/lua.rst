@@ -452,10 +452,15 @@ The following attributes are provided by ``xcsoar.settings``:
  * - ``ballast``
    - Ballast of the glider. 0 means no ballst, 0.3 means 30% of the
      maximum ballast the glider can carry.
+ * - ``ballast_dumping``
+   - ``true`` while water ballast is being dumped.
  * - ``qnh``
    - Area pressure for barometric altimeter calibration [Pascal].
  * - ``max_temp``
    - The forecast ground temperature [Kelvin].
+ * - ``taskmc``
+   - The MacCready setting used at startup for speed-to-fly and task
+     calculations [:math:`m/s`].
  * - ``safetymc``
    - The MacCready setting used, when safety MC is enabled for reach
      calculations, in task abort mode and for determining arrival
@@ -481,6 +486,11 @@ The following attributes are provided by ``xcsoar.settings``:
    - Sets the QNH [Pascal].
  * - ``setballast(float value)``
    - Sets the ballst, 0 means no ballst, 0.5 means 50% of the maximum ballst the glider can carry.
+ * - ``setballastdump(bool active)``
+   - Starts (``true``) or stops (``false``) dumping water ballast over
+     the dump time of the plane profile, like the ballast dump button.
+     Returns whether ballast is being dumped now: starting fails
+     without ballast on board or without a dump time.
  * - ``setmaxtemp(float value)``
    - Sets the maximum temperature [Kelvin].
 
@@ -647,7 +657,8 @@ The following attributes are provided by ``xcsoar.replay``:
  * - ``stop()``
    - Stops replay.
  * - ``fast_forward(dt)``
-   - Fast forwards ``dt`` [s].
+   - Fast forwards ``dt`` [s].  Returns whether replay was already
+     running with a known virtual time.
  * - ``set_time_scale(r)``
    - Sets replay clock rate to ``r``.
  * - ``time_scale``
@@ -749,3 +760,83 @@ example:
 
  xcsoar.fire_legacy_event("Setup", "basic")
  xcsoar.fire_legacy_event("Zoom", "basic")
+
+.. _lua.examples:
+
+Examples
+========
+
+Altitude reminders
+------------------
+
+XCSoar has no configurable altitude alarm, but a timer that reads the
+altitude from the blackboard and fires the ``Beep`` and
+``StatusMessage`` events gives one.  Copy a script into
+:file:`XCSoarData/lua/init.lua`, or save it as a file of its own in
+:file:`XCSoarData/lua/` and load that from :file:`init.lua` with
+``require``, e.g. ``require("reminders")`` for
+:file:`reminders.lua`.
+
+This script reminds of the landing checklist and the landing gear on
+the way down.  Each reminder goes off once when the glider descends
+through its height above ground.  It arms only after the glider has
+been at least 100 m higher, so it stays quiet on the ground and does
+not repeat while the glider circles around that height:
+
+.. code-block:: lua
+
+ local reminders = {
+   { height = 300, message = "Landing checklist" },
+   { height = 150, message = "Gear down?" },
+ }
+
+ xcsoar.timer.new(2, function(t)
+   local height = xcsoar.blackboard.altitude_agl
+   if height == nil then
+     return -- no GPS fix or no terrain
+   end
+
+   for _, reminder in ipairs(reminders) do
+     if height >= reminder.height + 100 then
+       reminder.armed = true
+     elseif reminder.armed and height <= reminder.height then
+       reminder.armed = false
+       xcsoar.fire_legacy_event("Beep", "1")
+       xcsoar.fire_legacy_event("StatusMessage", reminder.message)
+     end
+   end
+ end)
+
+The height above ground comes from the terrain file: without one,
+``altitude_agl`` is ``nil`` and nothing happens, and coarse terrain
+can shift the reminder by tens of metres.  It is a reminder, not a
+landing gear warning to rely on.
+
+This one asks for oxygen once when the glider is at or above 3000 m
+above MSL, which is also right after startup if it is already up
+there, and again only after it has been more than 300 m below that:
+
+.. code-block:: lua
+
+ local oxygen_altitude = 3000
+ local oxygen_armed = true
+
+ xcsoar.timer.new(10, function(t)
+   local altitude = xcsoar.blackboard.altitude
+   if altitude == nil then
+     return -- no altitude yet
+   end
+
+   if altitude < oxygen_altitude - 300 then
+     oxygen_armed = true
+   elseif oxygen_armed and altitude >= oxygen_altitude then
+     oxygen_armed = false
+     xcsoar.fire_legacy_event("Beep", "1")
+     xcsoar.fire_legacy_event("StatusMessage", "Use oxygen")
+   end
+ end)
+
+``altitude`` is the barometric altitude when a device provides one,
+otherwise the GPS altitude.  Both scripts can be used together.  The
+message is shown as written unless a translation exists, so it may be
+in any language.

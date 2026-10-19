@@ -35,6 +35,7 @@ enum ControlIndex {
 #endif
   ShowQuickGuideOnStartup,
   ShowReleaseNotesOnStartup,
+  WarnRadarExpired,
   DisclaimerAccepted,
 };
 
@@ -145,7 +146,7 @@ InterfaceConfigPanel::Prepare(ContainerWindow &parent,
 
   /* on-screen keyboard doesn't work without a pointing device
      (mouse or touch screen) */
-  SetRowVisible(TextInput, HasPointer());
+  SetRowAvailable(TextInput, HasPointer());
 
 #ifdef HAVE_VIBRATOR
   static constexpr StaticEnumChoice haptic_feedback_list[] = {
@@ -176,6 +177,14 @@ InterfaceConfigPanel::Prepare(ContainerWindow &parent,
              _("If enabled, the What's New page is shown on the next "
                "startup."),
              !news_seen);
+
+  bool hide_radar_warning = false;
+  Profile::Get(ProfileKeys::HideRadarStaleWarning, hide_radar_warning);
+  AddBoolean(C_("Setting", "Warn when radar expires"),
+             _("If enabled, a warning is shown when the rain radar "
+               "overlay could not be refreshed and was removed from "
+               "the map."),
+             !hide_radar_warning);
 
   const char *disclaimer_acknowledged_version =
     Profile::Get(ProfileKeys::DisclaimerAcknowledgedVersion);
@@ -275,6 +284,12 @@ InterfaceConfigPanel::Save(bool &_changed) noexcept
   if (SaveValue(ShowQuickGuideOnStartup,
                 ProfileKeys::HideQuickGuideDialogOnStartup,
                 hide_quick_guide, true))
+    changed = true;
+
+  bool hide_radar_warning = false;
+  Profile::Get(ProfileKeys::HideRadarStaleWarning, hide_radar_warning);
+  if (SaveValue(WarnRadarExpired, ProfileKeys::HideRadarStaleWarning,
+                hide_radar_warning, true))
     changed = true;
 
   const bool show_release_notes = GetValueBoolean(ShowReleaseNotesOnStartup);

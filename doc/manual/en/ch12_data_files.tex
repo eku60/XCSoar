@@ -19,33 +19,13 @@ is good practice to make sure that the file names are recognisable so
 that when making configuration changes there is less risk of confusion
 between different files and different file types.
 
-Regarding older Pocket PC devices it is a good idea to have data files located in
-nonvolatile memory, the use of SD cards and other removable media in
-PDAs can cause performance issues; for smaller files, and files that
-are only accessed at start-up (waypoints, airspace, glide polars,
-configuration files), this is acceptable.  However, terrain and
-topography files are accessed continuously while XCSoar is running, so
-these should be located in faster storage memory.
-For newer Windows Mobile or Android devices this is not an issue any 
-more. The access to modern memory cards usually meets the required performance.   
+Terrain and topography files are accessed continuously while XCSoar is
+running, so they should be located on reasonably fast storage.
+Modern memory cards usually meet the required performance.
 
-Many PDAs provide a `file store' which is nonvolatile; the same
-arguments above apply regarding their use and performance.
-
-All data files should be copied into the directory: 
-\begin{verbatim}
-My Documents/XCSoarData
-\end{verbatim}
-
-On PDAs data can also be stored on the operating system file
-store, on Compact Flash cards or SD cards under the directory
-\verb|XCSoarData|.
-
-For example:
-\begin{verbatim}
-SD Card/XCSoarData
-IPAQ File Store/XCSoarData
-\end{verbatim}
+All data files should be copied into the directory
+\verb|XCSoarData|.  See Chapter~\ref{cha:installation} for where that
+directory lives on each platform.
 
 If unsure, just start the newly installed XCSoar and it creates the \verb|XCSoarData|
 directory at the right place.
@@ -97,11 +77,12 @@ inaccessible.}: \url{http://soaringweb.org/TP}
 Several commercial and freely distributable programs exist for
 converting between different waypoint formats.
 
-Elevation field of a waypoint shouldn't be empty. If so, import of such
-a waypoint is skipped.
-But if the elevation of any waypoints is set to zero in the waypoint file,
-then XCSoar estimates the waypoint elevation from the terrain database
-if available.
+If the elevation field of a waypoint is empty, XCSoar takes the
+waypoint elevation from the terrain, as soon as the terrain file has
+been loaded, and again whenever another terrain file is loaded.  A
+waypoint outside of the terrain has no elevation, and no arrival
+altitude is calculated for it.  An elevation of zero in the waypoint
+file means sea level.
 
 \section{Airspace}
 
@@ -134,6 +115,11 @@ to avoid any additional whitespaces around the equal sign or in front of the
 keyword. Which files are supported depends on your operating system and the
 applications that are installed.  Android supports JPEG files and other
 file types, others mostly BMP images. one or several images can be shown.
+The file name is relative to the XCSoar data directory, also for
+waypoints loaded from a \verb|.cupx| file. For those, a section in this
+file replaces the pictures the archive carries for that waypoint, even if
+it lists no image; only a file name that also exists in the archive is
+still taken from the archive.
 
 The text may also specify any document specific to airfields or waypoints using
 \verb|file=| followed by the file name. Such document won't be loaded directly in XCSoar 
@@ -296,12 +282,21 @@ Remove tape from wings and tail
 
 Task files (extension \verb|.tsk|) are stored in XCSoar's own XML format,
 whereas SeeYou tasks can also be loaded from file (extension \verb|.cup|).
+The task file format is documented for developers and authors of
+converters at \url{https://xcsoar.readthedocs.io/en/latest/task_file.html}.
 
 \section{Flight logs} \label{sec:logfiles}
 
 The software flight logger generates IGC files (extension \verb|.igc|)
 according to the long naming convention described in the FAI 
 document {\em Technical Specification for IGC-Approved GNSS Flight Recorders}.  
+The GPS line of its header (\verb|HFGPS|) names the device that supplies
+the GPS fix when the logger starts: the first device in the Devices list
+that delivers a position, the one whose GPS flag is shown in bold.
+If another device takes over the GPS fix during the flight, the file
+notes it in a comment line after the first fix from that device, for
+example \verb|LXCS132015GPS:B FLARM| (UTC time 13:20:15, new source
+device~B with the FLARM driver); the header line itself cannot change.
 
 Log-files are stored in the `logs' subdirectory of the XCSoarData directory.
 These files can be imported into other programs for analysis after flight.

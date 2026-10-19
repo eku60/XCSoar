@@ -175,6 +175,40 @@ libfmt = CmakeProject(
     base="fmt-11.2.0",
 )
 
+zxing_cpp = CmakeProject(
+    "https://github.com/zxing-cpp/zxing-cpp/archive/v3.1.1.tar.gz",
+    "7286b1e6ade66fe82b7c8208b4595deeb55d6486b410834fdc65702f46650542",
+    "lib/libZXing.a",
+    [
+        "-DBUILD_SHARED_LIBS=OFF",
+        # QR only.  OLD is zxing's own writer (a module grid),
+        # without the bundled Zint encoder.
+        "-DZXING_READERS=ON",
+        "-DZXING_WRITERS=OLD",
+        "-DZXING_ENABLE_1D=OFF",
+        "-DZXING_ENABLE_AZTEC=OFF",
+        "-DZXING_ENABLE_DATAMATRIX=OFF",
+        "-DZXING_ENABLE_MAXICODE=OFF",
+        "-DZXING_ENABLE_PDF417=OFF",
+        "-DZXING_ENABLE_QRCODE=ON",
+        "-DZXING_C_API=OFF",
+        "-DZXING_EXAMPLES=OFF",
+        "-DZXING_UNIT_TESTS=OFF",
+        "-DZXING_BLACKBOX_TESTS=OFF",
+        # never fetch anything from the network during the build
+        "-DZXING_DEPENDENCIES=LOCAL",
+        # Android's libc++ falls back to __bsd_locale_fallbacks.h below
+        # API 24, and precompiling that header with NDK r26d fails with
+        # a va_list mismatch.  GTIN.cpp compiles fine without the PCH.
+        "-DZXING_DISABLE_PCH=ON",
+    ],
+    # CreateBarcode.cpp calls the deprecated MultiFormatWriter.
+    extra_cxxflags="-Wno-deprecated-declarations",
+    name="zxing-cpp",
+    version="3.1.1",
+    base="zxing-cpp-3.1.1",
+)
+
 libsodium = AutotoolsProject(
     (
         "https://download.libsodium.org/libsodium/releases/libsodium-1.0.20.tar.gz",
@@ -223,8 +257,8 @@ freetype = MesonProject(
 )
 
 cares = CmakeProject(
-    "https://github.com/c-ares/c-ares/releases/download/cares-1_24_0/c-ares-1.24.0.tar.gz",
-    "c517de6d5ac9cd55a9b72c1541c3e25b84588421817b5f092850ac09a8df5103",
+    "https://github.com/c-ares/c-ares/releases/download/v1.34.8/c-ares-1.34.8.tar.gz",
+    "c222b6d681096f9444d2c4863d2c1174019e27cacca0a4a5c114d36dd7d7bf78",
     "lib/libcares.a",
     [
         "-DCARES_STATIC=ON",
@@ -233,15 +267,14 @@ cares = CmakeProject(
         "-DCARES_BUILD_TOOLS=OFF",
         "-DCARES_THREADS=OFF",
     ],
-    patches=abspath("lib/c-ares/patches"),
 )
 
 curl = CmakeProject(
     (
-        "https://curl.se/download/curl-8.5.0.tar.xz",
-        "https://github.com/curl/curl/releases/download/curl-8_5_0/curl-8.5.0.tar.xz",
+        "https://curl.se/download/curl-8.14.1.tar.xz",
+        "https://github.com/curl/curl/releases/download/curl-8_14_1/curl-8.14.1.tar.xz",
     ),
-    "42ab8db9e20d8290a3b633e7fbb3cec15db34df65fd1015ef8ac1e4723750eeb",
+    "f4619a1e2474c4bbfedc88a7c2191209c8334b48fa1f4e53fd584cc12e9120dd",
     "lib/libcurl.a",
     [
         "-DBUILD_CURL_EXE=OFF",
@@ -260,8 +293,7 @@ curl = CmakeProject(
         "-DCURL_DISABLE_SMTP=ON",
         "-DCURL_DISABLE_GOPHER=ON",
         "-DCURL_DISABLE_COOKIES=ON",
-        "-DCURL_DISABLE_CRYPTO_AUTH=ON",
-        "-DCMAKE_USE_LIBSSH2=OFF",
+        "-DCURL_USE_LIBPSL=OFF",
         "-DBUILD_TESTING=OFF",
         "-DHAVE_FSEEKO=0",
     ],
@@ -270,13 +302,15 @@ curl = CmakeProject(
     ],
     android_configure_args=[
         "-DENABLE_ARES=OFF",  # Disable c-ares on Android - use system getaddrinfo() instead
+        "-DCURL_DISABLE_NETRC=ON",
     ],
     # Darwin/iOS: use SecureTransport for SSL
     darwin_configure_args=[
         "-DCURL_USE_OPENSSL=OFF",
         "-DCURL_USE_SECTRANSP=ON",
+        # CMake may find the host's pipe2() while cross-compiling for iOS.
+        "-DHAVE_PIPE2=0",
     ],
-    patches=abspath("lib/curl/patches"),
 )
 
 # Needed by proj

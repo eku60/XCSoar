@@ -107,8 +107,13 @@ Profile::Load(const ProfileMap &map, FeaturesSettings &settings)
 void
 Profile::Load(const ProfileMap &map, CirclingSettings &settings)
 {
-  map.Get(ProfileKeys::EnableExternalTriggerCruise,
-          settings.external_trigger_cruise_enabled);
+  int raw = 0;
+  const bool has_new = map.Get(ProfileKeys::SpeedCommandSwitch, raw);
+  bool old_enabled = false;
+  map.Get(ProfileKeys::EnableExternalTriggerCruise, old_enabled);
+  settings.speed_command_switch =
+    CirclingSettings::SpeedCommandSwitchFromProfile(has_new, raw,
+                                                    old_enabled);
   map.Get(ProfileKeys::CruiseToCirclingModeSwitchThreshold,
           settings.cruise_to_circling_mode_switch_threshold);
   map.Get(ProfileKeys::CirclingToCruiseModeSwitchThreshold,
@@ -121,8 +126,8 @@ Profile::Load(const ProfileMap &map, WaveSettings &settings)
   map.Get(ProfileKeys::WaveAssistant, settings.enabled);
 }
 
-static bool
-LoadUTCOffset(const ProfileMap &map, RoughTimeDelta &value_r)
+bool
+Profile::LoadUTCOffset(const ProfileMap &map, RoughTimeDelta &value_r) noexcept
 {
   /* NOTE: Until 6.2.4 utc_offset was stored as a positive int in the
      settings file (with negative offsets stored as "utc_offset + 24 *
@@ -137,7 +142,7 @@ LoadUTCOffset(const ProfileMap &map, RoughTimeDelta &value_r)
     /* no profile value present */
     return false;
 
-  if (value > 13 * 3600 || value < -13 * 3600)
+  if (value > MAX_UTC_OFFSET.count() || value < MIN_UTC_OFFSET.count())
     /* illegal value */
     return false;
 
@@ -161,7 +166,18 @@ Profile::Load(const ProfileMap &map, ComputerSettings &settings)
 
   map.Get(ProfileKeys::SetSystemTimeFromGPS, settings.set_system_time_from_gps);
 
-  LoadUTCOffset(map, settings.utc_offset);
+  const bool has_utc_offset = LoadUTCOffset(map, settings.utc_offset);
+
+  map.Get(ProfileKeys::TimeZone, settings.time_zone);
+
+  if (!map.GetEnum(ProfileKeys::LocalTimeSource, settings.local_time_source) &&
+      has_utc_offset)
+    /* migration from a profile written by an older version: keep the
+       UTC offset which the user configured explicitly, and leave the
+       default (which is platform specific) to those who never did */
+    settings.local_time_source = LocalTimeSource::MANUAL_UTC_OFFSET;
+
+  settings.utc_offset = settings.GetCurrentUTCOffset();
 
   Load(map, settings.task);
   Load(map, settings.contest);

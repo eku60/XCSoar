@@ -27,7 +27,8 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/DataManagement/AdvancedFileExplorer.cpp \
 	$(SRC)/Dialogs/DataManagement/StorageLocationPickerDialog.cpp \
 	$(SRC)/io/TarBackup.cpp \
-	$(SRC)/Dialogs/DataManagement/FileTransferUtil.cpp \
+	$(SRC)/io/BackupPaths.cpp \
+	$(SRC)/IGC/FlightTimes.cpp \
 	$(SRC)/IGC/IgcMetaCache.cpp \
 	$(SRC)/Dialogs/Device/PortDataField.cpp \
 	$(SRC)/Dialogs/Device/PortPicker.cpp \
@@ -53,18 +54,20 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Device/Vega/SwitchesDialog.cpp \
 	$(SRC)/Dialogs/Device/FLARM/ConfigWidget.cpp \
 	$(SRC)/Dialogs/Device/FLARM/RangeConfigWidget.cpp \
+	$(SRC)/Dialogs/Device/FLARM/RangePlot.cpp \
+	$(SRC)/Dialogs/Device/FLARM/RangeStatisticsDialog.cpp \
 	$(SRC)/Dialogs/MapItemListDialog.cpp \
 	$(SRC)/Dialogs/MapItemListSettingsDialog.cpp \
 	$(SRC)/Dialogs/MapItemListSettingsPanel.cpp \
 	$(SRC)/Dialogs/ColorListDialog.cpp \
 	$(SRC)/Dialogs/Airspace/dlgAirspace.cpp \
-	$(SRC)/Dialogs/Airspace/dlgAirspacePatterns.cpp \
 	$(SRC)/Dialogs/Airspace/dlgAirspaceDetails.cpp \
 	$(SRC)/Dialogs/Airspace/AirspaceList.cpp \
 	$(SRC)/Dialogs/Airspace/AirspaceCRendererSettingsDialog.cpp \
 	$(SRC)/Dialogs/Airspace/AirspaceCRendererSettingsPanel.cpp \
 	$(SRC)/Dialogs/Airspace/dlgAirspaceWarnings.cpp \
 	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/Airspace/NOTAMList.cpp) \
+	$(SRC)/Dialogs/Settings/InfoBoxAreaStretchWidget.cpp \
 	$(SRC)/Dialogs/Settings/WindSettingsPanel.cpp \
 	$(SRC)/Dialogs/Settings/WindSettingsDialog.cpp \
 	$(SRC)/Dialogs/Settings/dlgBasicSettings.cpp \
@@ -83,6 +86,8 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Plane/PolarShapeEditWidget.cpp \
 	$(SRC)/Dialogs/DataField.cpp \
 	$(SRC)/Dialogs/ComboPicker.cpp \
+	$(SRC)/Dialogs/InfoBoxPicker.cpp \
+	$(SRC)/Dialogs/InfoBoxGroupPicker.cpp \
 	$(SRC)/Dialogs/FilePicker.cpp \
 	$(SRC)/Dialogs/EmptyDownloadList.cpp \
 	$(SRC)/Dialogs/MultiFilePicker.cpp \
@@ -116,6 +121,8 @@ DIALOG_SOURCES = \
 	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/Settings/Panels/NOTAMConfigPanel.cpp) \
 	$(if $(filter y,$(HAVE_HTTP)),$(SRC)/Dialogs/NOTAM/NOTAMMessageListener.cpp) \
 	$(SRC)/Dialogs/Settings/Panels/GaugesConfigPanel.cpp \
+	$(SRC)/Dialogs/Settings/Panels/MapOverlaysConfigPanel.cpp \
+	$(SRC)/Dialogs/Settings/Panels/TrafficConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/DisplayConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/VarioConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/GlideComputerConfigPanel.cpp \
@@ -159,6 +166,7 @@ DIALOG_SOURCES = \
 	$(SRC)/Dialogs/Task/Manager/TaskActionsPanel.cpp \
 	$(SRC)/Dialogs/Task/Manager/TaskListPanel.cpp \
 	$(SRC)/Dialogs/Task/Manager/WeGlideTasksPanel.cpp \
+	$(SRC)/Dialogs/Task/Manager/WeGlidePanel.cpp \
 	$(SRC)/Dialogs/Task/OptionalStartsDialog.cpp \
 	$(SRC)/Dialogs/Task/TaskPointDialog.cpp \
 	$(SRC)/Dialogs/Task/MutateTaskPointDialog.cpp \
@@ -183,7 +191,6 @@ DIALOG_SOURCES = \
 
 ifeq ($(HAVE_PCM_PLAYER),y)
 DIALOG_SOURCES += \
-	$(SRC)/Dialogs/Settings/Panels/AudioVarioConfigPanel.cpp \
 	$(SRC)/Dialogs/Settings/Panels/AudioConfigPanel.cpp
 endif
 
@@ -191,6 +198,7 @@ ifeq ($(HAVE_HTTP),y)
 DIALOG_SOURCES += \
 	$(SRC)/Dialogs/Weather/XCThermDialog.cpp \
 	$(SRC)/Dialogs/Weather/WeatherCredentialGateWidget.cpp \
+	$(SRC)/Dialogs/Weather/MosmixTemperature.cpp \
 	$(SRC)/Dialogs/Weather/PCMetDialog.cpp \
 	$(SRC)/Dialogs/Weather/NOAAList.cpp \
 	$(SRC)/Dialogs/Weather/NOAADetails.cpp
@@ -216,10 +224,11 @@ XCSOAR_SOURCES := \
 	$(SRC)/Task/TaskStore.cpp \
 	$(SRC)/Task/TypeStrings.cpp \
 	$(SRC)/Task/ValidationErrorStrings.cpp \
+	$(SRC)/Task/Summary.cpp \
 	\
-	$(SRC)/RadioFrequency.cpp \
-	$(SRC)/TransponderCode.cpp \
-	$(SRC)/TransponderMode.cpp \
+	$(SRC)/Radio/RadioFrequency.cpp \
+	$(SRC)/Radio/TransponderCode.cpp \
+	$(SRC)/Radio/TransponderMode.cpp \
 	\
 	$(SRC)/Engine/Navigation/TraceHistory.cpp \
 	$(SRC)/Engine/Navigation/Aircraft.cpp \
@@ -285,7 +294,6 @@ XCSOAR_SOURCES := \
 	$(SRC)/Logger/FlightLogger.cpp \
 	$(SRC)/Logger/GlueFlightLogger.cpp \
 	$(SRC)/Replay/Replay.cpp \
-	$(SRC)/IGC/IGCParser.cpp \
 	$(SRC)/Replay/IgcReplay.cpp \
 	$(SRC)/Replay/NmeaReplay.cpp \
 	$(SRC)/Replay/DemoReplay.cpp \
@@ -376,6 +384,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Renderer/AirspaceRenderer.cpp \
 	$(SRC)/Renderer/AirspaceRendererGL.cpp \
 	$(SRC)/Renderer/AirspaceRendererOther.cpp \
+	$(SRC)/Renderer/AirspaceLabelPlacement.cpp \
 	$(SRC)/Renderer/AirspaceLabelList.cpp \
 	$(SRC)/Renderer/AirspaceLabelRenderer.cpp \
 	$(SRC)/Renderer/AirspaceListRenderer.cpp \
@@ -475,6 +484,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Hardware/RotateDisplay.cpp \
 	$(SRC)/Hardware/DisplayDPI.cpp \
 	$(SRC)/Hardware/DisplayGlue.cpp \
+	$(SRC)/Hardware/SystemPower.cpp \
 	$(SRC)/Hardware/Vibrator.cpp \
 	$(SRC)/Language/MOFile.cpp \
 	$(SRC)/Language/Language.cpp \
@@ -540,6 +550,7 @@ XCSOAR_SOURCES := \
 	$(SRC)/Profile/TerrainConfig.cpp \
 	$(SRC)/Profile/FlarmProfile.cpp \
 	\
+	$(SRC)/Repository/CountryName.cpp \
 	$(SRC)/Repository/FileRepository.cpp \
 	$(SRC)/Repository/FileType.cpp \
 	$(SRC)/Repository/Parser.cpp \
@@ -563,7 +574,6 @@ XCSOAR_SOURCES := \
 	$(SRC)/Screen/Layout.cpp \
 	$(SRC)/ui/control/TerminalWindow.cpp \
 	\
-	$(SRC)/Look/FontDescription.cpp \
 	$(SRC)/Look/GlobalFonts.cpp \
 	$(SRC)/Look/DefaultFonts.cpp \
 	\
@@ -604,14 +614,18 @@ XCSOAR_SOURCES := \
 	\
 	$(SRC)/Monitor/WindMonitor.cpp \
 	$(SRC)/Monitor/AirspaceWarningMonitor.cpp \
+	$(SRC)/Monitor/CurrentAirspacesWidget.cpp \
 	$(SRC)/Monitor/TaskConstraintsMonitor.cpp \
 	$(SRC)/Monitor/TaskAdvanceMonitor.cpp \
 	$(SRC)/Monitor/MatTaskMonitor.cpp \
+	$(SRC)/Monitor/TrafficMonitor.cpp \
 	$(SRC)/Monitor/AllMonitors.cpp \
 	\
 	$(SRC)/Hardware/PowerGlobal.cpp \
 	$(SRC)/Hardware/Battery.cpp \
 	$(SRC)/Hardware/DisplayBrightness.cpp \
+	\
+	$(SRC)/Task/ReceiveTask.cpp \
 
 ifneq ($(TARGET),ANDROID)
 ifeq ($(TARGET_IS_LINUX),y)
@@ -631,12 +645,20 @@ ifeq ($(HAVE_WIN32),y)
 endif
 
 $(call SRC_TO_OBJ,$(SRC)/Dialogs/Inflate.cpp): CPPFLAGS += $(ZLIB_CPPFLAGS)
+$(call SRC_TO_OBJ,$(SRC)/Weather/OPERA/Radar.cpp): CPPFLAGS += $(ZLIB_CPPFLAGS)
 
 ifeq ($(OPENGL),y)
 ifeq ($(HAVE_HTTP),y)
 XCSOAR_SOURCES += \
 	$(SRC)/Dialogs/Weather/MapOverlayWidget.cpp \
-	$(SRC)/Dialogs/Weather/EdlSettingsWidget.cpp
+	$(SRC)/Dialogs/Weather/EdlSettingsWidget.cpp \
+	$(SRC)/Weather/OPERA/Radar.cpp \
+	$(SRC)/Weather/OPERA/RadarData.cpp \
+	$(SRC)/Weather/OPERA/RadarPageOverlay.cpp \
+	$(SRC)/Weather/EUMETView/Satellite.cpp \
+	$(SRC)/Weather/EUMETView/SatelliteData.cpp \
+	$(SRC)/Weather/EUMETView/Enhance.cpp \
+	$(SRC)/Weather/EUMETView/SatellitePageOverlay.cpp
 endif
 endif
 
@@ -655,10 +677,14 @@ ifeq ($(TARGET_IS_DARWIN),y)
 XCSOAR_SOURCES += \
 	$(SRC)/Apple/Services.cpp \
 	$(SRC)/Apple/BackgroundSave.cpp \
+	$(SRC)/Apple/DarkMode.cpp \
 	$(SRC)/Apple/SoundUtil.cpp \
 	$(SRC)/Apple/PathProvider.cpp \
 	$(SRC)/Apple/InternalSensors.cpp \
 	$(SRC)/Apple/KeyboardDetection.cpp \
+	$(SRC)/Apple/Vibrator.cpp \
+	$(SRC)/Apple/Share.cpp \
+	$(SRC)/Apple/QRScanner.cpp \
 	$(SRC)/Device/SmartDeviceSensors.cpp
 endif
 
@@ -712,7 +738,7 @@ XCSOAR_SOURCES += \
 	$(SRC)/Android/UsbSerialHelper.cpp \
 	$(SRC)/Android/TextEntryDialog.cpp \
 	$(SRC)/Android/FileProvider.cpp \
-	$(SRC)/Android/ReceiveTask.cpp \
+	$(SRC)/Android/QRScanner.cpp \
 	$(SRC)/Android/SAFHelper.cpp \
 	$(SRC)/Storage/android/SAFReader.cpp \
 	$(SRC)/Storage/android/SAFOutputStream.cpp \
@@ -726,15 +752,27 @@ else
 XCSOAR_SOURCES += \
 	$(SRC)/CommandLine.cpp \
 	$(SRC)/XCSoar.cpp
+
+# No camera here.  Apple links Apple/QRScanner.cpp instead; a new
+# port does the same with its own file (see Task/QRScanner.hpp).
+ifneq ($(TARGET_IS_DARWIN),y)
+XCSOAR_SOURCES += $(SRC)/Task/QRScanner.cpp
+endif
 endif
 
 ifeq ($(HAVE_HTTP),y)
 XCSOAR_SOURCES += \
 	$(SRC)/Dialogs/DownloadFileModal.cpp \
 	$(SRC)/Dialogs/DownloadFilePicker.cpp \
+	$(SRC)/Dialogs/DownloadFilter.cpp \
 	$(SRC)/Repository/Glue.cpp \
 	$(SRC)/Renderer/NOAAListRenderer.cpp \
+	$(SRC)/Weather/MOSMIX/Station.cpp \
+	$(SRC)/Weather/MOSMIX/Forecast.cpp \
+	$(SRC)/Weather/MOSMIX/Download.cpp \
+	$(SRC)/Weather/MOSMIX/AutoUpdate.cpp \
 	$(SRC)/Weather/PCMet/Images.cpp \
+	$(SRC)/Weather/PCMet/Georeference.cpp \
 	$(SRC)/Weather/PCMet/Overlays.cpp \
 	$(SRC)/Weather/NOAAGlue.cpp \
 	$(SRC)/Weather/METARParser.cpp \
@@ -756,7 +794,9 @@ XCSOAR_SOURCES += \
 	$(SRC)/Weather/xctherm/XCThermAutoSwitch.cpp \
 
 XCSOAR_SOURCES += \
-	$(SRC)/Dialogs/Settings/Panels/TrackingConfigPanel.cpp \
+	$(SRC)/Dialogs/Settings/Panels/SkyLinesConfigPanel.cpp \
+	$(SRC)/Dialogs/Settings/Panels/LiveTrack24ConfigPanel.cpp \
+	$(SRC)/Dialogs/Settings/Panels/TrackingIntervalChoices.cpp \
 	$(SRC)/Dialogs/Settings/Panels/CloudConfigPanel.cpp
 
 XCSOAR_SOURCES += \
@@ -795,11 +835,23 @@ ifeq ($(HAVE_PCM_PLAYER),y)
 XCSOAR_SOURCES += $(SRC)/Audio/VarioGlue.cpp
 endif
 
-# Selected systemd unit controls for desktop/embedded Linux.
+# Installed system tools and selected systemd unit controls for Linux.
 ifeq ($(TARGET_IS_LINUX)$(TARGET_IS_KOBO)$(TARGET_IS_ANDROID),ynn)
 XCSOAR_SOURCES += \
 	$(SRC)/Dialogs/Settings/Panels/SystemdConfigPanel.cpp \
 	$(SRC)/Linux/SystemdServiceList.cpp
+
+ifeq ($(USE_POLL_EVENT),y)
+SYSTEM_TOOLS_DIRECTORY ?= /usr/libexec/xcsoar/system-tools
+LOCAL_SYSTEM_TOOLS_DIRECTORY ?= /usr/local/libexec/xcsoar/system-tools
+XCSOAR_CPPFLAGS += \
+	-DSYSTEM_TOOLS_DIRECTORY=\"$(SYSTEM_TOOLS_DIRECTORY)\" \
+	-DLOCAL_SYSTEM_TOOLS_DIRECTORY=\"$(LOCAL_SYSTEM_TOOLS_DIRECTORY)\"
+XCSOAR_SOURCES += \
+	$(SRC)/Dialogs/ProcessDialog.cpp \
+	$(SRC)/Dialogs/Settings/Panels/SystemToolsPanel.cpp \
+	$(SRC)/SystemTools.cpp
+endif
 endif
 
 include $(topdir)/build/net-wifi.mk
@@ -848,6 +900,16 @@ endif
 
 ifeq ($(HAVE_HTTP),y)
 XCSOAR_LDLIBS += $(NETCDF_LDLIBS)
+endif
+
+ifeq ($(ZXING),y)
+XCSOAR_SOURCES += \
+	$(SRC)/QR/QRCode.cpp \
+	$(SRC)/Renderer/QRCodeRenderer.cpp \
+	$(SRC)/Dialogs/Task/TaskQRCodeDialog.cpp
+
+$(call SRC_TO_OBJ,$(SRC)/QR/QRCode.cpp): CPPFLAGS += $(ZXING_CPPFLAGS)
+XCSOAR_LDLIBS += $(ZXING_LDLIBS)
 endif
 
 XCSOAR_STRIP = y

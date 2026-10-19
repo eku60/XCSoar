@@ -30,24 +30,19 @@ target:
 
 - **Unix/Linux**: ``output/UNIX/bin/`` (default, and for flavors like WAYLAND, FUZZER)
 - **Unix/Linux (optimized)**: ``output/OPT/bin/`` (``TARGET=OPT`` convenience target)
-- **Windows (OpenGL, recommended)**: ``output/WIN64OPENGL/bin/`` or
-  ``output/WIN32OPENGL/bin/``
-- **Windows (legacy GDI, deprecated)**: ``output/PC/bin/`` (32-bit) or
-  ``output/WIN64/bin/`` (64-bit flavor)
-- **macOS**: ``output/OSX64/bin/`` or ``output/MACOS/bin/`` (default)
+- **Windows**: ``output/WIN64OPENGL/bin/`` or ``output/WIN32OPENGL/bin/``
+- **macOS**: ``output/MACOS/bin/`` (default)
 
 **Important**: Many build "targets" are actually flavors that override the base
 target internally. For example, ``TARGET=WAYLAND`` builds as ``UNIX`` with
 output under ``output/UNIX/bin/``, while ``TARGET=OPT`` also builds as ``UNIX``
 but uses a separate output directory (``output/OPT/bin/``).
-OpenGL Windows flavors (``WIN64OPENGL``, ``WIN32OPENGL``) compile as ``PC`` but
-keep their own output directory (``output/WIN64OPENGL/``, etc.). Legacy
-``WIN64`` is a flavor of ``PC`` with the same split: built as ``PC``, output
-under ``output/WIN64/``.
+Windows OpenGL builds (``WIN64OPENGL``, ``WIN32OPENGL``) keep their own output
+directory (``output/WIN64OPENGL/``, etc.).
 
 **Note**: In the examples below, ``output/UNIX/bin/`` is used (typical for Linux
 development). Replace ``UNIX`` with your flavor output directory if different
-(e.g. ``WIN64OPENGL`` for Windows OpenGL development, ``OSX64`` for macOS). To
+(e.g. ``WIN64OPENGL`` for Windows OpenGL development, ``MACOS`` for macOS). To
 find your output directory, check what was created in the ``output/`` folder
 after building.
 
@@ -56,7 +51,8 @@ Building Run* Utilities
 
 These utilities are **not** built by plain ``make``; use the ``debug`` target
 (see :ref:`development-workflow` in :doc:`build`). They are defined in
-:file:`build/test.mk` and compiled as the ``debug`` make target.
+:file:`build/test.mk` and compiled as the ``debug`` make target. Before a
+pull request, build them with ``everything`` so they compile.
 
 To build all Run* utilities:
 
@@ -76,6 +72,14 @@ To build a specific utility:
 
 The utilities are built for the host platform (your development machine), not
 for embedded targets like Android or Kobo.
+
+Flight harness
+--------------
+
+``testfast`` and ``testslow`` fly the task engine. They are separate
+from these ``Run*`` tools and from ``make check``. The programs, and how
+to run the two targets, are documented in :ref:`flight-harness` in
+:doc:`build`.
 
 Common Patterns
 ---------------
@@ -826,14 +830,14 @@ vario on a free serial/USB port (XCSoar must not hold the port).
 **Build**::
 
    make -j$(nproc) TARGET=UNIX USE_CCACHE=y output/UNIX/bin/RunLXNAVPolarEcho
-   make -j$(nproc) TARGET=WIN64 USE_CCACHE=y output/WIN64/bin/RunLXNAVPolarEcho.exe
+   make -j$(nproc) TARGET=WIN64OPENGL USE_CCACHE=y output/WIN64OPENGL/bin/RunLXNAVPolarEcho.exe
 
 **Usage**::
 
    ./output/UNIX/bin/RunLXNAVPolarEcho /dev/ttyUSB0 115200
    ./output/UNIX/bin/RunLXNAVPolarEcho /dev/ttyUSB0 115200 --read-only
    ./output/UNIX/bin/RunLXNAVPolarEcho /dev/ttyUSB0 115200 --preserve-crew
-   ./output/WIN64/bin/RunLXNAVPolarEcho.exe COM3 115200
+   ./output/WIN64OPENGL/bin/RunLXNAVPolarEcho.exe COM3 115200
 
 **Modes**:
 
@@ -846,6 +850,46 @@ vario on a free serial/USB port (XCSoar must not hold the port).
   name are unchanged (guards against empty-field polar wipes)
 
 **Exit status**: ``0`` on success, non-zero on timeout or mismatch.
+
+RunLXNAVPlaneSwitch
+~~~~~~~~~~~~~~~~~~~~
+
+Hardware check for the two plane-switch sequences.  It talks to an
+LXNAV vario, prints what the vario stored, and writes the original
+polar and ballast back before it exits.  Quit XCSoar first so the
+port is free.  Do not interrupt the program while it is running.
+
+**Build**::
+
+   make -j$(nproc) TARGET=UNIX USE_CCACHE=y output/UNIX/bin/RunLXNAVPlaneSwitch
+
+**Usage**::
+
+   ./output/UNIX/bin/RunLXNAVPlaneSwitch /dev/ttyUSB0 115200 --read-only
+   ./output/UNIX/bin/RunLXNAVPlaneSwitch /dev/ttyUSB0 115200
+
+``--read-only`` prints the polar and the ballast overload and does not
+write.  The default run does two sequences:
+
+- Request ``PLXV0,POLAR,R``, then write a full polar whose only change
+  is a pending empty mass, then write another full polar with a
+  different empty mass.  This is the wire shape of an empty mass that
+  was waiting for the first polar and is still sent after a plane
+  switch.
+- Set a modest water ballast, write a full polar that raises the empty
+  mass by 20 kg, and do not send ``PLXV0,BAL``.  Then send the
+  ``PLXV0,BAL`` that keeps the same litres.  This is the wire shape of
+  activating another plane.
+- Write a maximum weight 10 kg above the stored value, then restore it.
+- Write a ballast factor whose all-up weight exceeds the maximum
+  weight, then a maximum weight below the loaded mass, then an empty
+  mass that already exceeds the maximum weight.  The program prints
+  whether the vario stored, clamped, or ignored each one.
+
+**Exit status**: ``0`` when the plane-switch writes were stored and the
+original polar and ballast were restored.  An over-MTOW value the vario
+refuses is still success.  Non-zero on timeout, a plane-switch write the
+vario did not store, or a restore that did not read back.
 
 LXNAV polar sync — manual XCSoar checklist (#2397)
 --------------------------------------------------
@@ -1194,4 +1238,3 @@ Additional Resources
 - ``test/src/DebugPort.hpp``: Device port utilities
 - ``test/data/``: Sample flight data files for testing
 - ``build/test.mk``: Build system definitions for all utilities
-

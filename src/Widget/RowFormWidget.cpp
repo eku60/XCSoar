@@ -73,11 +73,11 @@ RowFormWidget::Row::GetMinimumHeight(const DialogLook &look,
     return Layout::GetMinimumControlHeight();
   }
 
-  /* Use the window rectangle (outer size on GDI), not GetSize()
-     (client area).  Move() sizes the outer HWND; feeding client
-     height back into Move() shrinks bordered controls on every
-     layout pass (e.g. VScrollPanel smooth scroll) until height
-     reaches 0 and PaintCanvas asserts. */
+  /* Use the window rectangle (outer size), not GetSize() (client
+     area).  Move() sizes the outer window; feeding client height
+     back into Move() shrinks bordered controls on every layout
+     pass (e.g. VScrollPanel smooth scroll) until height reaches 0
+     and PaintCanvas asserts. */
   return window->GetPosition().GetHeight();
 }
 
@@ -229,6 +229,12 @@ RowFormWidget::SetRowAvailable(unsigned i, bool available) noexcept
 
   row.available = available;
   UpdateLayout();
+
+  /* The scroll panel sized this form while the row was hidden.
+     Ask it to measure again, or the new rows stay inside the old
+     short rectangle. */
+  if (ContainerWindow *parent = GetWindow().GetParent())
+    parent->OnChildContentHeightChanged();
 }
 
 void
@@ -249,9 +255,7 @@ Window &
 RowFormWidget::Add(Row::Type type, std::unique_ptr<Window> window) noexcept
 {
   assert(IsDefined());
-#ifndef USE_WINUSER
   assert(window->GetParent() == &GetWindow());
-#endif
   assert(window->IsVisible());
   /* cannot append rows after a REMAINING row */
   assert(rows.empty() || rows.back().type != Row::Type::REMAINING);
@@ -286,9 +290,7 @@ RowFormWidget::AddMultiLine(const char *text) noexcept
   ContainerWindow &panel = (ContainerWindow &)GetWindow();
   auto ltw = std::make_unique<LargeTextWindow>();
   ltw->Create(panel, rc, style);
-#ifndef USE_WINUSER
   ltw->SetFont(look.text_font);
-#endif
   ltw->SetColors(look.ReadOnlyValueBackground(), look.list.text_color,
                  look.ReadOnlyValueBorderColor());
 
@@ -493,7 +495,7 @@ RowFormWidget::Initialise(ContainerWindow &parent,
   style.Hide();
   style.ControlParent();
 
-  SetWindow(std::make_unique<PanelControl>(parent, look, rc, style));
+  SetWindow(std::make_unique<PanelControl>(parent, rc, style));
 }
 
 void
@@ -544,4 +546,35 @@ RowFormWidget::HasFocus() const noexcept
   return std::any_of(rows.begin(), rows.end(), [](const auto &r){
     return r.HasFocus();
   });
+}
+
+bool
+RowFormWidget::FocusAdjacent(bool next) noexcept
+{
+  int current = -1;
+  for (unsigned i = 0; i < rows.size(); ++i) {
+    if (rows[i].HasFocus()) {
+      current = (int)i;
+      break;
+    }
+  }
+  if (current < 0)
+    return false;
+
+  const int step = next ? 1 : -1;
+  for (int i = current + step;
+       i >= 0 && i < (int)rows.size(); i += step) {
+    const Row &row = rows[i];
+    if (row.type == Row::Type::DUMMY || row.type == Row::Type::WIDGET)
+      continue;
+
+    Window &window = rows[i].GetWindow();
+    if (!window.IsVisible() || !window.IsEnabled() || !window.IsTabStop())
+      continue;
+
+    window.SetFocus();
+    return true;
+  }
+
+  return false;
 }

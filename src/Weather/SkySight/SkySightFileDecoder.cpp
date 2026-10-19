@@ -22,7 +22,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -512,7 +512,7 @@ PreparePayload(Path path, const CancellationCheck &is_cancelled)
 
 #if defined(USE_GEOTIFF) && defined(HAVE_SKYSIGHT_NETCDF)
 
-#if TIFFLIB_VERSION > 20220520
+#if TIFFLIB_VERSION > 20220520 && LIBGEOTIFF_VERSION >= 1720
 void
 LogTiffMessage(const char *module, const char *fmt, va_list ap)
 {
@@ -537,7 +537,7 @@ TiffErrorHandler(TIFF *, void *, const char *module, const char *fmt,
 TIFF *
 OpenGeoTiff(Path path, const char *mode)
 {
-#if TIFFLIB_VERSION > 20220520
+#if TIFFLIB_VERSION > 20220520 && LIBGEOTIFF_VERSION >= 1720
   TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
   if (options == nullptr)
     throw std::bad_alloc();
@@ -600,14 +600,13 @@ ThrowNetCdfError(int status, const char *action)
                           action, nc_strerror(status));
 }
 
-double
-GetOptionalDoubleAttribute(int file_id, int variable_id,
-                           const char *name, double fallback)
+std::optional<double>
+GetOptionalDoubleAttribute(int file_id, int variable_id, const char *name)
 {
-  double value = fallback;
+  double value;
   const auto status = nc_get_att_double(file_id, variable_id, name, &value);
   if (status == NC_ENOTATT)
-    return fallback;
+    return std::nullopt;
 
   ThrowNetCdfError(status, name);
   return value;
@@ -697,13 +696,13 @@ DecodeNetCdf(const SkySightPreparedData &prepared,
                    "read data values");
   ThrowIfCancelled(is_cancelled);
 
-  const double fill_value = GetOptionalDoubleAttribute(file_id, data_var_id,
-                                                       "_FillValue",
-                                                       std::numeric_limits<double>::quiet_NaN());
+  const auto fill_value = GetOptionalDoubleAttribute(file_id, data_var_id,
+                                                     "_FillValue");
   const double offset = GetOptionalDoubleAttribute(file_id, data_var_id,
-                                                   "add_offset", 0.0);
-  const double scale = GetOptionalDoubleAttribute(file_id, data_var_id,
-                                                  "scale_factor", 1.0);
+                                                   "add_offset").value_or(0.0);
+  const double scale =
+    GetOptionalDoubleAttribute(file_id, data_var_id, "scale_factor")
+    .value_or(1.0);
   if (!std::isfinite(offset) || !std::isfinite(scale))
     throw std::runtime_error("SkySight NetCDF scaling is not finite");
 
@@ -761,17 +760,13 @@ DecodeNetCdf(const SkySightPreparedData &prepared,
       for (size_t x = 0; x < lon_size; ++x) {
         const auto source_x = lon_ascending ? x : (lon_size - 1 - x);
         const auto index = source_y * lon_size + source_x;
-        const auto raw = values[index];
-        if (!std::isfinite(raw) ||
-            (!std::isnan(fill_value) && raw == fill_value))
+        const auto value = SkySight::DecodeGridValue(values[index],
+                                                     fill_value,
+                                                     scale, offset);
+        if (!value)
           continue;
 
-        const auto point = raw * scale + offset;
-        const auto float_point = (float)point;
-        if (!std::isfinite(point) || !std::isfinite(float_point))
-          continue;
-
-        auto color = SkySight::FindLegendColor(legend, float_point);
+        auto color = SkySight::FindLegendColor(legend, *value);
         if (color == nullptr)
           continue;
 

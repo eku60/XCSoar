@@ -35,8 +35,10 @@ public:
     GeoPoint location;
     /** Barometric altitude (m STD) */
     double pressure_altitude;
-    /** GPS Altitude (m) */
+    /** GPS Altitude AMSL (m) */
     double altitude_gps;
+    /** GPS altitude above WGS84 ellipsoid (m) */
+    double altitude_ellipsoid;
     /** Date and time of fix */
     BrokenDateTime date_time_utc;
     /** IDs of satellites in fix */
@@ -59,6 +61,7 @@ public:
 
     bool pressure_altitude_available;
     bool gps_altitude_available;
+    bool gps_ellipsoid_altitude_available;
 
     /** 
      * Set buffer value from NMEA_INFO structure
@@ -90,15 +93,29 @@ public:
   ~LoggerImpl() noexcept;
 
 public:
-  void LogPoint(const NMEAInfo &gps_info);
+  /**
+   * @return true if @p gps_info went into the IGC file as a B record
+   */
+  bool LogPoint(const NMEAInfo &gps_info);
   void LogEvent(const NMEAInfo &gps_info, const char* event);
 
   bool IsActive() const noexcept {
     return writer != nullptr;
   }
 
+  /**
+   * The IGC file being written, or nullptr while the logger is off.
+   */
+  Path GetPath() const noexcept {
+    if (!IsActive())
+      return nullptr;
+
+    return filename;
+  }
+
   void StartLogger(const NMEAInfo &gps_info, const LoggerSettings &settings,
-                   const char *asset_number, const Declaration &decl);
+                   const char *asset_number, const Declaration &decl,
+                   const char *gps_device_name);
 
   /**
    * Stops the logger
@@ -106,6 +123,8 @@ public:
    */
   void StopLogger(const NMEAInfo &gps_info);
   void LoggerNote(const char *text);
+  void LogGPSSource(const NMEAInfo &gps_info, char device,
+                    const char *name);
   void ClearBuffer() noexcept;
 
 private:
@@ -118,5 +137,5 @@ private:
 
 private:
   void LogPointToBuffer(const NMEAInfo &gps_info) noexcept;
-  void WritePoint(const NMEAInfo &gps_info);
+  bool WritePoint(const NMEAInfo &gps_info);
 };

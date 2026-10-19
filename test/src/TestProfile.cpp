@@ -8,8 +8,13 @@
 #include "PageSettings.hpp"
 #include "Profile/Map.hpp"
 #include "Profile/WeatherProfile.hpp"
+#include "Profile/InfoBoxConfig.hpp"
+#include "Profile/TaskProfile.hpp"
+#include "Engine/Task/TaskBehaviour.hpp"
+#include "InfoBoxes/InfoBoxSettings.hpp"
 #include "Weather/Settings.hpp"
 #include "io/FileLineReader.hpp"
+#include "system/FileUtil.hpp"
 #include "system/Path.hpp"
 #include "TestUtil.hpp"
 #include "util/StringAPI.hxx"
@@ -209,6 +214,101 @@ TestWeatherPageCursorRoundTrip()
   ok1(loaded.pages[2].skysight_time == skysight.skysight_time);
 }
 
+static constexpr Path kLifecyclePath{"output/TestProfileLifecycle.prf"};
+static constexpr Path kMissingPath{"output/TestProfileLifecycleMissing.prf"};
+
+static bool
+FileContains(Path path, const char *needle) noexcept
+{
+  char buffer[4096];
+  if (!File::ReadString(path, buffer, sizeof(buffer)))
+    return false;
+  return StringFind(buffer, needle) != nullptr;
+}
+
+static void
+WriteSampleProfile(Path path)
+{
+  Profile::Clear();
+  Profile::Set("keep", "me");
+  Profile::SaveFile(path);
+}
+
+/**
+ * -profile= then Save() before Load() must not wipe the file (#3190).
+ */
+static void
+TestSaveBeforeLoad()
+{
+  WriteSampleProfile(kLifecyclePath);
+  Profile::Clear();
+  Profile::SetFiles(kLifecyclePath);
+
+  ok1(!Profile::IsModified());
+
+  /* even a dirty map that never came from the file must not replace
+     it */
+  Profile::Set("wipe", "yes");
+  ok1(Profile::IsModified());
+  Profile::Save();
+
+  ok1(File::Exists(kLifecyclePath));
+  ok1(FileContains(kLifecyclePath, "keep=\"me\""));
+  ok1(!FileContains(kLifecyclePath, "wipe"));
+}
+
+static void
+TestLoadThenSave()
+{
+  WriteSampleProfile(kLifecyclePath);
+  Profile::Clear();
+  Profile::SetFiles(kLifecyclePath);
+  Profile::Load();
+
+  ok1(!Profile::IsModified());
+  ok1(Profile::Exists("keep"));
+
+  Profile::Set("extra", "1");
+  ok1(Profile::IsModified());
+  Profile::Save();
+
+  Profile::Clear();
+  Profile::LoadFile(kLifecyclePath);
+  ok1(Profile::Exists("keep"));
+  ok1(Profile::Exists("extra"));
+}
+
+/**
+ * A missing file still counts as loaded (first run).  Save() before
+ * Load() must not create it; Save() after Load() and a real change
+ * may.
+ */
+static void
+TestFailedLoadThenSave()
+{
+  File::Delete(kMissingPath);
+  Profile::Clear();
+  Profile::SetFiles(kMissingPath);
+
+  Profile::Save();
+  ok1(!File::Exists(kMissingPath));
+
+  Profile::Load();
+  Profile::Save();
+  ok1(!File::Exists(kMissingPath));
+
+  Profile::Set("new", "1");
+  Profile::Save();
+  ok1(File::Exists(kMissingPath));
+
+  Profile::Clear();
+  Profile::LoadFile(kMissingPath);
+  ok1(Profile::Exists("new"));
+
+  File::Delete(kMissingPath);
+  File::Delete(kLifecyclePath);
+}
+
 #ifdef HAVE_HTTP
 
 static void
@@ -257,9 +357,97 @@ TestSkySightProfileCompatibility()
 
 #endif
 
+static void
+TestInfoBoxCustomText()
+{
+  /* a quotation mark or a line break cannot be stored; other
+     characters, including '|', can */
+  {
+    InfoBoxCustomText text{};
+
+    ok1(InfoBoxCustomText::AssignLine(text.title, "a|b\"c\n"));
+    ok1(text.title == "a|bc");
+
+    /* the same text again is not a modification */
+    ok1(!InfoBoxCustomText::AssignLine(text.title, "a|bc"));
+
+    /* a null string clears the line, like an empty one */
+    ok1(InfoBoxCustomText::AssignLine(text.title, nullptr));
+    ok1(text.title.empty());
+  }
+
+  /* each line is its own profile value */
+  {
+    ProfileMap map;
+
+    InfoBoxSettings::Panel panel;
+    panel.Clear();
+    panel.contents[0] = InfoBoxFactory::e_CustomText;
+    panel.text[0].title = "Page";
+    panel.text[0].value = "Cruise";
+    panel.text[0].comment = "one more thing";
+
+    Profile::Save(map, panel, 7);
+
+    ok1(map.Get("InfoBoxPanel7Title0") != nullptr &&
+        StringIsEqual(map.Get("InfoBoxPanel7Title0"), "Page"));
+    ok1(map.Get("InfoBoxPanel7Value0") != nullptr &&
+        StringIsEqual(map.Get("InfoBoxPanel7Value0"), "Cruise"));
+    ok1(map.Get("InfoBoxPanel7Comment0") != nullptr &&
+        StringIsEqual(map.Get("InfoBoxPanel7Comment0"), "one more thing"));
+
+    /* a slot without text does not add a value */
+    ok1(map.Get("InfoBoxPanel7Title1") == nullptr);
+
+    InfoBoxSettings settings;
+    settings.SetDefaults();
+    Profile::Load(map, settings);
+
+    ok1(settings.panels[7].text[0].title == "Page");
+    ok1(settings.panels[7].text[0].value == "Cruise");
+    ok1(settings.panels[7].text[0].comment == "one more thing");
+  }
+
+  /* a missing line stays empty */
+  {
+    ProfileMap map;
+    map.Set("InfoBoxPanel7Title0", "only a title");
+
+    InfoBoxSettings settings;
+    settings.SetDefaults();
+    Profile::Load(map, settings);
+
+    ok1(settings.panels[7].text[0].title == "only a title");
+    ok1(settings.panels[7].text[0].value.empty());
+    ok1(settings.panels[7].text[0].comment.empty());
+  }
+}
+
+static void
+TestMacCreadyLimits()
+{
+  TaskBehaviour settings{};
+
+  ProfileMap map;
+  map.Set(ProfileKeys::TaskMacCready, 80u);
+  map.Set(ProfileKeys::SafetyMacCready, 150u);
+  Profile::Load(map, settings);
+  ok1(equals(settings.task_mc, TaskBehaviour::TASK_MC_MAX));
+  ok1(equals(settings.safety_mc, TaskBehaviour::SAFETY_MC_MAX));
+
+  map.Set(ProfileKeys::TaskMacCready, 5u);
+  map.Set(ProfileKeys::SafetyMacCready, 32u);
+  Profile::Load(map, settings);
+  ok1(equals(settings.task_mc, 0.5));
+  ok1(equals(settings.safety_mc, 3.2));
+}
+
 int main()
 try {
   plan_tests(50
+             + 5 + 5 + 4
+             + 15
+             + 4
 #ifdef HAVE_HTTP
              + 8
 #endif
@@ -270,6 +458,11 @@ try {
   TestReader();
   TestMigration();
   TestWeatherPageCursorRoundTrip();
+  TestInfoBoxCustomText();
+  TestMacCreadyLimits();
+  TestSaveBeforeLoad();
+  TestLoadThenSave();
+  TestFailedLoadThenSave();
 #ifdef HAVE_HTTP
   TestSkySightProfileCompatibility();
 #endif

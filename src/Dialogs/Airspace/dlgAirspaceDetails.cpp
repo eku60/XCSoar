@@ -9,6 +9,8 @@
 #include "Airspace/AbstractAirspace.hpp"
 #include "Airspace/AirspaceClass.hpp"
 #include "Airspace/ProtectedAirspaceWarningManager.hpp"
+#include "Engine/Airspace/AirspaceWarningConfig.hpp"
+#include "Form/Button.hpp"
 #include "Formatter/UserUnits.hpp"
 #include "Formatter/AirspaceFormatter.hpp"
 #include "Formatter/TimeFormatter.hpp"
@@ -25,7 +27,7 @@
 #include "Geo/AltitudeReference.hpp"
 #include "Language/Language.hpp"
 #include "Language/FormatText.hpp"
-#include "TransponderMode.hpp"
+#include "Radio/TransponderMode.hpp"
 #include "LogFile.hpp"
 #include "util/StaticString.hxx"
 #include "util/UTF8.hpp"
@@ -117,6 +119,7 @@ public:
      airspace(std::move(_airspace)), warnings(_warnings) {}
 
   void AckDayOrEnable() noexcept;
+  void ToggleClearance() noexcept;
 
   /* virtual methods from class Widget */
   void Prepare(ContainerWindow &parent, const PixelRect &rc) noexcept override;
@@ -212,6 +215,8 @@ AirspaceDetailsWidget::AckDayOrEnable() noexcept
  * Extended widget for displaying NOTAM-specific information
  */
 class NOTAMDetailsWidget final : public AirspaceDetailsWidget {
+  VScrollWidget *text_widget = nullptr;
+
 public:
   NOTAMDetailsWidget(ConstAirspacePtr _airspace,
                      ProtectedAirspaceWarningManager *_warnings)
@@ -219,6 +224,7 @@ public:
 
   /* virtual methods from class Widget */
   void Prepare(ContainerWindow &parent, const PixelRect &rc) noexcept override;
+  bool KeyPress(unsigned key_code) noexcept override;
 
 private:
   void AddNOTAMIdentifiers(const char *notam_number,
@@ -247,15 +253,19 @@ dlgAirspaceDetailsModal(ConstAirspacePtr airspace,
 
   if (warnings != nullptr) {
     widget->dialog = &dialog;
-    const char *label = _("Ack Day");
-    try {
-      label = warnings->GetAckDay(*airspace) ? _("Enable") : _("Ack Day");
-    } catch (const std::exception &e) {
-      LogFmt("Failed to query airspace day acknowledgement: {}", e.what());
-    } catch (...) {
-      LogError(std::current_exception(),
-               "Failed to query airspace day acknowledgement");
-    }
+
+    const bool cleared = warnings->GetCleared(*airspace);
+
+    Button *clearance_button =
+      dialog.AddButton(cleared ? _("Revoke Clearance") : _("Set Clearance"),
+                       [widget](){ widget->ToggleClearance(); });
+
+    if (!cleared &&
+        !IsAirspaceClearanceAllowed(airspace->GetTypeOrClass()))
+      clearance_button->SetEnabled(false);
+
+    const char *label = warnings->GetAckDay(*airspace)
+      ? _("Enable") : _("Ack Day");
 
     dialog.AddButton(label, [widget](){ widget->AckDayOrEnable(); });
   }
@@ -268,6 +278,18 @@ dlgAirspaceDetailsModal(ConstAirspacePtr airspace,
   }
 
   return dialog.ShowModal() == mrOK;
+}
+
+void
+AirspaceDetailsWidget::ToggleClearance() noexcept
+{
+  assert(warnings != nullptr);
+
+  const bool cleared = warnings->GetCleared(*airspace);
+  if (!TrySetAirspaceClearance(*warnings, airspace, !cleared))
+    return;
+
+  dialog->SetModalResult(mrOK);
 }
 
 void
@@ -435,9 +457,12 @@ NOTAMDetailsWidget::Prepare([[maybe_unused]] ContainerWindow &parent,
     notam_opt && !notam_opt->text.empty()
     ? SafeString(notam_opt->text)
     : SafeString(airspace_name != nullptr ? airspace_name : "");
-  Add(std::make_unique<VScrollWidget>(
+  auto scroll = std::make_unique<VScrollWidget>(
     std::make_unique<ScrollableLargeTextWidget>(GetLook(), text.c_str()),
-    GetLook(), true, GetScrollableTextRowMaximumHeight(rc)));
+    GetLook(), true, GetScrollableTextRowMaximumHeight(rc),
+    VScrollWidget::ScrollMode::MOVE);
+  text_widget = scroll.get();
+  Add(std::move(scroll));
 
   AddNOTAMValidity(notam_opt, buffer);
   AddNOTAMAltitudes(buffer);
@@ -450,4 +475,10 @@ NOTAMDetailsWidget::Prepare([[maybe_unused]] ContainerWindow &parent,
     const auto distance = closest.Distance(basic.location);
     AddReadOnly(_("Distance"), nullptr, FormatUserDistance(distance));
   }
+}
+
+bool
+NOTAMDetailsWidget::KeyPress(unsigned key_code) noexcept
+{
+  return text_widget != nullptr && text_widget->KeyPress(key_code);
 }

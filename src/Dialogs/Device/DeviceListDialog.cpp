@@ -15,6 +15,7 @@
 #include "LX/ManageLX16xxDialog.hpp"
 #include "PortMonitor.hpp"
 #include "Dialogs/WidgetDialog.hpp"
+#include "Dialogs/HelpDialog.hpp"
 #include "Dialogs/Message.hpp"
 #include "UIGlobals.hpp"
 #include "util/StaticString.hxx"
@@ -30,8 +31,10 @@
 #include "Look/DialogLook.hpp"
 #include "Widget/ListWidget.hpp"
 #include "ui/canvas/Canvas.hpp"
+#include "ui/canvas/Color.hpp"
 #include "ui/control/List.hpp"
 #include "Screen/Layout.hpp"
+#include "Asset.hpp"
 #include "Language/Language.hpp"
 #include "Operation/MessageOperationEnvironment.hpp"
 #include "Simulator.hpp"
@@ -40,6 +43,8 @@
 #include "Profile/Profile.hpp"
 #include "Profile/DeviceConfig.hpp"
 #include "Interface.hpp"
+#include "Components.hpp"
+#include "BackendComponents.hpp"
 
 #ifdef ANDROID
 #include "java/Global.hxx"
@@ -48,6 +53,51 @@
 #endif
 
 using namespace UI;
+
+/* Same threshold as BatteryTimer::BATTERY_WARNING (host "Battery low"). */
+static constexpr int BATTERY_WARNING_PERCENT = 10;
+
+static const char *
+GetDeviceListHelp() noexcept
+{
+  return _("XCSoar uses the first device that supplies each value "
+           "(device A before B, and so on). "
+           "Bold flags are the values XCSoar is using from this device. "
+           "Flags that are not bold mean an earlier device already "
+           "supplies the same data. "
+           "Baro is height with the current QNH; QNE is pressure "
+           "altitude; Alt IGC is the altitude the logger writes. "
+           "QNE and Pressure are the same ambient pressure, so only "
+           "the earlier of those two is bold. "
+           "Bad GPS and a battery below 10% are shown in red on a colour "
+           "display, and in bold on e-paper.");
+}
+
+static void
+DrawStatusToken(Canvas &canvas, PixelPoint &p,
+                const Font &regular, const Font &bold,
+                const char *text, bool used, bool &need_sep,
+                bool warning=false) noexcept
+{
+  if (need_sep) {
+    canvas.Select(regular);
+    canvas.DrawText(p, "; ");
+    p.x += canvas.CalcTextWidth("; ");
+  }
+
+  const Color old_color = canvas.GetTextColor();
+  if (warning && HasColors())
+    canvas.SetTextColor(COLOR_RED);
+
+  canvas.Select(used || warning ? bold : regular);
+  canvas.DrawText(p, text);
+  p.x += canvas.CalcTextWidth(text);
+
+  if (warning && HasColors())
+    canvas.SetTextColor(old_color);
+
+  need_sep = true;
+}
 
 class DeviceListWidget final
   : public ListWidget,
@@ -61,15 +111,19 @@ class DeviceListWidget final
 
   struct Flags {
     bool duplicate:1;
-    bool open:1, error:1;
-    bool alive:1, location:1, gps:1, baro:1, pitot:1, airspeed:1, vario:1, traffic:1;
+    bool open:1, error:1, connecting:1;
+    bool alive:1, location:1, gps:1, baro:1, pressure_altitude:1;
+    bool igc_altitude:1, pitot:1, airspeed:1, vario:1, traffic:1;
     bool gdl90:1;
     bool foreflight_id:1;
     bool foreflight_ahrs:1;
     bool temperature:1;
     bool humidity:1;
+    bool pressure:1;
     bool imu:1;
     bool accel:1;
+    bool heart_rate:1;
+    bool blood_oxygen:1;
     bool radio:1, transponder:1;
     bool engine:1;
     bool debug:1;
@@ -93,32 +147,37 @@ class DeviceListWidget final
       case PortState::READY:
         open = true;
         error = false;
+        connecting = false;
         break;
 
       case PortState::FAILED:
         open = false;
         error = true;
+        connecting = false;
         break;
 
       case PortState::LIMBO:
         open = false;
         error = false;
+        connecting = true;
         break;
       }
 
       alive = basic.alive;
       location = basic.location_available;
       gps = basic.gps.fix_quality_available;
-      baro = basic.baro_altitude_available ||
-        basic.pressure_altitude_available ||
-        basic.static_pressure_available;
+      baro = basic.baro_altitude_available;
+      pressure_altitude = basic.pressure_altitude_available;
+      igc_altitude = basic.igc_pressure_altitude_available;
+      pressure = basic.static_pressure_available;
       pitot = basic.pitot_pressure_available;
       airspeed = basic.airspeed_available ||
         basic.dyn_pressure_available;
       vario = basic.netto_vario_available ||
         basic.total_energy_vario_available ||
         basic.noncomp_vario_available;
-      traffic = basic.flarm.IsDetected();
+      /* PFLAU heartbeat; expires after 10 s */
+      traffic = basic.flarm.status.available;
       /* GDL90 status follows protocol activity (heartbeat / any frame
          sets alive), not traffic presence — SoftRF may have ownship
          with an empty traffic list. */
@@ -133,6 +192,8 @@ class DeviceListWidget final
       humidity = basic.humidity_available;
       imu = basic.gyroscope.available;
       accel = basic.acceleration.available;
+      heart_rate = basic.heart_rate_available;
+      blood_oxygen = basic.blood_oxygen_available;
       debug = device != nullptr && device->IsDumpEnabled();
       radio = basic.settings.has_active_frequency ||
         basic.settings.has_standby_frequency;
@@ -154,7 +215,7 @@ class DeviceListWidget final
   union Item {
   private:
     Flags flags;
-    uint32_t i;
+    uint64_t i;
 
     static_assert(sizeof(flags) <= sizeof(i), "wrong size");
 
@@ -186,7 +247,7 @@ class DeviceListWidget final
     }
   };
 
-  static_assert(sizeof(Item) == 4, "wrong size");
+  static_assert(sizeof(Item) == 8, "wrong size");
 
   Item items[NUMDEV];
   std::string error_messages[NUMDEV];
@@ -253,6 +314,18 @@ public:
    void OnPaintItem(Canvas &canvas, const PixelRect rc,
                     unsigned idx) noexcept override;
   void OnCursorMoved(unsigned index) noexcept override;
+
+private:
+  template<typename Pred>
+  bool EarlierHas(unsigned idx, Pred pred) const noexcept {
+    for (unsigned i = 0; i < idx; ++i)
+      if ((*items[i]).alive && pred(*items[i]))
+        return true;
+    return false;
+  }
+
+  void DrawAliveStatus(Canvas &canvas, PixelPoint p,
+                       unsigned idx) noexcept;
 
 private:
   /* virtual methods from class BlackboardListener */
@@ -381,6 +454,155 @@ DeviceListWidget::UpdateButtons()
 }
 
 void
+DeviceListWidget::DrawAliveStatus(Canvas &canvas, PixelPoint p,
+                                  unsigned idx) noexcept
+{
+  const Flags flags(*items[idx]);
+  const Font &regular = look.small_font;
+  const Font &bold = look.small_font_bold;
+  bool need_sep = false;
+
+  if (flags.location)
+    DrawStatusToken(canvas, p, regular, bold, _("GPS fix"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.location;
+                    }), need_sep);
+  else if (flags.gps)
+    /* device sends GPGGA, but no valid location */
+    DrawStatusToken(canvas, p, regular, bold, _("Bad GPS"),
+                    false, need_sep, true);
+  else
+    DrawStatusToken(canvas, p, regular, bold, _("Connected"),
+                    false, need_sep);
+
+  if (flags.baro)
+    DrawStatusToken(canvas, p, regular, bold, _("Baro"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.baro;
+                    }), need_sep);
+
+  /* QNE and Pressure are one ambient-pressure source (#3268). */
+  const auto earlier_ambient = [](const Flags &f) {
+    return f.pressure_altitude || f.pressure;
+  };
+
+  if (flags.pressure_altitude)
+    DrawStatusToken(canvas, p, regular, bold, _("QNE"),
+                    !EarlierHas(idx, earlier_ambient), need_sep);
+
+  if (flags.igc_altitude)
+    DrawStatusToken(canvas, p, regular, bold,
+                    C_("Abbreviation", "Alt IGC"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.igc_altitude;
+                    }), need_sep);
+
+  if (flags.pressure)
+    DrawStatusToken(canvas, p, regular, bold, _("Pressure"),
+                    !EarlierHas(idx, earlier_ambient), need_sep);
+
+  if (flags.pitot)
+    DrawStatusToken(canvas, p, regular, bold, _("Pitot"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.pitot;
+                    }), need_sep);
+
+  if (flags.airspeed)
+    DrawStatusToken(canvas, p, regular, bold, _("Airspeed"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.airspeed;
+                    }), need_sep);
+
+  if (flags.vario)
+    DrawStatusToken(canvas, p, regular, bold, _("Vario"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.vario;
+                    }), need_sep);
+
+  if (flags.gdl90)
+    DrawStatusToken(canvas, p, regular, bold, "GDL90",
+                    flags.alive, need_sep);
+  else if (flags.traffic)
+    DrawStatusToken(canvas, p, regular, bold, "FLARM",
+                    true, need_sep);
+
+  if (flags.foreflight_ahrs)
+    DrawStatusToken(canvas, p, regular, bold, "ForeFlight AHRS",
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.foreflight_ahrs;
+                    }), need_sep);
+
+  if (flags.foreflight_id)
+    DrawStatusToken(canvas, p, regular, bold, "ForeFlight ID",
+                    true, need_sep);
+
+  if (flags.temperature)
+    DrawStatusToken(canvas, p, regular, bold, _("Temperature"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.temperature;
+                    }), need_sep);
+
+  if (flags.humidity)
+    DrawStatusToken(canvas, p, regular, bold, _("Relative humidity"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.humidity;
+                    }), need_sep);
+
+  if (flags.imu)
+    DrawStatusToken(canvas, p, regular, bold, _("IMU"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.imu;
+                    }), need_sep);
+
+  if (flags.accel)
+    DrawStatusToken(canvas, p, regular, bold, "G",
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.accel;
+                    }), need_sep);
+
+  if (flags.heart_rate)
+    DrawStatusToken(canvas, p, regular, bold, _("Heart Rate"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.heart_rate;
+                    }), need_sep);
+
+  if (flags.blood_oxygen)
+    DrawStatusToken(canvas, p, regular, bold, _("Blood Oxygen"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.blood_oxygen;
+                    }), need_sep);
+
+  if (flags.radio)
+    DrawStatusToken(canvas, p, regular, bold, _("Radio"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.radio;
+                    }), need_sep);
+
+  if (flags.transponder)
+    DrawStatusToken(canvas, p, regular, bold, "XPDR",
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.transponder;
+                    }), need_sep);
+
+  if (flags.engine)
+    DrawStatusToken(canvas, p, regular, bold, _("Engine"),
+                    !EarlierHas(idx, [](const Flags &f) {
+                      return f.engine;
+                    }), need_sep);
+
+  if (flags.debug)
+    DrawStatusToken(canvas, p, regular, bold, _("Debug"),
+                    true, need_sep);
+
+  if (flags.battery_percent >= 0) {
+    StaticString<32> battery;
+    battery.Format("%s=%d%%", _("Battery"), flags.battery_percent);
+    DrawStatusToken(canvas, p, regular, bold, battery, false, need_sep,
+                    flags.battery_percent < BATTERY_WARNING_PERCENT);
+  }
+}
+
+void
 DeviceListWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
                               unsigned idx) noexcept
 {
@@ -410,105 +632,38 @@ DeviceListWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
   canvas.Select(*look.list.font);
   canvas.DrawText(rc.GetTopLeft() + PixelSize{margin, margin}, text);
 
-  /* show a list of features that are available in the second row */
+  /* show a list of features that are available in the second row;
+     merge-priority flags are bold when this device is the first
+     source (A before B, and so on) */
 
-  StaticString<256> buffer;
-  const char *status;
+  const PixelPoint status_p =
+    rc.GetTopLeft() + PixelSize{margin, 2 * margin + font_height};
+
   if (flags.alive) {
-    if (flags.location) {
-      buffer = _("GPS fix");
-    } else if (flags.gps) {
-      /* device sends GPGGA, but no valid location */
-      buffer = _("Bad GPS");
-    } else {
-      buffer = _("Connected");
-    }
+    DrawAliveStatus(canvas, status_p, idx);
+    return;
+  }
 
-    if (flags.baro) {
-      buffer.append("; ");
-      buffer.append(_("Baro"));
-    }
-
-    if (flags.pitot) {
-      buffer.append("; ");
-      buffer.append(_("Pitot"));
-    }
-
-    if (flags.airspeed) {
-      buffer.append("; ");
-      buffer.append(_("Airspeed"));
-    }
-
-    if (flags.vario) {
-      buffer.append("; ");
-      buffer.append(_("Vario"));
-    }
-
-    if (flags.gdl90)
-      buffer.append("; GDL90");
-    else if (flags.traffic)
-      buffer.append("; FLARM");
-
-    if (flags.foreflight_ahrs)
-      buffer.append("; ForeFlight AHRS");
-
-    if (flags.foreflight_id)
-      buffer.append("; ForeFlight ID");
-
-    if (flags.temperature || flags.humidity) {
-      buffer.append("; ");
-      buffer.append("Environment");
-    }
-
-    if (flags.imu) {
-      buffer.append("; ");
-      buffer.append(_("IMU"));
-    }
-
-    if (flags.accel)
-      buffer.append("; G");
-
-    if (flags.radio) {
-      buffer.append("; ");
-      buffer.append("Radio");
-    }
-
-    if (flags.transponder) {
-      buffer.append("; XPDR");
-    }
-
-    if (flags.engine)
-      buffer.append("; Engine");
-
-    if (flags.debug) {
-      buffer.append("; ");
-      buffer.append(_("Debug"));
-    }
-
-    if (flags.battery_percent >= 0) {
-      buffer.append("; ");
-      buffer.append(_("Battery"));
-      buffer.AppendFormat("=%d%%", flags.battery_percent);
-    }
-
-    status = buffer;
-  } else if (config.IsDisabled()) {
+  const char *status;
+  if (config.IsDisabled()) {
     status = _("Disabled");
   } else if (is_simulator() || !config.IsAvailable()) {
     status = _("N/A");
-  } else if (flags.open) {
-    buffer = _("No data");
-
-    if (flags.debug) {
-      buffer.append("; ");
-      buffer.append(_("Debug"));
-    }
-
-    status = buffer;
   } else if (flags.bluetooth_disabled) {
     status = _("Bluetooth is disabled");
   } else if (flags.duplicate) {
     status = _("Duplicate");
+  } else if (flags.connecting) {
+    status = _("Connecting...");
+  } else if (flags.open) {
+    bool need_sep = false;
+    PixelPoint p = status_p;
+    DrawStatusToken(canvas, p, look.small_font, look.small_font_bold,
+                    _("No data"), false, need_sep);
+    if (flags.debug)
+      DrawStatusToken(canvas, p, look.small_font, look.small_font_bold,
+                      _("Debug"), true, need_sep);
+    return;
   } else if (flags.error) {
     if (error_messages[idx].empty())
       status = _("Error");
@@ -519,8 +674,7 @@ DeviceListWidget::OnPaintItem(Canvas &canvas, const PixelRect rc,
   }
 
   canvas.Select(look.small_font);
-  canvas.DrawText(rc.GetTopLeft() + PixelSize{margin, 2 * margin + font_height},
-                  status);
+  canvas.DrawText(status_p, status);
 }
 
 void
@@ -804,14 +958,26 @@ DeviceListWidget::OnGPSUpdate([[maybe_unused]] const MoreData &basic)
 }
 
 void
-ShowDeviceList(DeviceBlackboard &device_blackboard, MultipleDevices *devices)
+ShowDeviceList(MultipleDevices *devices)
 {
+  /* Per-device NMEA (FLARM version, port flags) lives on
+     DeviceBlackboard, not the merged InterfaceBlackboard. */
+  DeviceBlackboard *device_blackboard =
+    backend_components != nullptr
+    ? backend_components->device_blackboard.get()
+    : nullptr;
+  if (device_blackboard == nullptr)
+    return;
+
   TWidgetDialog<DeviceListWidget>
     dialog(WidgetDialog::Full{}, UIGlobals::GetMainWindow(),
            UIGlobals::GetDialogLook(), _("Devices"));
-  dialog.SetWidget(device_blackboard, devices,
+  dialog.SetWidget(*device_blackboard, devices,
                    UIGlobals::GetDialogLook());
   dialog.GetWidget().CreateButtons(dialog);
+  dialog.AddButton(_("Help"), [](){
+    HelpDialog(_("Devices"), GetDeviceListHelp());
+  });
   dialog.AddButton(_("Close"), mrOK);
   dialog.EnableCursorSelection();
 

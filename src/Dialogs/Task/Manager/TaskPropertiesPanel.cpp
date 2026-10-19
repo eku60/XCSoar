@@ -2,6 +2,7 @@
 // Copyright The XCSoar Project
 
 #include "TaskPropertiesPanel.hpp"
+#include "Dialogs/DataField.hpp"
 #include "Internal.hpp"
 #include "Form/DataField/Enum.hpp"
 #include "Form/DataField/Boolean.hpp"
@@ -19,6 +20,7 @@ enum Controls {
   MIN_TIME,
   START_REQUIRES_ARM,
   START_SCORE_EXIT,
+  NAVIGATE_NEAREST,
   START_OPEN_TIME,
   START_CLOSE_TIME,
   START_MAX_SPEED,
@@ -54,6 +56,7 @@ TaskPropertiesPanel::RefreshView()
 
   LoadValue(START_REQUIRES_ARM, p.start_constraints.require_arm);
   LoadValue(START_SCORE_EXIT, p.start_constraints.score_exit);
+  LoadValue(NAVIGATE_NEAREST, p.navigate_nearest);
 
   LoadValue(START_OPEN_TIME, p.start_constraints.open_time_span.GetRoughStart());
   LoadValue(START_CLOSE_TIME, p.start_constraints.open_time_span.GetRoughEnd());
@@ -109,6 +112,7 @@ TaskPropertiesPanel::ReadValues()
     changed = true;
 
   changed |= SaveValue(START_SCORE_EXIT, p.start_constraints.score_exit);
+  changed |= SaveValue(NAVIGATE_NEAREST, p.navigate_nearest);
 
   RoughTime new_open = p.start_constraints.open_time_span.GetRoughStart();
   RoughTime new_close = p.start_constraints.open_time_span.GetRoughEnd();
@@ -219,6 +223,10 @@ TaskPropertiesPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
 
   AddBoolean(_("Score start exit"), nullptr, false);
 
+  AddBoolean(_("Navigate to nearest point"),
+             _("Navigate to the nearest point of the start and finish zones."),
+             false);
+
   const RoughTimeDelta time_zone =
     CommonInterface::GetComputerSettings().utc_offset;
   AddRoughTime(_("Start open time"), nullptr,
@@ -234,7 +242,8 @@ TaskPropertiesPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
   AddFloat(_("Start max. height"),
            _("Maximum height based on start height reference (AGL or MSL) while starting the task. Set to 0 for no limit."),
            "%.0f %s", "%.0f",
-           0, 10000, 25, false, 0);
+           0, 30000, 25, false, 0)
+    ->SetEditCallback(EditUnsignedFloatDialog);
 
   static constexpr StaticEnumChoice altitude_reference_list[] = {
     { AltitudeReference::AGL, N_("AGL"),
@@ -251,7 +260,8 @@ TaskPropertiesPanel::Prepare([[maybe_unused]] ContainerWindow &parent,
   AddFloat(_("Finish min. height"),
            _("Minimum height based on finish height reference (AGL or MSL) while finishing the task. Set to 0 for no limit."),
            "%.0f %s", "%.0f",
-           0, 10000, 25, false, 0);
+           0, 30000, 25, false, 0)
+    ->SetEditCallback(EditUnsignedFloatDialog);
 
   AddEnum(_("Finish height ref."),
           _("Reference used for finish min height rule."),

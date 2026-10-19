@@ -4,8 +4,8 @@
 #include "Device/Driver.hpp"
 #include "Geo/GeoPoint.hpp"
 #include "Engine/GlideSolvers/GlidePolar.hpp"
-#include "RadioFrequency.hpp"
-#include "TransponderCode.hpp"
+#include "Radio/RadioFrequency.hpp"
+#include "Radio/TransponderCode.hpp"
 #include "system/Path.hpp"
 
 Device::~Device() {}
@@ -54,6 +54,13 @@ AbstractDevice::PutCrewMass([[maybe_unused]] double crew_mass, [[maybe_unused]] 
 
 bool
 AbstractDevice::PutEmptyMass([[maybe_unused]] double empty_mass, [[maybe_unused]] OperationEnvironment &env)
+{
+  return true;
+}
+
+bool
+AbstractDevice::PutMaxTakeoffMass([[maybe_unused]] double max_takeoff_mass,
+                                  [[maybe_unused]] OperationEnvironment &env)
 {
   return true;
 }

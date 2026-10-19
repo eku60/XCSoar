@@ -7,6 +7,7 @@
 #include "Renderer/TextRowRenderer.hpp"
 #include "Form/Button.hpp"
 #include "Form/ButtonPanel.hpp"
+#include "Form/CheckBox.hpp"
 #include "Form/DataField/Enum.hpp"
 #include "Form/DataField/Listener.hpp"
 #include "PageActions.hpp"
@@ -16,6 +17,9 @@
 #include "Interface.hpp"
 #include "DataGlobals.hpp"
 #include "Weather/Features.hpp"
+#ifdef HAVE_WEATHER_OVERLAY
+#include "Weather/EUMETView/Satellite.hpp"
+#endif
 #include "Weather/Rasp/FieldControls.hpp"
 #include "Weather/Rasp/RaspStore.hpp"
 #ifdef HAVE_EDL
@@ -27,16 +31,16 @@
 #include "Widget/ListWidget.hpp"
 #include "Widget/TwoWidgets.hpp"
 #include "Widget/ButtonPanelWidget.hpp"
+#include "Widget/VScrollWidget.hpp"
 #include "UIGlobals.hpp"
+#include "ConfigPanel.hpp"
+#include "Screen/Layout.hpp"
+#include "ui/event/KeyCode.hpp"
+#include "ui/window/ContainerWindow.hpp"
 #include "util/StaticString.hxx"
 
 #ifdef HAVE_HTTP
 #include "Weather/SkySight/SkySightClient.hpp"
-#endif
-
-/* this macro exists in the WIN32 API */
-#ifdef DELETE
-#undef DELETE
 #endif
 
 class PageLayoutEditWidget final
@@ -95,6 +99,18 @@ class PageListWidget
   ButtonPanelWidget *buttons;
   Button *add_button, *delete_button;
   Button *move_up_button, *move_down_button;
+
+  /* Landscape copies. Index 1 is the bottom of the stack. */
+  Button *chrome_add = nullptr, *chrome_delete = nullptr;
+  Button *chrome_up = nullptr, *chrome_down = nullptr;
+
+  void SyncChromeButtons() noexcept;
+  void ReleaseChromeButtons() noexcept;
+
+  /** 0 Add, 1 Delete, 2 move up, 3 move down. Expert is 4. */
+  Button *ActionButton(unsigned i) const noexcept;
+  int ActionIndex() const noexcept;
+  bool FocusAction(int from, bool down) noexcept;
 
 public:
   ~PageListWidget() {
@@ -163,13 +179,24 @@ public:
     delete_button->SetEnabled(length >= 2);
     move_up_button->SetEnabled(cursor > 0);
     move_down_button->SetEnabled(cursor + 1 < length);
+
+    if (chrome_add == nullptr)
+      return;
+
+    chrome_add->SetEnabled(add_button->IsEnabled());
+    chrome_delete->SetEnabled(delete_button->IsEnabled());
+    chrome_up->SetEnabled(move_up_button->IsEnabled());
+    chrome_down->SetEnabled(move_down_button->IsEnabled());
   }
 
   /* virtual methods from class Widget */
   void Initialise(ContainerWindow &parent,
                   const PixelRect &rc) noexcept override;
   void Show(const PixelRect &rc) noexcept override;
+  void Hide() noexcept override;
+  void Move(const PixelRect &rc) noexcept override;
   bool Save(bool &changed) noexcept override;
+  bool KeyPress(unsigned key_code) noexcept override;
 
   /* virtual methods from class ListItemRenderer */
   void OnPaintItem(Canvas &canvas, const PixelRect rc,
@@ -298,8 +325,32 @@ PageLayoutEditWidget::FillOverlayDetailControl() noexcept
     break;
   }
 
+#ifdef HAVE_WEATHER_OVERLAY
+  case PageLayout::Overlay::SATELLITE: {
+    control.SetCaption(C_("Setting", "Satellite layer"));
+    control.SetHelpText(
+      _("Which EUMETView satellite product this page draws under the "
+        "map."));
+
+    const auto layers = EUMETView::GetLayers();
+    for (std::size_t i = 0; i < layers.size(); ++i)
+      df.AddChoice(int(i), gettext(layers[i].label));
+
+    if (value.satellite_layer >= 0 &&
+        std::size_t(value.satellite_layer) < layers.size())
+      df.SetValue(unsigned(value.satellite_layer));
+    else
+      df.SetValue(unsigned(PageLayout::SATELLITE_LAYER_DEFAULT));
+    break;
+  }
+#endif
+
   case PageLayout::Overlay::NONE:
   case PageLayout::Overlay::XCTHERM:
+  case PageLayout::Overlay::RADAR:
+#ifndef HAVE_WEATHER_OVERLAY
+  case PageLayout::Overlay::SATELLITE:
+#endif
 #ifndef HAVE_EDL
   case PageLayout::Overlay::EDL:
 #endif
@@ -339,8 +390,14 @@ PageLayoutEditWidget::UpdateOverlayControls() noexcept
       detail_enabled = DataGlobals::GetSkySight() != nullptr;
 #endif
       break;
+    case PageLayout::Overlay::SATELLITE:
+#ifdef HAVE_WEATHER_OVERLAY
+      detail_enabled = true;
+#endif
+      break;
     case PageLayout::Overlay::NONE:
     case PageLayout::Overlay::XCTHERM:
+    case PageLayout::Overlay::RADAR:
 #ifndef HAVE_EDL
     case PageLayout::Overlay::EDL:
 #endif
@@ -439,6 +496,10 @@ PageLayoutEditWidget::Prepare([[maybe_unused]] ContainerWindow &parent, [[maybe_
 #ifdef HAVE_HTTP
     { PageLayout::Overlay::XCTHERM, "XC Therm" },
     { PageLayout::Overlay::SKYSIGHT, "SkySight" },
+#endif
+#ifdef HAVE_WEATHER_OVERLAY
+    { PageLayout::Overlay::RADAR, N_("Rain radar") },
+    { PageLayout::Overlay::SATELLITE, N_("Satellite") },
 #endif
     nullptr
   };
@@ -573,6 +634,10 @@ PageLayoutEditWidget::OnModified(DataField &df) noexcept
     else if (value.overlay == PageLayout::Overlay::EDL)
       value.edl_isobar = dfe.GetValue();
 #endif
+#ifdef HAVE_WEATHER_OVERLAY
+    else if (value.overlay == PageLayout::Overlay::SATELLITE)
+      value.satellite_layer = dfe.GetValue();
+#endif
     else if (value.overlay == PageLayout::Overlay::SKYSIGHT) {
 #ifdef HAVE_HTTP
       if (auto skysight = DataGlobals::GetSkySight(); skysight != nullptr) {
@@ -611,6 +676,145 @@ PageLayoutEditWidget::OnModified(DataField &df) noexcept
 }
 
 void
+PageListWidget::SyncChromeButtons() noexcept
+{
+  if (!Layout::landscape) {
+    ReleaseChromeButtons();
+    return;
+  }
+
+  if (chrome_add != nullptr)
+    return;
+
+  /* Index 1 is the bottom of the stack: down, up, Delete, Add. */
+  chrome_down = &ConfigPanel::BorrowExtraButton(1, "v", [this](){
+    move_down_button->Click();
+  });
+  chrome_up = &ConfigPanel::BorrowExtraButton(2, "^", [this](){
+    move_up_button->Click();
+  });
+  chrome_delete = &ConfigPanel::BorrowExtraButton(3, C_("Button", "Delete"),
+                                                  [this](){
+    delete_button->Click();
+  });
+  chrome_add = &ConfigPanel::BorrowExtraButton(4, C_("Button", "Add"),
+                                               [this](){
+    add_button->Click();
+  });
+  UpdateButtons();
+}
+
+void
+PageListWidget::ReleaseChromeButtons() noexcept
+{
+  if (chrome_add == nullptr)
+    return;
+
+  for (unsigned i = 1; i <= 4; ++i)
+    ConfigPanel::ReturnExtraButton(i);
+  chrome_add = chrome_delete = nullptr;
+  chrome_up = chrome_down = nullptr;
+}
+
+Button *
+PageListWidget::ActionButton(unsigned i) const noexcept
+{
+  switch (i) {
+  case 0:
+    return chrome_add != nullptr ? chrome_add : add_button;
+  case 1:
+    return chrome_delete != nullptr ? chrome_delete : delete_button;
+  case 2:
+    return chrome_up != nullptr ? chrome_up : move_up_button;
+  case 3:
+    return chrome_down != nullptr ? chrome_down : move_down_button;
+  default:
+    return nullptr;
+  }
+}
+
+int
+PageListWidget::ActionIndex() const noexcept
+{
+  for (unsigned i = 0; i < 4; ++i) {
+    const Button *b = ActionButton(i);
+    if (b != nullptr && b->HasFocus())
+      return i;
+  }
+
+  if (ConfigPanel::GetExpertCheckbox().HasFocus())
+    return 4;
+
+  return -1;
+}
+
+bool
+PageListWidget::FocusAction(int from, bool down) noexcept
+{
+  const int step = down ? 1 : -1;
+  for (int i = from + step; i >= 0 && i <= 4; i += step) {
+    if (i == 4) {
+      ConfigPanel::GetExpertCheckbox().SetFocus();
+      return true;
+    }
+
+    Button *b = ActionButton(i);
+    if (b != nullptr && b->IsVisible() && b->IsEnabled()) {
+      b->SetFocus();
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool
+PageListWidget::KeyPress(unsigned key_code) noexcept
+{
+  /* First level: Up/Down stay on the page list. Left/Right are the
+     pager's. Enter activates the row and focuses the editor. */
+  if (IsDefined() && GetList().HasFocus()) {
+    if (key_code == KEY_UP || key_code == KEY_DOWN) {
+      ListWidget::KeyPress(key_code);
+      return true;
+    }
+    return false;
+  }
+
+  const bool in_editor = editor->HasFocus();
+  const int action = ActionIndex();
+  if (key_code == KEY_ESCAPE) {
+    if (in_editor || action >= 0) {
+      GetList().SetFocus();
+      return true;
+    }
+    return false;
+  }
+
+  if (key_code != KEY_UP && key_code != KEY_DOWN)
+    return false;
+
+  if (in_editor) {
+    const bool down = key_code == KEY_DOWN;
+    if (editor->FocusAdjacent(down))
+      return true;
+
+    /* Past the last field: Add, Delete, move up, move down, Expert. */
+    if (down)
+      FocusAction(-1, true);
+    return true;
+  }
+
+  if (action < 0)
+    return false;
+
+  const bool down = key_code == KEY_DOWN;
+  if (!FocusAction(action, down) && !down)
+    ((ContainerWindow &)editor->GetWindow()).FocusLastControl();
+  return true;
+}
+
+void
 PageListWidget::Initialise(ContainerWindow &parent,
                            const PixelRect &rc) noexcept
 {
@@ -629,9 +833,24 @@ PageListWidget::Initialise(ContainerWindow &parent,
 void
 PageListWidget::Show(const PixelRect &rc) noexcept
 {
+  SyncChromeButtons();
   editor->SetValue(settings.pages[GetList().GetCursorIndex()]);
 
   ListWidget::Show(rc);
+}
+
+void
+PageListWidget::Hide() noexcept
+{
+  ReleaseChromeButtons();
+  ListWidget::Hide();
+}
+
+void
+PageListWidget::Move(const PixelRect &rc) noexcept
+{
+  SyncChromeButtons();
+  ListWidget::Move(rc);
 }
 
 bool
@@ -716,19 +935,22 @@ PageListWidget::OnModified(const PageLayout &new_value) noexcept
 std::unique_ptr<Widget>
 CreatePagesConfigPanel()
 {
-  auto _list = std::make_unique<PageListWidget>();
-  auto _editor = std::make_unique<PageLayoutEditWidget>(UIGlobals::GetDialogLook(),
-                                                        *_list);
+  const DialogLook &look = UIGlobals::GetDialogLook();
 
-  auto two = std::make_unique<TwoWidgets>(std::move(_list),
-                                          std::move(_editor));
-  auto &list = (PageListWidget &)two->GetFirst();
-  auto &editor = (PageLayoutEditWidget &)two->GetSecond();
-  list.SetEditor(editor);
+  auto list = std::make_unique<PageListWidget>();
+  auto editor = std::make_unique<PageLayoutEditWidget>(look, *list);
+  list->SetEditor(*editor);
+
+  /* Scroll the editor when the landscape pane is shorter than its rows. */
+  auto two = std::make_unique<TwoWidgets>(
+    std::move(list),
+    std::make_unique<VScrollWidget>(std::move(editor), look));
+  auto &list_widget = (PageListWidget &)two->GetFirst();
 
   auto buttons = std::make_unique<ButtonPanelWidget>(std::move(two),
                                                      ButtonPanelWidget::Alignment::BOTTOM);
-  list.SetButtonPanel(*buttons);
+  buttons->HideInLandscape();
+  list_widget.SetButtonPanel(*buttons);
 
   return buttons;
 }

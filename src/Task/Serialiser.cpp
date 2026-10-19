@@ -14,6 +14,14 @@
 #include "util/Compiler.h"
 
 #include <cassert>
+
+/*
+ * This file and Deserialiser.cpp together define the XCSoar task file
+ * format (".tsk").  doc/task_file.rst describes it for the benefit of
+ * converters and other external tools; keep that page in sync when you
+ * add, rename or drop an attribute here.
+ */
+
 [[gnu::const]]
 static const char *
 GetName(TaskPointType type, bool mode_optional_start)
@@ -58,7 +66,7 @@ Serialise(WritableDataNode &node, const Waypoint &data)
   node.SetAttribute("name", data.name.c_str());
   node.SetAttribute("id", data.id);
   node.SetAttribute("comment", data.comment.c_str());
-  if (data.has_elevation)
+  if (data.HasElevation())
     node.SetAttribute("altitude", data.elevation);
 
   Serialise(*node.AppendChild("Location"), data.location);
@@ -245,6 +253,7 @@ static void
 Serialise(WritableDataNode &node, const OrderedTaskSettings &data)
 {
   node.SetAttribute("aat_min_time", data.aat_min_time);
+  node.SetAttribute("navigate_nearest", data.navigate_nearest);
   node.SetAttribute("start_requires_arm",
                     data.start_constraints.require_arm);
   node.SetAttribute("start_score_exit",

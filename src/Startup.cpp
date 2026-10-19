@@ -3,6 +3,7 @@
 
 #include "Startup.hpp"
 #include "Interface.hpp"
+#include "ActionInterface.hpp"
 #include "Components.hpp"
 #include "NetComponents.hpp"
 #include "BackendComponents.hpp"
@@ -75,10 +76,15 @@
 #include "Hardware/DisplayDPI.hpp"
 #include "Hardware/DisplayGlue.hpp"
 #include "Screen/Layout.hpp"
+#include "ui/display/Display.hpp"
+#ifdef USE_WAYLAND
+#include "ui/display/wayland/Scale.hpp"
+#endif
 #include "util/Compiler.h"
 #include "NMEA/Aircraft.hpp"
 #include "Waypoint/Waypoints.hpp"
 #include "Waypoint/WaypointGlue.hpp"
+#include "Waypoint/Factory.hpp"
 #include "Storage/StorageManager.hpp"
 #include "DataLayoutMigration.hpp"
 
@@ -131,6 +137,7 @@
 #ifdef __APPLE__
 #include "Apple/Services.hpp"
 #include "Apple/BackgroundSave.hpp"
+#include "Apple/DarkMode.hpp"
 #endif
 
 #ifdef HAVE_EDL
@@ -190,9 +197,9 @@ AfterStartup()
     if (File::Exists(init_path))
       Lua::StartFile(init_path);
     else
-      LogDebug("Optional %s not found", init_path.c_str());
+      LogDebug("Optional {} not found", init_path.c_str());
   } catch (...) {
-    LogError(std::current_exception());
+    LogError(std::current_exception(), "Lua init script failed");
   }
 
   if (is_simulator()) {
@@ -305,6 +312,11 @@ try {
 
   DataGlobals::UnsetTerrain();
   DataGlobals::SetTerrain(std::move(new_terrain));
+
+  /* the waypoints were usually read before the terrain was there */
+  if (data_components->terrain && data_components->waypoints)
+    UpdateTerrainElevations(*data_components->waypoints,
+                            *data_components->terrain);
   DataGlobals::UpdateHome(false);
 
   SetAirspaceGroundLevels(*data_components->airspaces,
@@ -352,6 +364,14 @@ Startup(UI::Display &display)
   if (!main_window->IsDefined())
     return false;
 
+#ifdef __APPLE__
+  /* inherit the system appearance; this must happen after the window
+     exists, because on iOS the appearance is read from the window
+     scene, and before anything builds a Look or shows the progress
+     window */
+  UpdateAppleDarkMode();
+#endif
+
 #ifdef ENABLE_OPENGL
   LogFmt("OpenGL: "
 #ifdef HAVE_DYNAMIC_MULTI_DRAW_ARRAYS
@@ -377,6 +397,15 @@ Startup(UI::Display &display)
 
   CommonInterface::SetUISettings().SetDefaults();
   main_window->Initialise();
+
+#ifdef ANDROID
+  /* surfaceChanged may have reported insets before the event queue
+     existed; ask again and apply them before the Fly/Simulator
+     dialog is created */
+  if (native_view != nullptr)
+    native_view->ReportSize(Java::GetEnv());
+  main_window->PublishSafeAreaInsets();
+#endif
 
 #ifdef SIMULATOR_AVAILABLE
   // prompt for simulator if not set by command line argument "-simulator" or "-fly"
@@ -426,6 +455,16 @@ Startup(UI::Display &display)
   InitializeAppleBackgroundSave();
 #endif
 
+  /* Display type and Text size come from the profile.  The first
+     MainWindow::Initialise() ran with defaults; apply profile layout
+     now so post-profile startup UI (progress, orientation reload)
+     uses e-paper / OEM text compensation.  Look fonts reload again at
+     InitialiseConfigured(). */
+  SetDisplayType(ui_settings.display.display_type);
+  Layout::Initialise(main_window->GetDisplay(), main_window->GetSize(),
+                     ui_settings.GetPercentScale(), ui_settings.custom_dpi,
+                     ui_settings.viewing_distance);
+
   operation.SetText(_("Initialising"));
 
   /* create XCSoarData on the first start */
@@ -436,17 +475,15 @@ Startup(UI::Display &display)
 #endif
 
 #ifdef ANDROID
-  {
-    const auto env = Java::GetEnv();
-    native_view->AcquireWakeLock(env);
-    native_view->SetFullScreen(env, ui_settings.display.full_screen);
-  }
+  native_view->AcquireWakeLock(Java::GetEnv());
+#endif
+
+#ifdef HAVE_FULL_SCREEN_SETTING
+  main_window->ApplyFullScreenSettings();
 #endif
 
   Display::LoadOrientation(operation);
   main_window->CheckResize();
-
-  SetDisplayType(CommonInterface::GetUISettings().display.display_type);
 
   {
     const PixelSize size = main_window->GetSize();
@@ -457,6 +494,16 @@ Startup(UI::Display &display)
            dpi.x > 0 ? double(size.width) / dpi.x : 0.,
            dpi.y > 0 ? double(size.height) / dpi.y : 0.,
            Layout::small_screen);
+#ifdef USE_WAYLAND
+    const auto hardware = display.GetHardwareSize();
+    const auto logical = display.GetSize();
+    const auto output_mm = display.GetSizeMM();
+    LogFmt("Monitor: {}x{} dpi={},{} {}x{}mm logical={}x{} scale={:.2f}",
+           hardware.width, hardware.height, dpi.x, dpi.y,
+           output_mm.width, output_mm.height,
+           logical.width, logical.height,
+           display.GetScale120() / (double)Wayland::SCALE_100);
+#endif
   }
 
   /* Log device capabilities and features after initialization */
@@ -553,6 +600,8 @@ Startup(UI::Display &display)
   backend_components->glide_computer->SetTerrain(data_components->terrain.get());
   backend_components->glide_computer->SetLogger(backend_components->igc_logger.get());
   backend_components->glide_computer->Initialise();
+  backend_components->glide_computer->GetFlarmRange()
+    .Load(LocalPath("flarm-range.txt"));
 
   backend_components->replay =
     std::make_unique<Replay>(*backend_components->device_blackboard,
@@ -562,7 +611,8 @@ Startup(UI::Display &display)
 #ifdef HAVE_CMDLINE_REPLAY
   if (CommandLine::replay_path != nullptr) {
     try {
-      backend_components->replay->Start(Path(CommandLine::replay_path));
+      backend_components->replay->Start(Path(CommandLine::replay_path),
+        CommonInterface::GetSystemSettings().devices[0]);
     } catch (...) {
       LogError(std::current_exception());
     }
@@ -577,7 +627,7 @@ Startup(UI::Display &display)
 
   GlidePolar &gp = CommonInterface::SetComputerSettings().polar.glide_polar_task;
   gp = GlidePolar(0);
-  gp.SetMC(computer_settings.task.safety_mc);
+  gp.SetMC(computer_settings.task.task_mc);
   gp.SetBugs(computer_settings.polar.degradation_factor);
   gp.SetCrewMass(computer_settings.logger.crew_mass_template);
   PlaneGlue::FromProfile(CommonInterface::SetComputerSettings().plane,
@@ -615,14 +665,14 @@ Startup(UI::Display &display)
   }
 
   // Set the home waypoint
+  auto &settings = CommonInterface::SetComputerSettings();
   WaypointGlue::SetHome(*data_components->waypoints,
-                        data_components->terrain.get(),
-                        CommonInterface::SetComputerSettings().poi,
-                        CommonInterface::SetComputerSettings().team_code,
-                        backend_components->device_blackboard.get(),
+                        settings.poi, settings.team_code,
                         false);
+  ActionInterface::SetStartupLocation();
 
-  // ReSynchronise the blackboards here since SetHome touches them
+  // ReSynchronise the blackboards here since SetStartupLocation
+  // touches them
   backend_components->device_blackboard->Merge();
   CommonInterface::ReadBlackboardBasic(backend_components->device_blackboard->Basic());
 
@@ -914,6 +964,9 @@ Shutdown()
       backend_components->calculation_thread->Join();
       backend_components->calculation_thread.reset();
     }
+
+    if (backend_components->glide_computer)
+      backend_components->glide_computer->GetFlarmRange().Close();
   }
 
   //  Wait for the drawing thread to finish

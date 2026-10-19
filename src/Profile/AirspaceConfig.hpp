@@ -23,6 +23,8 @@ namespace Profile
    * @param i Airspace class index
    */
   void SetAirspaceMode(ProfileMap &map, unsigned i, bool display, bool warning);
+  void SetAirspaceClearance(ProfileMap &map, unsigned i,
+                            bool clearance_allowed);
   void SetAirspaceBorderWidth(ProfileMap &map,
                               unsigned i, unsigned border_width);
   void SetAirspaceBorderColor(ProfileMap &map,
@@ -30,5 +32,4 @@ namespace Profile
   void SetAirspaceFillColor(ProfileMap &map,
                             unsigned i, const RGB8Color &color);
   void SetAirspaceFillMode(ProfileMap &map, unsigned i, uint8_t mode);
-  void SetAirspaceBrush(ProfileMap &map, unsigned i, int c);
 };
